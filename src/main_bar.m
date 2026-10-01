@@ -19,6 +19,7 @@
 - (void)showAbout:(id)sender;
 - (void)setOrderCustom:(id)sender;
 - (void)configureAppOrder:(id)sender;
+- (void)checkPermissionsChange;
 - (NSImage *)cascadeAppIcon;
 @end
 
@@ -68,8 +69,13 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
         [self.watcher startWatching];
     }
 
-    // 2. Prompt for Accessibility if not already granted
+    // 2. Prompt for Accessibility and observe permission changes
     [CascadeEngine isAccessibilityTrustedWithPrompt:YES];
+    [[[NSWorkspace sharedWorkspace] notificationCenter] addObserver:self
+                                                           selector:@selector(checkPermissionsChange)
+                                                               name:NSWorkspaceDidActivateApplicationNotification
+                                                             object:nil];
+    [NSTimer scheduledTimerWithTimeInterval:2.0 target:self selector:@selector(checkPermissionsChange) userInfo:nil repeats:YES];
 
     // 3. Setup Status Bar Item
     self.statusItem = [[NSStatusBar systemStatusBar] statusItemWithLength:NSVariableStatusItemLength];
@@ -288,17 +294,24 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
     [NSApp orderFrontStandardAboutPanelWithOptions:options];
 }
 
-- (void)menuWillOpen:(NSMenu *)menu {
-    (void)menu;
+- (void)checkPermissionsChange {
     static BOOL lastTrusted = NO;
     BOOL current = [CascadeEngine isAccessibilityTrustedWithPrompt:NO];
     if (current != lastTrusted) {
         lastTrusted = current;
         if (current) {
             [self.watcher refreshObservers];
+            if ([CascadeEngine savedAutoRearrange] && !self.watcher.isWatching) {
+                [self.watcher startWatching];
+            }
         }
         [self rebuildMenu];
     }
+}
+
+- (void)menuWillOpen:(NSMenu *)menu {
+    (void)menu;
+    [self checkPermissionsChange];
 }
 
 - (void)rearrangePreservingOrder {
@@ -327,22 +340,22 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
 - (void)performCascade:(id)sender {
     (void)sender;
     if (![CascadeEngine isAccessibilityTrustedWithPrompt:NO]) {
-        [CascadeEngine isAccessibilityTrustedWithPrompt:YES];
-        [self rebuildMenu];
-
-        NSAlert *alert = [[NSAlert alloc] init];
-        alert.messageText = @"Accessibility Permission Required";
-        alert.informativeText = @"Cascade needs Accessibility permission to move and resize windows.\n\nPlease enable Cascade in System Settings > Privacy & Security > Accessibility.";
-        NSImage *appIcon = [self cascadeAppIcon];
-        if (appIcon) {
-            alert.icon = appIcon;
+        if ([CascadeEngine isAccessibilityTrustedWithPrompt:YES]) {
+            [self checkPermissionsChange];
+        } else {
+            [self rebuildMenu];
+            NSAlert *alert = [[NSAlert alloc] init];
+            alert.messageText = @"Accessibility Permission Required";
+            alert.informativeText = @"Cascade needs Accessibility permission to move and resize windows.\n\nPlease enable Cascade in System Settings > Privacy & Security > Accessibility.";
+            NSImage *appIcon = [self cascadeAppIcon];
+            if (appIcon) alert.icon = appIcon;
+            [alert addButtonWithTitle:@"Open System Settings"];
+            [alert addButtonWithTitle:@"Cancel"];
+            if ([alert runModal] == NSAlertFirstButtonReturn) {
+                [CascadeEngine openAccessibilitySettings];
+            }
+            return;
         }
-        [alert addButtonWithTitle:@"Open System Settings"];
-        [alert addButtonWithTitle:@"Cancel"];
-        if ([alert runModal] == NSAlertFirstButtonReturn) {
-            [CascadeEngine openAccessibilitySettings];
-        }
-        return;
     }
 
     [self.watcher refreshObservers];

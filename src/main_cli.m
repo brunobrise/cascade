@@ -76,7 +76,8 @@ static void printHelp(const char *prog) {
     printf("  --get-app-order      Print current preferred app order and exit\n");
     printf("  --start-at-login <op> Enable, disable, or query login item ('enable'|'disable'|'status')\n");
     printf("  --only <apps>        Comma-separated list of app names to include\n");
-    printf("  --exclude <apps>     Comma-separated list of app names to exclude\n");
+    printf("  --check-permissions Run diagnostic tests on Accessibility permissions and exit\n");
+    printf("  --open-permissions  Open System Settings directly to Accessibility panel and exit\n");
     printf("  --help, -h           Show this help message\n");
 }
 
@@ -185,6 +186,26 @@ int main(int argc, const char * argv[]) {
             } else if ([arg isEqualToString:@"--exclude"] && i + 1 < argc) {
                 NSString *csv = [NSString stringWithUTF8String:argv[++i]];
                 excludeApps = [csv componentsSeparatedByString:@","];
+            } else if ([arg isEqualToString:@"--check-permissions"]) {
+                NSDictionary *d = [CascadeEngine accessibilityDiagnostics];
+                BOOL ok = [d[@"trusted"] boolValue];
+                printf("Cascade Accessibility Diagnostics:\n");
+                printf("  Host Application:    %s\n", [d[@"hostApp"] UTF8String]);
+                printf("  TCC Process Trusted: %s\n", [d[@"apiTrusted"] boolValue] ? "YES" : "NO");
+                printf("  Live AX Probe:       %s (AXError: %ld)\n",
+                       [d[@"functional"] boolValue] ? "FUNCTIONAL" : "DISABLED",
+                       (long)[d[@"errorCode"] integerValue]);
+                printf("  Effective Status:    %s\n", ok ? "GRANTED (Ready)" : "DENIED (Action Required)");
+                if (!ok) {
+                    printf("\nAction Required:\n");
+                    printf("  Enable your terminal (%s) and Cascade in System Settings > Privacy & Security > Accessibility\n", [d[@"hostApp"] UTF8String]);
+                    printf("  Or run: cascade --open-permissions\n");
+                }
+                return ok ? 0 : 1;
+            } else if ([arg isEqualToString:@"--open-permissions"]) {
+                [CascadeEngine openAccessibilitySettings];
+                printf("Opened System Settings > Privacy & Security > Accessibility\n");
+                return 0;
             } else if ([arg isEqualToString:@"--help"] || [arg isEqualToString:@"-h"]) {
                 printHelp(argv[0]);
                 return 0;
@@ -192,13 +213,20 @@ int main(int argc, const char * argv[]) {
         }
 
         if (![CascadeEngine isAccessibilityTrustedWithPrompt:YES]) {
+            NSDictionary *d = [CascadeEngine accessibilityDiagnostics];
             fprintf(stderr, "\n============================================================\n");
             fprintf(stderr, "Error: Accessibility permission is required for Cascade.\n\n");
+            fprintf(stderr, "Diagnostics:\n");
+            fprintf(stderr, "  Host Application: %s\n", [d[@"hostApp"] UTF8String]);
+            fprintf(stderr, "  TCC Trusted:      %s\n", [d[@"apiTrusted"] boolValue] ? "YES" : "NO");
+            fprintf(stderr, "  Live Probe:       %s (AXError: %ld)\n\n",
+                    [d[@"functional"] boolValue] ? "FUNCTIONAL" : "DISABLED",
+                    (long)[d[@"errorCode"] integerValue]);
             fprintf(stderr, "To enable:\n");
             fprintf(stderr, "  1. Open System Settings > Privacy & Security > Accessibility\n");
-            fprintf(stderr, "  2. Ensure Cascade (and your Terminal app) are enabled\n\n");
-            fprintf(stderr, "Or run this command to jump directly to settings:\n");
-            fprintf(stderr, "  open \"x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility\"\n");
+            fprintf(stderr, "  2. Ensure %s and Cascade are enabled\n\n", [d[@"hostApp"] UTF8String]);
+            fprintf(stderr, "Or run:\n");
+            fprintf(stderr, "  cascade --open-permissions\n");
             fprintf(stderr, "============================================================\n\n");
             return 1;
         }

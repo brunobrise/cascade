@@ -24,6 +24,7 @@ typedef NS_ENUM(NSInteger, CascadeOrderMode) {
 + (CGRect)usableScreenFrameWithTopInset:(CGFloat *)outTopInset;
 + (BOOL)isAccessibilityTrustedWithPrompt:(BOOL)prompt;
 + (void)openAccessibilitySettings;
++ (NSDictionary<NSString *, id> *)accessibilityDiagnostics;
 + (NSArray<CascadeWindow *> *)collectStandardWindowsWithOnly:(NSArray<NSString *> *)onlyApps
                                                       exclude:(NSArray<NSString *> *)excludeApps;
 + (NSUserDefaults *)userDefaults;

@@ -7,21 +7,13 @@
 
 - (BOOL)matchesWindow:(CascadeWindow *)other {
     if (!other) return NO;
-    if (self.axRef && other.axRef && CFEqual(self.axRef, other.axRef)) {
-        return YES;
-    }
+    if (self.axRef && other.axRef && CFEqual(self.axRef, other.axRef)) return YES;
     if (self.pid == other.pid && self.pid != 0) {
-        if (self.title.length > 0 && other.title.length > 0) {
-            return [self.title isEqualToString:other.title];
-        }
-        if ([self.appName isEqualToString:other.appName]) {
-            return YES;
-        }
+        if (self.title.length > 0 && other.title.length > 0) return [self.title isEqualToString:other.title];
+        if ([self.appName isEqualToString:other.appName]) return YES;
     }
-    if (self.appName.length > 0 && other.appName.length > 0 && [self.appName isEqualToString:other.appName]) {
-        if (self.title.length > 0 && other.title.length > 0) {
-            return [self.title isEqualToString:other.title];
-        }
+    if (self.appName.length > 0 && [self.appName isEqualToString:other.appName]) {
+        if (self.title.length > 0 && other.title.length > 0) return [self.title isEqualToString:other.title];
         return YES;
     }
     return NO;
@@ -41,17 +33,54 @@
     return CGRectMake(visibleFrame.origin.x, topInset, visibleFrame.size.width, visibleFrame.size.height);
 }
 
++ (NSDictionary<NSString *, id> *)accessibilityDiagnostics {
+    BOOL apiTrusted = AXIsProcessTrusted();
+    BOOL functional = YES;
+    NSInteger errorCode = 0;
+
+    AXUIElementRef sysWide = AXUIElementCreateSystemWide();
+    if (sysWide) {
+        CFTypeRef focusedApp = NULL;
+        AXError err = AXUIElementCopyAttributeValue(sysWide, kAXFocusedApplicationAttribute, &focusedApp);
+        CFRelease(sysWide);
+        if (focusedApp) CFRelease(focusedApp);
+        errorCode = (NSInteger)err;
+        if (err == kAXErrorAPIDisabled) functional = NO;
+    } else {
+        functional = NO;
+    }
+
+    NSString *parentApp = @"Unknown";
+    NSRunningApplication *parent = [[NSWorkspace sharedWorkspace] frontmostApplication];
+    if (parent) parentApp = parent.localizedName ?: @"Unknown";
+
+    return @{
+        @"apiTrusted": @(apiTrusted),
+        @"functional": @(functional),
+        @"errorCode": @(errorCode),
+        @"trusted": @(apiTrusted && functional),
+        @"hostApp": parentApp
+    };
+}
+
 + (BOOL)isAccessibilityTrustedWithPrompt:(BOOL)prompt {
     if (prompt) {
         NSDictionary *options = @{(__bridge id)kAXTrustedCheckOptionPrompt: @YES};
-        return AXIsProcessTrustedWithOptions((__bridge CFDictionaryRef)options);
+        AXIsProcessTrustedWithOptions((__bridge CFDictionaryRef)options);
     }
-    return AXIsProcessTrusted();
+    NSDictionary *diag = [self accessibilityDiagnostics];
+    return [diag[@"trusted"] boolValue];
 }
 
 + (void)openAccessibilitySettings {
-    NSURL *url = [NSURL URLWithString:@"x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"];
-    [[NSWorkspace sharedWorkspace] openURL:url];
+    NSArray *urls = @[
+        @"x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility",
+        @"x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_Accessibility"
+    ];
+    for (NSString *str in urls) {
+        if ([[NSWorkspace sharedWorkspace] openURL:[NSURL URLWithString:str]]) return;
+    }
+    [[NSWorkspace sharedWorkspace] openURL:[NSURL fileURLWithPath:@"/System/Applications/System Settings.app"]];
 }
 
 + (NSArray<CascadeWindow *> *)collectStandardWindowsWithOnly:(NSArray<NSString *> *)onlyApps
@@ -265,15 +294,11 @@ static NSInteger rankForApp(NSString *appName, NSArray<NSString *> *preferred) {
     NSMutableArray<CascadeWindow *> *sorted = [windows mutableCopy];
     if (orderMode == CascadeOrderModeMRU) {
         [sorted sortUsingComparator:^NSComparisonResult(CascadeWindow *a, CascadeWindow *b) {
-            if (a.zRank < b.zRank) return NSOrderedAscending;
-            if (a.zRank > b.zRank) return NSOrderedDescending;
-            return NSOrderedSame;
+            return a.zRank < b.zRank ? NSOrderedAscending : (a.zRank > b.zRank ? NSOrderedDescending : NSOrderedSame);
         }];
     } else if (orderMode == CascadeOrderModeSpatial) {
         [sorted sortUsingComparator:^NSComparisonResult(CascadeWindow *a, CascadeWindow *b) {
-            if (a.currentFrame.origin.x < b.currentFrame.origin.x) return NSOrderedAscending;
-            if (a.currentFrame.origin.x > b.currentFrame.origin.x) return NSOrderedDescending;
-            return NSOrderedSame;
+            return a.currentFrame.origin.x < b.currentFrame.origin.x ? NSOrderedAscending : (a.currentFrame.origin.x > b.currentFrame.origin.x ? NSOrderedDescending : NSOrderedSame);
         }];
     } else if (orderMode == CascadeOrderModeAlphabetical) {
         [sorted sortUsingComparator:^NSComparisonResult(CascadeWindow *a, CascadeWindow *b) {
@@ -281,12 +306,9 @@ static NSInteger rankForApp(NSString *appName, NSArray<NSString *> *preferred) {
         }];
     } else if (orderMode == CascadeOrderModeCustom) {
         [sorted sortUsingComparator:^NSComparisonResult(CascadeWindow *a, CascadeWindow *b) {
-            NSInteger rankA = rankForApp(a.appName, preferredOrder);
-            NSInteger rankB = rankForApp(b.appName, preferredOrder);
-            if (rankA < rankB) return NSOrderedAscending;
-            if (rankA > rankB) return NSOrderedDescending;
-            if (a.zRank < b.zRank) return NSOrderedAscending;
-            if (a.zRank > b.zRank) return NSOrderedDescending;
+            NSInteger rA = rankForApp(a.appName, preferredOrder), rB = rankForApp(b.appName, preferredOrder);
+            if (rA != rB) return rA < rB ? NSOrderedAscending : NSOrderedDescending;
+            if (a.zRank != b.zRank) return a.zRank < b.zRank ? NSOrderedAscending : NSOrderedDescending;
             return [a.appName localizedCaseInsensitiveCompare:b.appName];
         }];
     }
@@ -358,34 +380,23 @@ static NSInteger rankForApp(NSString *appName, NSArray<NSString *> *preferred) {
         }
     }
 
-    // 2. Append any newly opened windows at the end so existing window positions/order are untouched
-    if (remaining.count > 0) {
-        [ordered addObjectsFromArray:remaining];
-    }
-
-    // 3. Recalculate target sizes and slot coordinates strictly based on the preserved sequence
+    if (remaining.count > 0) [ordered addObjectsFromArray:remaining];
     [self assignFramesToOrderedWindows:ordered delta:delta];
     return ordered;
 }
 
-+ (void)applyLayoutToWindows:(NSArray<CascadeWindow *> *)windows
-                    restackZ:(BOOL)restackZ {
++ (void)applyLayoutToWindows:(NSArray<CascadeWindow *> *)windows restackZ:(BOOL)restackZ {
     for (CascadeWindow *cw in windows) {
-        CGRect tf = cw.targetFrame;
-        CGPoint targetPos = CGPointMake(tf.origin.x, tf.origin.y);
-        CGSize targetSize = CGSizeMake(tf.size.width, tf.size.height);
-
+        CGPoint targetPos = cw.targetFrame.origin;
+        CGSize targetSize = cw.targetFrame.size;
         AXValueRef posVal = AXValueCreate(kAXValueTypeCGPoint, &targetPos);
         AXValueRef sizeVal = AXValueCreate(kAXValueTypeCGSize, &targetSize);
-
         AXUIElementSetAttributeValue(cw.axRef, kAXPositionAttribute, posVal);
         AXUIElementSetAttributeValue(cw.axRef, kAXSizeAttribute, sizeVal);
         AXUIElementSetAttributeValue(cw.axRef, kAXPositionAttribute, posVal);
-
         if (posVal) CFRelease(posVal);
         if (sizeVal) CFRelease(sizeVal);
     }
-
     if (restackZ) {
         for (NSInteger i = (NSInteger)windows.count - 1; i >= 0; i--) {
             AXUIElementPerformAction(windows[i].axRef, kAXRaiseAction);

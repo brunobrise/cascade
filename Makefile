@@ -5,7 +5,7 @@ BUILD_DIR = build
 INSTALL_BIN = $(HOME)/.local/bin
 INSTALL_APP = $(HOME)/Applications
 
-.PHONY: all build clean test run run-cli apply watch stop restart status install uninstall login-enable login-disable login-status help
+.PHONY: all build clean test run run-cli apply watch stop restart status install uninstall login-enable login-disable login-status check-permissions open-permissions help
 
 all: build
 
@@ -13,22 +13,24 @@ help:
 	@echo "Cascade - Window Management Build System"
 	@echo ""
 	@echo "Available commands:"
-	@echo "  make build         Build CLI binary and Status Bar application bundle"
-	@echo "  make icon          Generate multi-resolution macOS AppIcon.icns"
-	@echo "  make test          Compile and run all test suites"
-	@echo "  make install       Install CLI to $(INSTALL_BIN) and App to $(INSTALL_APP)"
-	@echo "  make uninstall     Remove installed binaries and app bundle"
-	@echo "  make run           Launch the Status Bar app (Cascade.app)"
-	@echo "  make run-cli       Run the CLI in preview mode (--plan)"
-	@echo "  make apply         Run the CLI to cascade windows immediately (--apply)"
-	@echo "  make watch         Run the CLI in continuous watcher mode (--watch)"
-	@echo "  make login-enable  Register Cascade to start automatically at login"
-	@echo "  make login-disable Unregister Cascade from starting at login"
-	@echo "  make login-status  Check start-at-login status"
-	@echo "  make stop          Terminate any running Cascade instance"
-	@echo "  make restart       Stop and re-launch Cascade.app"
-	@echo "  make status        Check whether Cascade.app is currently running"
-	@echo "  make clean         Remove build artifacts"
+	@echo "  make build             Build CLI binary and Status Bar application bundle"
+	@echo "  make icon              Generate multi-resolution macOS AppIcon.icns"
+	@echo "  make test              Compile and run all test suites"
+	@echo "  make install           Install CLI to $(INSTALL_BIN) and App to $(INSTALL_APP)"
+	@echo "  make uninstall         Remove installed binaries and app bundle"
+	@echo "  make run               Launch the Status Bar app (Cascade.app)"
+	@echo "  make run-cli           Run the CLI in preview mode (--plan)"
+	@echo "  make apply             Run the CLI to cascade windows immediately (--apply)"
+	@echo "  make watch             Run the CLI in continuous watcher mode (--watch)"
+	@echo "  make check-permissions Check macOS Accessibility permissions and diagnostic probe"
+	@echo "  make open-permissions  Open macOS Accessibility settings pane"
+	@echo "  make login-enable      Register Cascade to start automatically at login"
+	@echo "  make login-disable     Unregister Cascade from starting at login"
+	@echo "  make login-status      Check start-at-login status"
+	@echo "  make stop              Terminate any running Cascade instance"
+	@echo "  make restart           Stop and re-launch Cascade.app"
+	@echo "  make status            Check whether Cascade.app is currently running"
+	@echo "  make clean             Remove build artifacts"
 	@echo ""
 
 build: $(BUILD_DIR)/cascade $(BUILD_DIR)/Cascade.app
@@ -122,6 +124,12 @@ apply: $(BUILD_DIR)/cascade
 
 watch: $(BUILD_DIR)/cascade
 	./$(BUILD_DIR)/cascade --watch
+
+check-permissions: $(BUILD_DIR)/cascade
+	@./$(BUILD_DIR)/cascade --check-permissions || true
+
+open-permissions: $(BUILD_DIR)/cascade
+	./$(BUILD_DIR)/cascade --open-permissions
 
 stop:
 	@pkill -x Cascade 2>/dev/null || true

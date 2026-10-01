@@ -47,8 +47,10 @@ make test          # Run the unit test suite
 make run           # Launch Cascade.app into the status bar
 make run-cli       # Preview layout in terminal (--plan)
 make apply         # Cascade windows immediately (--apply)
-make watch         # Continuously watch and auto-rearrange on window lifecycle
-make login-enable  # Register Cascade to start at login
+make watch             # Continuously watch and auto-rearrange on window lifecycle
+make check-permissions # Check accessibility permissions and diagnostic probe
+make open-permissions  # Open macOS Accessibility settings pane
+make login-enable      # Register Cascade to start at login
 make login-status  # Check login item registration status
 make login-disable # Unregister Cascade from login items
 make status        # Check if Cascade is running
@@ -129,6 +131,12 @@ cascade --start-at-login disable
 
 # Arrange only specific applications
 cascade --only "Cursor,Google Chrome" --apply
+
+# Check accessibility permissions and probe diagnostics
+cascade --check-permissions
+
+# Open Accessibility settings pane in System Settings
+cascade --open-permissions
 ```
 
 ## Documentation
@@ -139,6 +147,7 @@ cascade --only "Cursor,Google Chrome" --apply
 - [Order Preservation Story](docs/stories/01a0f7ec7c122619-order-preservation-success.md)
 - [Preferred App Order Story](docs/stories/01a0f7ec7c122619-preferred-app-order-success.md)
 - [User Preferences Persistence Story](docs/stories/01a0f7ec7c122619-user-preferences-persistence-success.md)
+- [Resilient Permissions Story](docs/stories/01a0f7ec7c122619-resilient-permissions-check-success.md)
 - [Accessibility & Code Signing Postmortem](docs/stories/01a0f7ec7c122619-accessibility-code-signing-postmortem.md)
 
 ## License

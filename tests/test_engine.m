@@ -275,6 +275,22 @@ static void testPreferencesPersistence() {
     printf("  [PASS] All user preferences round-trip and persist via shared storage.\n");
 }
 
+static void testAccessibilityDiagnostics() {
+    printf("Running testAccessibilityDiagnostics...\n");
+    NSDictionary *diag = [CascadeEngine accessibilityDiagnostics];
+    assert(diag != nil);
+    assert(diag[@"apiTrusted"] != nil);
+    assert(diag[@"functional"] != nil);
+    assert(diag[@"errorCode"] != nil);
+    assert(diag[@"trusted"] != nil);
+    assert([diag[@"hostApp"] isKindOfClass:[NSString class]]);
+
+    BOOL trusted = [CascadeEngine isAccessibilityTrustedWithPrompt:NO];
+    assert(trusted == [diag[@"trusted"] boolValue]);
+
+    printf("  [PASS] Active accessibility probe and diagnostics verified.\n");
+}
+
 int main(int argc, const char * argv[]) {
     (void)argc;
     (void)argv;
@@ -288,6 +304,7 @@ int main(int argc, const char * argv[]) {
         testOrderPreservationOnResize();
         testPreferredAppOrderSorting();
         testPreferencesPersistence();
+        testAccessibilityDiagnostics();
         printf("\n=== All Tests Passed Successfully! ===\n");
     }
     return 0;
