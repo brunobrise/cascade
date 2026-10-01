@@ -39,7 +39,16 @@ int main(int argc, const char * argv[]) {
         assert(delegate.changeDetected);
         printf("  [PASS] Debounced lifecycle change callback fired.\n");
 
-        // 3. Test stopWatching
+        // 3. Test suppression (Cascade apply layout without triggering watcher)
+        delegate.changeDetected = NO;
+        [watcher performWithoutTriggering:^{
+            [watcher scheduleDebouncedChange];
+        }];
+        [[NSRunLoop currentRunLoop] runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.1]];
+        assert(!delegate.changeDetected);
+        printf("  [PASS] performWithoutTriggering successfully suppressed notification.\n");
+
+        // 4. Test stopWatching
         [watcher stopWatching];
         assert(!watcher.isWatching);
         printf("  [PASS] stopWatching cleaned up observers.\n");

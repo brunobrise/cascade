@@ -15,6 +15,7 @@ typedef NS_ENUM(NSInteger, CascadeOrderMode) {
 @property (nonatomic, assign) CGRect currentFrame;
 @property (nonatomic, assign) CGRect targetFrame;
 @property (nonatomic, assign) NSInteger zRank;
+- (BOOL)matchesWindow:(CascadeWindow *)other;
 @end
 
 @interface CascadeEngine : NSObject
@@ -26,6 +27,9 @@ typedef NS_ENUM(NSInteger, CascadeOrderMode) {
                                                       exclude:(NSArray<NSString *> *)excludeApps;
 + (NSArray<CascadeWindow *> *)calculateLayoutForWindows:(NSArray<CascadeWindow *> *)windows
                                               orderMode:(CascadeOrderMode)orderMode
+                                                  delta:(CGFloat)delta;
++ (NSArray<CascadeWindow *> *)calculateLayoutForWindows:(NSArray<CascadeWindow *> *)windows
+                                    preservingOrderFrom:(NSArray<CascadeWindow *> *)previousOrder
                                                   delta:(CGFloat)delta;
 + (void)applyLayoutToWindows:(NSArray<CascadeWindow *> *)windows
                     restackZ:(BOOL)restackZ;

@@ -7,7 +7,7 @@ static CascadeWindow *makeMockWindow(NSString *name, CGFloat x, CGFloat y, CGFlo
     CascadeWindow *win = [[CascadeWindow alloc] init];
     win.appName = name;
     win.title = [NSString stringWithFormat:@"%@ Window", name];
-    win.pid = 1000 + (pid_t)zRank;
+    win.pid = (pid_t)(abs((int)[name hash]) % 9000 + 1000);
     win.currentFrame = CGRectMake(x, y, w, h);
     win.zRank = zRank;
     return win;
@@ -112,6 +112,101 @@ static void testSortingModes() {
     printf("  [PASS] All 3 sorting modes correctly ordered.\n");
 }
 
+static void testOrderPreservationOnWindowClose() {
+    printf("Running testOrderPreservationOnWindowClose...\n");
+    CascadeWindow *winA = makeMockWindow(@"Editor", 0, 0, 800, 600, 1);
+    CascadeWindow *winB = makeMockWindow(@"Browser", 100, 100, 800, 600, 2);
+    CascadeWindow *winC = makeMockWindow(@"Terminal", 200, 200, 800, 600, 3);
+
+    // Initial established order: Editor -> Browser -> Terminal
+    NSArray<CascadeWindow *> *initialOrder = @[winA, winB, winC];
+    NSArray<CascadeWindow *> *baseline = [CascadeEngine calculateLayoutForWindows:initialOrder
+                                                                        orderMode:CascadeOrderModeMRU
+                                                                            delta:40.0];
+    assert(baseline.count == 3);
+    assert([baseline[0].appName isEqualToString:@"Editor"]);
+    assert([baseline[1].appName isEqualToString:@"Browser"]);
+    assert([baseline[2].appName isEqualToString:@"Terminal"]);
+
+    // Event: Browser is closed/minimized. Terminal is now frontmost (zRank 1).
+    CascadeWindow *winC_active = makeMockWindow(@"Terminal", 200, 200, 800, 600, 1);
+    CascadeWindow *winA_back = makeMockWindow(@"Editor", 0, 0, 800, 600, 2);
+    NSArray<CascadeWindow *> *currentWindows = @[winC_active, winA_back];
+
+    // Preserving order must keep Editor at slot 0 and Terminal at slot 1
+    NSArray<CascadeWindow *> *preserved = [CascadeEngine calculateLayoutForWindows:currentWindows
+                                                              preservingOrderFrom:baseline
+                                                                            delta:40.0];
+    assert(preserved.count == 2);
+    assert([preserved[0].appName isEqualToString:@"Editor"]);
+    assert([preserved[1].appName isEqualToString:@"Terminal"]);
+
+    // Windows must expand to 2-window dimensions (usableW - delta)
+    CGFloat topInset = 0;
+    CGRect usable = [CascadeEngine usableScreenFrameWithTopInset:&topInset];
+    assert(fabs(preserved[0].targetFrame.size.width - (usable.size.width - 40.0)) < 0.01);
+    assert(fabs(preserved[1].targetFrame.size.width - (usable.size.width - 40.0)) < 0.01);
+    printf("  [PASS] Order preserved on window close and size recalculated.\n");
+}
+
+static void testOrderPreservationOnNewWindow() {
+    printf("Running testOrderPreservationOnNewWindow...\n");
+    CascadeWindow *winA = makeMockWindow(@"Editor", 0, 0, 800, 600, 1);
+    CascadeWindow *winC = makeMockWindow(@"Terminal", 200, 200, 800, 600, 2);
+
+    NSArray<CascadeWindow *> *baseline = [CascadeEngine calculateLayoutForWindows:@[winA, winC]
+                                                                        orderMode:CascadeOrderModeMRU
+                                                                            delta:40.0];
+
+    // Event: New window (Slack) opens and becomes frontmost (zRank 1)
+    CascadeWindow *winD_new = makeMockWindow(@"Slack", 50, 50, 400, 400, 1);
+    CascadeWindow *winA_curr = makeMockWindow(@"Editor", 0, 0, 800, 600, 2);
+    CascadeWindow *winC_curr = makeMockWindow(@"Terminal", 200, 200, 800, 600, 3);
+    NSArray<CascadeWindow *> *currentWindows = @[winD_new, winA_curr, winC_curr];
+
+    NSArray<CascadeWindow *> *preserved = [CascadeEngine calculateLayoutForWindows:currentWindows
+                                                              preservingOrderFrom:baseline
+                                                                            delta:40.0];
+    assert(preserved.count == 3);
+    // Existing windows retain relative order: Editor (0), Terminal (1), Slack (2 appended)
+    assert([preserved[0].appName isEqualToString:@"Editor"]);
+    assert([preserved[1].appName isEqualToString:@"Terminal"]);
+    assert([preserved[2].appName isEqualToString:@"Slack"]);
+
+    printf("  [PASS] Existing order preserved when new window opens.\n");
+}
+
+static void testOrderPreservationOnResize() {
+    printf("Running testOrderPreservationOnResize...\n");
+    CascadeWindow *winA = makeMockWindow(@"Editor", 0, 0, 800, 600, 1);
+    CascadeWindow *winB = makeMockWindow(@"Browser", 100, 100, 800, 600, 2);
+    CascadeWindow *winC = makeMockWindow(@"Terminal", 200, 200, 800, 600, 3);
+
+    NSArray<CascadeWindow *> *baseline = [CascadeEngine calculateLayoutForWindows:@[winA, winB, winC]
+                                                                        orderMode:CascadeOrderModeMRU
+                                                                            delta:40.0];
+
+    // Event: Browser resized manually by user, bringing it to front
+    CascadeWindow *winB_resized = makeMockWindow(@"Browser", 50, 50, 1200, 900, 1);
+    CascadeWindow *winA_curr = makeMockWindow(@"Editor", 0, 0, 800, 600, 2);
+    CascadeWindow *winC_curr = makeMockWindow(@"Terminal", 200, 200, 800, 600, 3);
+    NSArray<CascadeWindow *> *currentWindows = @[winB_resized, winA_curr, winC_curr];
+
+    NSArray<CascadeWindow *> *preserved = [CascadeEngine calculateLayoutForWindows:currentWindows
+                                                              preservingOrderFrom:baseline
+                                                                            delta:40.0];
+    assert(preserved.count == 3);
+    assert([preserved[0].appName isEqualToString:@"Editor"]);
+    assert([preserved[1].appName isEqualToString:@"Browser"]);
+    assert([preserved[2].appName isEqualToString:@"Terminal"]);
+
+    // All windows must have uniform cascade dimensions
+    assert(fabs(preserved[0].targetFrame.size.width - preserved[1].targetFrame.size.width) < 0.01);
+    assert(fabs(preserved[1].targetFrame.size.width - preserved[2].targetFrame.size.width) < 0.01);
+
+    printf("  [PASS] Order preserved on resize event.\n");
+}
+
 int main(int argc, const char * argv[]) {
     (void)argc;
     (void)argv;
@@ -120,6 +215,9 @@ int main(int argc, const char * argv[]) {
         testTwoWindowLayout();
         testCascadeTabDisjointness();
         testSortingModes();
+        testOrderPreservationOnWindowClose();
+        testOrderPreservationOnNewWindow();
+        testOrderPreservationOnResize();
         printf("\n=== All Tests Passed Successfully! ===\n");
     }
     return 0;

@@ -13,9 +13,17 @@ skinparam state {
 
 [*] --> QueryWindows : Window Server Scan
 QueryWindows --> FilterStandard : Filter AXStandardWindow & Non-Minimized
-FilterStandard --> OrderWindows : Sort (MRU, Spatial, Alphabetical)
 
-state OrderWindows {
+state TriggerBranch <<choice>>
+FilterStandard --> TriggerBranch : Evaluate Trigger Source
+
+TriggerBranch --> ManualSort : Manual Trigger (Hotkey / Menu)
+TriggerBranch --> PreserveOrder : Event Trigger (New / Resize / Min / Close)
+
+ManualSort --> LayoutCalculation : Apply User Order (MRU/Spatial/Alpha)
+PreserveOrder --> LayoutCalculation : Preserve Existing Sequence (Just Change Size)
+
+state LayoutCalculation {
     [*] --> CheckCount
     CheckCount --> OpposedEdges : N = 2 (98% Area)
     CheckCount --> DiagonalCascade : N >= 3 (Invariant Tabs)
@@ -25,6 +33,13 @@ OpposedEdges --> CalculateTargetBounds : Set Opposing Bezel Margins
 DiagonalCascade --> CalculateTargetBounds : Set Diagonal Invariant Offsets
 
 CalculateTargetBounds --> ApplyGeometry : AXUIElementSetAttributeValue (pos, size)
-ApplyGeometry --> RestackZ : Optional Reverse-Z Raise (kAXRaiseAction)
-RestackZ --> [*] : Complete
+
+state RestackBranch <<choice>>
+ApplyGeometry --> RestackBranch : Check Event Type
+
+RestackBranch --> RestackZ : Manual & Restack Enabled (kAXRaiseAction)
+RestackBranch --> Complete : Automatic Event (Skip Restack to Keep Focus)
+
+RestackZ --> Complete
+Complete --> [*]
 @enduml

@@ -12,7 +12,9 @@
 @property (nonatomic, assign) BOOL restackZOrder;
 @property (nonatomic, assign) EventHotKeyRef hotKeyRef;
 @property (nonatomic, strong) WindowWatcher *watcher;
+@property (nonatomic, strong) NSArray<CascadeWindow *> *establishedOrder;
 - (void)performCascade:(id)sender;
+- (void)rearrangePreservingOrder;
 - (void)openAccessibilitySettings:(id)sender;
 - (void)showAbout:(id)sender;
 - (NSImage *)cascadeAppIcon;
@@ -224,7 +226,7 @@ static OSStatus HotKeyHandler(EventHandlerCallRef nextHandler, EventRef theEvent
 
 - (void)windowWatcherDidDetectChange:(WindowWatcher *)watcher {
     (void)watcher;
-    [self performCascade:nil];
+    [self rearrangePreservingOrder];
 }
 
 - (void)toggleStartAtLogin:(id)sender {
@@ -299,6 +301,29 @@ static OSStatus HotKeyHandler(EventHandlerCallRef nextHandler, EventRef theEvent
     }
 }
 
+- (void)rearrangePreservingOrder {
+    if (![CascadeEngine isAccessibilityTrustedWithPrompt:NO]) return;
+
+    [self.watcher performWithoutTriggering:^{
+        NSArray<CascadeWindow *> *windows = [CascadeEngine collectStandardWindowsWithOnly:nil exclude:nil];
+        if (windows.count == 0) return;
+
+        NSArray<CascadeWindow *> *planned = nil;
+        if (self.establishedOrder.count > 0) {
+            planned = [CascadeEngine calculateLayoutForWindows:windows
+                                           preservingOrderFrom:self.establishedOrder
+                                                         delta:self.delta];
+        } else {
+            planned = [CascadeEngine calculateLayoutForWindows:windows
+                                                     orderMode:self.orderMode
+                                                         delta:self.delta];
+        }
+        self.establishedOrder = planned;
+        // Event-driven rearrange does NOT restack Z, keeping current focus untouched
+        [CascadeEngine applyLayoutToWindows:planned restackZ:NO];
+    }];
+}
+
 - (void)performCascade:(id)sender {
     (void)sender;
     if (![CascadeEngine isAccessibilityTrustedWithPrompt:NO]) {
@@ -322,13 +347,16 @@ static OSStatus HotKeyHandler(EventHandlerCallRef nextHandler, EventRef theEvent
 
     [self.watcher refreshObservers];
 
-    NSArray<CascadeWindow *> *windows = [CascadeEngine collectStandardWindowsWithOnly:nil exclude:nil];
-    if (windows.count == 0) return;
+    [self.watcher performWithoutTriggering:^{
+        NSArray<CascadeWindow *> *windows = [CascadeEngine collectStandardWindowsWithOnly:nil exclude:nil];
+        if (windows.count == 0) return;
 
-    NSArray<CascadeWindow *> *planned = [CascadeEngine calculateLayoutForWindows:windows
-                                                                       orderMode:self.orderMode
-                                                                           delta:self.delta];
-    [CascadeEngine applyLayoutToWindows:planned restackZ:self.restackZOrder];
+        NSArray<CascadeWindow *> *planned = [CascadeEngine calculateLayoutForWindows:windows
+                                                                           orderMode:self.orderMode
+                                                                               delta:self.delta];
+        self.establishedOrder = planned;
+        [CascadeEngine applyLayoutToWindows:planned restackZ:self.restackZOrder];
+    }];
 }
 
 @end

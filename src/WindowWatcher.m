@@ -92,6 +92,7 @@ static void axObserverCallback(AXObserverRef observer, AXUIElementRef element, C
         AXObserverAddNotification(observer, appRef, kAXUIElementDestroyedNotification, (__bridge void *)self);
         AXObserverAddNotification(observer, appRef, kAXWindowMiniaturizedNotification, (__bridge void *)self);
         AXObserverAddNotification(observer, appRef, kAXWindowDeminiaturizedNotification, (__bridge void *)self);
+        AXObserverAddNotification(observer, appRef, kAXWindowResizedNotification, (__bridge void *)self);
 
         CFRunLoopAddSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(observer), kCFRunLoopCommonModes);
         self.observers[@(pid)] = [NSValue valueWithPointer:observer];
@@ -135,8 +136,19 @@ static void axObserverCallback(AXObserverRef observer, AXUIElementRef element, C
     [self scheduleDebouncedChange];
 }
 
+- (void)performWithoutTriggering:(dispatch_block_t)block {
+    if (!block) return;
+    self.isSuppressed = YES;
+    [self.debounceTimer invalidate];
+    self.debounceTimer = nil;
+    block();
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.08 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        self.isSuppressed = NO;
+    });
+}
+
 - (void)scheduleDebouncedChange {
-    if (!self.isWatching) return;
+    if (!self.isWatching || self.isSuppressed) return;
 
     [self.debounceTimer invalidate];
     self.debounceTimer = [NSTimer scheduledTimerWithTimeInterval:self.debounceInterval
@@ -148,7 +160,7 @@ static void axObserverCallback(AXObserverRef observer, AXUIElementRef element, C
 
 - (void)handleDebounceTimer:(NSTimer *)timer {
     (void)timer;
-    if (!self.isWatching) return;
+    if (!self.isWatching || self.isSuppressed) return;
     if ([self.delegate respondsToSelector:@selector(windowWatcherDidDetectChange:)]) {
         [self.delegate windowWatcherDidDetectChange:self];
     }

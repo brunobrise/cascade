@@ -42,6 +42,13 @@ For $N \ge 3$ windows:
   - $\forall j < i: X_j + w \le (i-2)\delta + w < X(P_i)$, so no window below $i$ in index occludes $P_i$.
 - **Result:** $P_i \cap R_j = \emptyset \quad \forall j \neq i$. Permanent unoccluded target of size $\delta \times \delta$.
 
+### 3.3 Stable Sequence Invariant Across Lifecycle Events
+When window lifecycle events occur (window created, resized, minimized, or closed), active windows maintain their established ordering sequence without reshuffling:
+- **Set Partitioning:** Given previous sequence $S_{prev} = [w_1, w_2, \dots, w_k]$ and current active windows $S_{curr}$, windows are partitioned into existing set $E = S_{curr} \cap S_{prev}$ and new set $N = S_{curr} \setminus S_{prev}$.
+- **Order Preservation:** Windows in $E$ strictly retain their relative sequence from $S_{prev}$. New windows $N$ are appended at the tail: $S_{new} = E \mathbin{\Vert} N$.
+- **Pure Geometry Resizing:** Target sizes and offsets are recalculated strictly as $w = W - (|S_{new}|-1)\delta, \quad h = H - (|S_{new}|-1)\delta$.
+- **Focus & Stacking Stability:** Event-driven updates suppress `kAXRaiseAction` restacking to avoid stealing focus or altering user-driven Z-depth.
+
 ## 4. API & Data Structures
 
 ```objc
@@ -52,12 +59,16 @@ typedef NS_ENUM(NSInteger, CascadeOrderMode) {
 };
 ```
 
+Data Model: `CascadeWindow`
+- `- (BOOL)matchesWindow:(CascadeWindow *)other;`
+
 Core class: `CascadeEngine`
 - `+ (CGRect)usableScreenFrameWithTopInset:(CGFloat *)outTopInset;`
 - `+ (BOOL)isAccessibilityTrustedWithPrompt:(BOOL)prompt;`
 - `+ (void)openAccessibilitySettings;`
 - `+ (NSArray<CascadeWindow *> *)collectStandardWindowsWithOnly:(NSArray<NSString *> *)onlyApps exclude:(NSArray<NSString *> *)excludeApps;`
 - `+ (NSArray<CascadeWindow *> *)calculateLayoutForWindows:(NSArray<CascadeWindow *> *)windows orderMode:(CascadeOrderMode)orderMode delta:(CGFloat)delta;`
+- `+ (NSArray<CascadeWindow *> *)calculateLayoutForWindows:(NSArray<CascadeWindow *> *)windows preservingOrderFrom:(NSArray<CascadeWindow *> *)previousOrder delta:(CGFloat)delta;`
 - `+ (void)applyLayoutToWindows:(NSArray<CascadeWindow *> *)windows restackZ:(BOOL)restackZ;`
 
 Helper class: `LoginItemManager`
@@ -71,6 +82,7 @@ Watcher class: `WindowWatcher`
 - `- (void)stopWatching;`
 - `- (void)refreshObservers;`
 - `- (void)scheduleDebouncedChange;`
+- `- (void)performWithoutTriggering:(dispatch_block_t)block;`
 
 ## 5. Acceptance Criteria
 
@@ -84,7 +96,7 @@ Watcher class: `WindowWatcher`
 8. Toggling start-at-login registers the application via `SMAppService` with fallback to `~/Library/LaunchAgents/com.brunobrise.cascade.plist`.
 9. The status bar menu dynamically displays a checkmark reflecting active login item registration.
 10. The CLI command `--start-at-login <enable|disable|status>` provides scriptable login item management.
-11. `WindowWatcher` attaches accessibility observers for `kAXWindowCreatedNotification`, `kAXUIElementDestroyedNotification`, `kAXWindowMiniaturizedNotification`, and `kAXWindowDeminiaturizedNotification` across all active applications.
+11. `WindowWatcher` attaches accessibility observers for `kAXWindowCreatedNotification`, `kAXUIElementDestroyedNotification`, `kAXWindowMiniaturizedNotification`, `kAXWindowDeminiaturizedNotification`, and `kAXWindowResizedNotification` across all active applications.
 12. Detected lifecycle changes are debounced over 350ms to ensure animation completion and prevent rapid UI flicker.
 13. Status bar menu toggle "Auto-Rearrange on Open / Minimize / Close" and CLI `--watch` flag enable continuous automatic re-cascading.
 14. If Accessibility permissions are revoked or not granted, `Cascade.app` displays a warning in the status menu and prompts via an alert modal with a button linking directly to System Settings.
@@ -92,6 +104,8 @@ Watcher class: `WindowWatcher`
 16. The app bundle and CLI binaries are signed with an ad-hoc code signature preserving bundle ID sealing across rebuilds.
 17. The application bundle packages a multi-resolution `AppIcon.icns` asset (16x16 through 1024x1024) adhering to macOS squircle design standards, bound via `CFBundleIconFile` in `Info.plist`.
 18. The status bar menu includes an "About Cascade" item presenting the application logo and version, and runtime alert dialogs display the app logo.
+19. Window lifecycle events (new, resize, minimize, close) do not change the established sequence of existing windows; only window dimensions and cascade offsets adjust to the new window count.
+20. Automatic lifecycle events suppress Z-restacking (`kAXRaiseAction`), preventing focus stealing and preserving the active window.
 
 ## 6. Test Plan
 

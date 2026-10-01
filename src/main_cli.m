@@ -9,18 +9,30 @@
 @property (nonatomic, assign) BOOL restack;
 @property (nonatomic, strong) NSArray<NSString *> *onlyApps;
 @property (nonatomic, strong) NSArray<NSString *> *excludeApps;
+@property (nonatomic, strong) NSArray<CascadeWindow *> *establishedOrder;
 @end
 
 @implementation CliWatcherDelegate
 - (void)windowWatcherDidDetectChange:(WindowWatcher *)watcher {
-    (void)watcher;
-    printf("\n[Watcher] Window lifecycle change detected! Re-cascading...\n");
-    NSArray<CascadeWindow *> *windows = [CascadeEngine collectStandardWindowsWithOnly:self.onlyApps exclude:self.excludeApps];
-    if (windows.count > 0) {
-        NSArray<CascadeWindow *> *planned = [CascadeEngine calculateLayoutForWindows:windows orderMode:self.orderMode delta:self.delta];
-        [CascadeEngine applyLayoutToWindows:planned restackZ:self.restack];
-        printf("  [OK] %lu windows rearranged.\n", (unsigned long)planned.count);
-    }
+    printf("\n[Watcher] Window lifecycle event detected! Adjusting window sizes...\n");
+    [watcher performWithoutTriggering:^{
+        NSArray<CascadeWindow *> *windows = [CascadeEngine collectStandardWindowsWithOnly:self.onlyApps exclude:self.excludeApps];
+        if (windows.count > 0) {
+            NSArray<CascadeWindow *> *planned = nil;
+            if (self.establishedOrder.count > 0) {
+                planned = [CascadeEngine calculateLayoutForWindows:windows
+                                               preservingOrderFrom:self.establishedOrder
+                                                             delta:self.delta];
+            } else {
+                planned = [CascadeEngine calculateLayoutForWindows:windows
+                                                         orderMode:self.orderMode
+                                                             delta:self.delta];
+            }
+            self.establishedOrder = planned;
+            [CascadeEngine applyLayoutToWindows:planned restackZ:NO];
+            printf("  [OK] %lu windows updated without changing order.\n", (unsigned long)planned.count);
+        }
+    }];
 }
 @end
 
