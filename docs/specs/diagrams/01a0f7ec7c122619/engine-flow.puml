@@ -1,0 +1,30 @@
+@startuml
+skinparam backgroundColor transparent
+skinparam handwritten false
+skinparam defaultFontName Helvetica
+skinparam shadowing false
+
+skinparam state {
+    BorderColor #2D3748
+    FontColor #1A202C
+    BackgroundColor #EDF2F7
+    ArrowColor #4A5568
+}
+
+[*] --> QueryWindows : Window Server Scan
+QueryWindows --> FilterStandard : Filter AXStandardWindow & Non-Minimized
+FilterStandard --> OrderWindows : Sort (MRU, Spatial, Alphabetical)
+
+state OrderWindows {
+    [*] --> CheckCount
+    CheckCount --> OpposedEdges : N = 2 (98% Area)
+    CheckCount --> DiagonalCascade : N >= 3 (Invariant Tabs)
+}
+
+OpposedEdges --> CalculateTargetBounds : Set Opposing Bezel Margins
+DiagonalCascade --> CalculateTargetBounds : Set Diagonal Invariant Offsets
+
+CalculateTargetBounds --> ApplyGeometry : AXUIElementSetAttributeValue (pos, size)
+ApplyGeometry --> RestackZ : Optional Reverse-Z Raise (kAXRaiseAction)
+RestackZ --> [*] : Complete
+@enduml
