@@ -42,6 +42,7 @@ The included `Makefile` provides commands to build, test, run, and install Casca
 ```bash
 make help          # Display all available make commands
 make build         # Compile CLI binary and Status Bar app bundle
+make icon          # Generate multi-resolution AppIcon.icns
 make test          # Run the unit test suite
 make run           # Launch Cascade.app into the status bar
 make run-cli       # Preview layout in terminal (--plan)

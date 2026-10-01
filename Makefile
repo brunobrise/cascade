@@ -14,6 +14,7 @@ help:
 	@echo ""
 	@echo "Available commands:"
 	@echo "  make build         Build CLI binary and Status Bar application bundle"
+	@echo "  make icon          Generate multi-resolution macOS AppIcon.icns"
 	@echo "  make test          Compile and run all test suites"
 	@echo "  make install       Install CLI to $(INSTALL_BIN) and App to $(INSTALL_APP)"
 	@echo "  make uninstall     Remove installed binaries and app bundle"
@@ -66,12 +67,21 @@ test: $(BUILD_DIR)/test_engine $(BUILD_DIR)/test_login $(BUILD_DIR)/test_watcher
 	./$(BUILD_DIR)/test_login
 	./$(BUILD_DIR)/test_watcher
 
+# App Icon
+resources/AppIcon.icns: tools/generate_icon.m
+	$(CC) -O2 -Wall -Wextra -fobjc-arc -framework Cocoa tools/generate_icon.m -o tools/generate_icon
+	./tools/generate_icon resources/AppIcon.iconset
+	iconutil -c icns resources/AppIcon.iconset -o $@
+
+icon: resources/AppIcon.icns
+
 # Status Bar App Bundle
-$(BUILD_DIR)/Cascade.app: src/main_bar.m $(BUILD_DIR)/WindowEngine.o $(BUILD_DIR)/LoginItemManager.o $(BUILD_DIR)/WindowWatcher.o resources/Info.plist | $(BUILD_DIR)/.dir
+$(BUILD_DIR)/Cascade.app: src/main_bar.m $(BUILD_DIR)/WindowEngine.o $(BUILD_DIR)/LoginItemManager.o $(BUILD_DIR)/WindowWatcher.o resources/Info.plist resources/AppIcon.icns | $(BUILD_DIR)/.dir
 	mkdir -p $(BUILD_DIR)/Cascade.app/Contents/MacOS
 	mkdir -p $(BUILD_DIR)/Cascade.app/Contents/Resources
 	$(CC) $(CFLAGS) $(LDFLAGS) src/main_bar.m $(BUILD_DIR)/WindowEngine.o $(BUILD_DIR)/LoginItemManager.o $(BUILD_DIR)/WindowWatcher.o -o $(BUILD_DIR)/Cascade.app/Contents/MacOS/Cascade
 	cp resources/Info.plist $(BUILD_DIR)/Cascade.app/Contents/Info.plist
+	cp resources/AppIcon.icns $(BUILD_DIR)/Cascade.app/Contents/Resources/AppIcon.icns
 	codesign --force --deep -s - $@
 
 install: build
@@ -124,4 +134,4 @@ status:
 	@pgrep -x Cascade >/dev/null && echo "Cascade is running." || echo "Cascade is not running."
 
 clean:
-	rm -rf $(BUILD_DIR)
+	rm -rf $(BUILD_DIR) tools/generate_icon

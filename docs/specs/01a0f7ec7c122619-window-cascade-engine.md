@@ -90,6 +90,8 @@ Watcher class: `WindowWatcher`
 14. If Accessibility permissions are revoked or not granted, `Cascade.app` displays a warning in the status menu and prompts via an alert modal with a button linking directly to System Settings.
 15. When accessibility is granted while the menu is open, observers are dynamically refreshed without requiring an app restart.
 16. The app bundle and CLI binaries are signed with an ad-hoc code signature preserving bundle ID sealing across rebuilds.
+17. The application bundle packages a multi-resolution `AppIcon.icns` asset (16x16 through 1024x1024) adhering to macOS squircle design standards, bound via `CFBundleIconFile` in `Info.plist`.
+18. The status bar menu includes an "About Cascade" item presenting the application logo and version, and runtime alert dialogs display the app logo.
 
 ## 6. Test Plan
 

@@ -14,6 +14,8 @@
 @property (nonatomic, strong) WindowWatcher *watcher;
 - (void)performCascade:(id)sender;
 - (void)openAccessibilitySettings:(id)sender;
+- (void)showAbout:(id)sender;
+- (NSImage *)cascadeAppIcon;
 @end
 
 static OSStatus HotKeyHandler(EventHandlerCallRef nextHandler, EventRef theEvent, void *userData) {
@@ -26,11 +28,28 @@ static OSStatus HotKeyHandler(EventHandlerCallRef nextHandler, EventRef theEvent
 
 @implementation CascadeBarApp
 
+- (NSImage *)cascadeAppIcon {
+    NSImage *appIcon = [NSImage imageNamed:@"AppIcon"];
+    if (!appIcon) {
+        NSString *iconPath = [[NSBundle mainBundle] pathForResource:@"AppIcon" ofType:@"icns"];
+        if (iconPath) {
+            appIcon = [[NSImage alloc] initWithContentsOfFile:iconPath];
+        }
+    }
+    return appIcon;
+}
+
 - (void)applicationDidFinishLaunching:(NSNotification *)notification {
     (void)notification;
     self.orderMode = CascadeOrderModeMRU;
     self.delta = 40.0;
     self.restackZOrder = YES;
+
+    // 0. Set Application Icon
+    NSImage *appIcon = [self cascadeAppIcon];
+    if (appIcon) {
+        [NSApp setApplicationIconImage:appIcon];
+    }
 
     // 1. Setup Window Watcher
     self.watcher = [[WindowWatcher alloc] initWithDelegate:self];
@@ -167,6 +186,20 @@ static OSStatus HotKeyHandler(EventHandlerCallRef nextHandler, EventRef theEvent
 
     [menu addItem:[NSMenuItem separatorItem]];
 
+    NSMenuItem *aboutItem = [[NSMenuItem alloc] initWithTitle:@"About Cascade"
+                                                       action:@selector(showAbout:)
+                                                keyEquivalent:@""];
+    aboutItem.target = self;
+    NSImage *appIcon = [self cascadeAppIcon];
+    if (appIcon) {
+        NSImage *menuIcon = [appIcon copy];
+        menuIcon.size = NSMakeSize(16, 16);
+        aboutItem.image = menuIcon;
+    }
+    [menu addItem:aboutItem];
+
+    [menu addItem:[NSMenuItem separatorItem]];
+
     NSMenuItem *quitItem = [[NSMenuItem alloc] initWithTitle:@"Quit Cascade"
                                                       action:@selector(terminate:)
                                                keyEquivalent:@"q"];
@@ -240,6 +273,19 @@ static OSStatus HotKeyHandler(EventHandlerCallRef nextHandler, EventRef theEvent
     [CascadeEngine openAccessibilitySettings];
 }
 
+- (void)showAbout:(id)sender {
+    (void)sender;
+    [NSApp activateIgnoringOtherApps:YES];
+    NSMutableDictionary *options = [NSMutableDictionary dictionary];
+    options[NSAboutPanelOptionApplicationName] = @"Cascade";
+    options[NSAboutPanelOptionVersion] = @"1.0";
+    NSImage *appIcon = [self cascadeAppIcon];
+    if (appIcon) {
+        options[NSAboutPanelOptionApplicationIcon] = appIcon;
+    }
+    [NSApp orderFrontStandardAboutPanelWithOptions:options];
+}
+
 - (void)menuWillOpen:(NSMenu *)menu {
     (void)menu;
     static BOOL lastTrusted = NO;
@@ -262,6 +308,10 @@ static OSStatus HotKeyHandler(EventHandlerCallRef nextHandler, EventRef theEvent
         NSAlert *alert = [[NSAlert alloc] init];
         alert.messageText = @"Accessibility Permission Required";
         alert.informativeText = @"Cascade needs Accessibility permission to move and resize windows.\n\nPlease enable Cascade in System Settings > Privacy & Security > Accessibility.";
+        NSImage *appIcon = [self cascadeAppIcon];
+        if (appIcon) {
+            alert.icon = appIcon;
+        }
         [alert addButtonWithTitle:@"Open System Settings"];
         [alert addButtonWithTitle:@"Cancel"];
         if ([alert runModal] == NSAlertFirstButtonReturn) {
