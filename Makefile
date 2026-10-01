@@ -5,7 +5,7 @@ BUILD_DIR = build
 INSTALL_BIN = $(HOME)/.local/bin
 INSTALL_APP = $(HOME)/Applications
 
-.PHONY: all build clean test run run-cli apply stop restart status install uninstall login-enable login-disable login-status help
+.PHONY: all build clean test run run-cli apply watch stop restart status install uninstall login-enable login-disable login-status help
 
 all: build
 
@@ -20,6 +20,7 @@ help:
 	@echo "  make run           Launch the Status Bar app (Cascade.app)"
 	@echo "  make run-cli       Run the CLI in preview mode (--plan)"
 	@echo "  make apply         Run the CLI to cascade windows immediately (--apply)"
+	@echo "  make watch         Run the CLI in continuous watcher mode (--watch)"
 	@echo "  make login-enable  Register Cascade to start automatically at login"
 	@echo "  make login-disable Unregister Cascade from starting at login"
 	@echo "  make login-status  Check start-at-login status"
@@ -42,9 +43,12 @@ $(BUILD_DIR)/WindowEngine.o: src/WindowEngine.m src/WindowEngine.h | $(BUILD_DIR
 $(BUILD_DIR)/LoginItemManager.o: src/LoginItemManager.m src/LoginItemManager.h | $(BUILD_DIR)/.dir
 	$(CC) $(CFLAGS) -c src/LoginItemManager.m -o $@
 
+$(BUILD_DIR)/WindowWatcher.o: src/WindowWatcher.m src/WindowWatcher.h | $(BUILD_DIR)/.dir
+	$(CC) $(CFLAGS) -c src/WindowWatcher.m -o $@
+
 # CLI binary
-$(BUILD_DIR)/cascade: src/main_cli.m $(BUILD_DIR)/WindowEngine.o $(BUILD_DIR)/LoginItemManager.o | $(BUILD_DIR)/.dir
-	$(CC) $(CFLAGS) $(LDFLAGS) src/main_cli.m $(BUILD_DIR)/WindowEngine.o $(BUILD_DIR)/LoginItemManager.o -o $@
+$(BUILD_DIR)/cascade: src/main_cli.m $(BUILD_DIR)/WindowEngine.o $(BUILD_DIR)/LoginItemManager.o $(BUILD_DIR)/WindowWatcher.o | $(BUILD_DIR)/.dir
+	$(CC) $(CFLAGS) $(LDFLAGS) src/main_cli.m $(BUILD_DIR)/WindowEngine.o $(BUILD_DIR)/LoginItemManager.o $(BUILD_DIR)/WindowWatcher.o -o $@
 
 # Test binaries
 $(BUILD_DIR)/test_engine: tests/test_engine.m $(BUILD_DIR)/WindowEngine.o | $(BUILD_DIR)/.dir
@@ -53,15 +57,19 @@ $(BUILD_DIR)/test_engine: tests/test_engine.m $(BUILD_DIR)/WindowEngine.o | $(BU
 $(BUILD_DIR)/test_login: tests/test_login.m $(BUILD_DIR)/LoginItemManager.o | $(BUILD_DIR)/.dir
 	$(CC) $(CFLAGS) $(LDFLAGS) tests/test_login.m $(BUILD_DIR)/LoginItemManager.o -o $@
 
-test: $(BUILD_DIR)/test_engine $(BUILD_DIR)/test_login
+$(BUILD_DIR)/test_watcher: tests/test_watcher.m $(BUILD_DIR)/WindowWatcher.o | $(BUILD_DIR)/.dir
+	$(CC) $(CFLAGS) $(LDFLAGS) tests/test_watcher.m $(BUILD_DIR)/WindowWatcher.o -o $@
+
+test: $(BUILD_DIR)/test_engine $(BUILD_DIR)/test_login $(BUILD_DIR)/test_watcher
 	./$(BUILD_DIR)/test_engine
 	./$(BUILD_DIR)/test_login
+	./$(BUILD_DIR)/test_watcher
 
 # Status Bar App Bundle
-$(BUILD_DIR)/Cascade.app: src/main_bar.m $(BUILD_DIR)/WindowEngine.o $(BUILD_DIR)/LoginItemManager.o resources/Info.plist | $(BUILD_DIR)/.dir
+$(BUILD_DIR)/Cascade.app: src/main_bar.m $(BUILD_DIR)/WindowEngine.o $(BUILD_DIR)/LoginItemManager.o $(BUILD_DIR)/WindowWatcher.o resources/Info.plist | $(BUILD_DIR)/.dir
 	mkdir -p $(BUILD_DIR)/Cascade.app/Contents/MacOS
 	mkdir -p $(BUILD_DIR)/Cascade.app/Contents/Resources
-	$(CC) $(CFLAGS) $(LDFLAGS) src/main_bar.m $(BUILD_DIR)/WindowEngine.o $(BUILD_DIR)/LoginItemManager.o -o $(BUILD_DIR)/Cascade.app/Contents/MacOS/Cascade
+	$(CC) $(CFLAGS) $(LDFLAGS) src/main_bar.m $(BUILD_DIR)/WindowEngine.o $(BUILD_DIR)/LoginItemManager.o $(BUILD_DIR)/WindowWatcher.o -o $(BUILD_DIR)/Cascade.app/Contents/MacOS/Cascade
 	cp resources/Info.plist $(BUILD_DIR)/Cascade.app/Contents/Info.plist
 
 install: build
@@ -97,6 +105,9 @@ run-cli: $(BUILD_DIR)/cascade
 
 apply: $(BUILD_DIR)/cascade
 	./$(BUILD_DIR)/cascade --apply
+
+watch: $(BUILD_DIR)/cascade
+	./$(BUILD_DIR)/cascade --watch
 
 stop:
 	@pkill -x Cascade 2>/dev/null && echo "Cascade stopped." || echo "Cascade was not running."

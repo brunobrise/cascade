@@ -2,14 +2,16 @@
 #import <Carbon/Carbon.h>
 #import "WindowEngine.h"
 #import "LoginItemManager.h"
+#import "WindowWatcher.h"
 
-@interface CascadeBarApp : NSObject <NSApplicationDelegate>
+@interface CascadeBarApp : NSObject <NSApplicationDelegate, WindowWatcherDelegate>
 @property (nonatomic, strong) NSStatusItem *statusItem;
 @property (nonatomic, strong) NSMenu *statusMenu;
 @property (nonatomic, assign) CascadeOrderMode orderMode;
 @property (nonatomic, assign) CGFloat delta;
 @property (nonatomic, assign) BOOL restackZOrder;
 @property (nonatomic, assign) EventHotKeyRef hotKeyRef;
+@property (nonatomic, strong) WindowWatcher *watcher;
 - (void)performCascade:(id)sender;
 @end
 
@@ -29,7 +31,13 @@ static OSStatus HotKeyHandler(EventHandlerCallRef nextHandler, EventRef theEvent
     self.delta = 40.0;
     self.restackZOrder = YES;
 
-    // 1. Setup Status Bar Item
+    // 1. Setup Window Watcher
+    self.watcher = [[WindowWatcher alloc] initWithDelegate:self];
+    if ([[NSUserDefaults standardUserDefaults] boolForKey:@"autoRearrange"]) {
+        [self.watcher startWatching];
+    }
+
+    // 2. Setup Status Bar Item
     self.statusItem = [[NSStatusBar systemStatusBar] statusItemWithLength:NSVariableStatusItemLength];
     NSStatusBarButton *button = self.statusItem.button;
     if (button) {
@@ -126,6 +134,14 @@ static OSStatus HotKeyHandler(EventHandlerCallRef nextHandler, EventRef theEvent
     restackItem.state = self.restackZOrder ? NSControlStateValueOn : NSControlStateValueOff;
     [menu addItem:restackItem];
 
+    // Auto-rearrange on window open/minimize/close
+    NSMenuItem *autoItem = [[NSMenuItem alloc] initWithTitle:@"Auto-Rearrange on Open / Minimize / Close"
+                                                      action:@selector(toggleAutoRearrange:)
+                                               keyEquivalent:@""];
+    autoItem.target = self;
+    autoItem.state = self.watcher.isWatching ? NSControlStateValueOn : NSControlStateValueOff;
+    [menu addItem:autoItem];
+
     // Start at Login toggle
     NSMenuItem *loginItem = [[NSMenuItem alloc] initWithTitle:@"Start at Login"
                                                        action:@selector(toggleStartAtLogin:)
@@ -143,6 +159,24 @@ static OSStatus HotKeyHandler(EventHandlerCallRef nextHandler, EventRef theEvent
 
     self.statusMenu = menu;
     self.statusItem.menu = menu;
+}
+
+- (void)toggleAutoRearrange:(id)sender {
+    (void)sender;
+    if (self.watcher.isWatching) {
+        [self.watcher stopWatching];
+        [[NSUserDefaults standardUserDefaults] setBool:NO forKey:@"autoRearrange"];
+    } else {
+        [self.watcher startWatching];
+        [[NSUserDefaults standardUserDefaults] setBool:YES forKey:@"autoRearrange"];
+        [self performCascade:nil];
+    }
+    [self rebuildMenu];
+}
+
+- (void)windowWatcherDidDetectChange:(WindowWatcher *)watcher {
+    (void)watcher;
+    [self performCascade:nil];
 }
 
 - (void)toggleStartAtLogin:(id)sender {

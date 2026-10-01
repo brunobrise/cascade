@@ -1,12 +1,35 @@
 #import <Foundation/Foundation.h>
 #import "WindowEngine.h"
 #import "LoginItemManager.h"
+#import "WindowWatcher.h"
+
+@interface CliWatcherDelegate : NSObject <WindowWatcherDelegate>
+@property (nonatomic, assign) CascadeOrderMode orderMode;
+@property (nonatomic, assign) CGFloat delta;
+@property (nonatomic, assign) BOOL restack;
+@property (nonatomic, strong) NSArray<NSString *> *onlyApps;
+@property (nonatomic, strong) NSArray<NSString *> *excludeApps;
+@end
+
+@implementation CliWatcherDelegate
+- (void)windowWatcherDidDetectChange:(WindowWatcher *)watcher {
+    (void)watcher;
+    printf("\n[Watcher] Window lifecycle change detected! Re-cascading...\n");
+    NSArray<CascadeWindow *> *windows = [CascadeEngine collectStandardWindowsWithOnly:self.onlyApps exclude:self.excludeApps];
+    if (windows.count > 0) {
+        NSArray<CascadeWindow *> *planned = [CascadeEngine calculateLayoutForWindows:windows orderMode:self.orderMode delta:self.delta];
+        [CascadeEngine applyLayoutToWindows:planned restackZ:self.restack];
+        printf("  [OK] %lu windows rearranged.\n", (unsigned long)planned.count);
+    }
+}
+@end
 
 static void printHelp(const char *prog) {
     printf("Cascade - Maximize macOS windows while keeping all clickable at anytime\n\n");
     printf("Usage: %s [options]\n\n", prog);
     printf("Options:\n");
     printf("  --apply              Apply calculated cascade layout to windows\n");
+    printf("  --watch              Continuously watch and rearrange on window open/minimize/close\n");
     printf("  --plan               Display layout calculation without applying (default)\n");
     printf("  --list               List current standard windows and exit\n");
     printf("  --order <mode>       Ordering: 'mru' (default), 'spatial', or 'alpha'\n");
@@ -21,6 +44,7 @@ static void printHelp(const char *prog) {
 int main(int argc, const char * argv[]) {
     @autoreleasepool {
         BOOL doApply = NO;
+        BOOL doWatch = NO;
         BOOL doList = NO;
         BOOL restack = YES;
         CGFloat delta = 40.0;
@@ -32,6 +56,8 @@ int main(int argc, const char * argv[]) {
             NSString *arg = [NSString stringWithUTF8String:argv[i]];
             if ([arg isEqualToString:@"--apply"]) {
                 doApply = YES;
+            } else if ([arg isEqualToString:@"--watch"]) {
+                doWatch = YES;
             } else if ([arg isEqualToString:@"--plan"]) {
                 doApply = NO;
             } else if ([arg isEqualToString:@"--list"]) {
@@ -86,6 +112,27 @@ int main(int argc, const char * argv[]) {
             fprintf(stderr, "Error: Accessibility permission is required.\n");
             fprintf(stderr, "Grant permission in: System Settings > Privacy & Security > Accessibility\n");
             return 1;
+        }
+
+        if (doWatch) {
+            printf("Starting Cascade watcher daemon (auto-rearranging on window open/minimize/close)...\n");
+            printf("Press Ctrl+C to stop.\n\n");
+
+            CliWatcherDelegate *del = [[CliWatcherDelegate alloc] init];
+            del.orderMode = orderMode;
+            del.delta = delta;
+            del.restack = restack;
+            del.onlyApps = onlyApps;
+            del.excludeApps = excludeApps;
+
+            WindowWatcher *watcher = [[WindowWatcher alloc] initWithDelegate:del];
+            [watcher startWatching];
+
+            // Perform initial cascade
+            [del windowWatcherDidDetectChange:watcher];
+
+            [[NSRunLoop currentRunLoop] run];
+            return 0;
         }
 
         CGFloat topInset = 0;

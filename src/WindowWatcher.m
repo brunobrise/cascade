@@ -1,0 +1,152 @@
+#import "WindowWatcher.h"
+
+@interface WindowWatcher ()
+@property (nonatomic, assign) BOOL isWatching;
+@property (nonatomic, strong) NSMutableDictionary<NSNumber *, NSValue *> *observers;
+@property (nonatomic, strong) NSTimer *debounceTimer;
+- (void)scheduleDebouncedChange;
+@end
+
+static void axObserverCallback(AXObserverRef observer, AXUIElementRef element, CFStringRef notification, void *refcon) {
+    (void)observer;
+    (void)element;
+    (void)notification;
+    WindowWatcher *watcher = (__bridge WindowWatcher *)refcon;
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [watcher scheduleDebouncedChange];
+    });
+}
+
+@implementation WindowWatcher
+
+- (instancetype)initWithDelegate:(id<WindowWatcherDelegate>)delegate {
+    self = [super init];
+    if (self) {
+        _delegate = delegate;
+        _isWatching = NO;
+        _debounceInterval = 0.35;
+        _observers = [NSMutableDictionary dictionary];
+    }
+    return self;
+}
+
+- (void)dealloc {
+    [self stopWatching];
+}
+
+- (void)startWatching {
+    if (self.isWatching) return;
+    self.isWatching = YES;
+
+    // 1. Observe all current regular running applications
+    NSArray<NSRunningApplication *> *apps = [[NSWorkspace sharedWorkspace] runningApplications];
+    for (NSRunningApplication *app in apps) {
+        if (app.activationPolicy == NSApplicationActivationPolicyRegular) {
+            [self attachToApp:app];
+        }
+    }
+
+    // 2. Subscribe to application lifecycle events
+    NSNotificationCenter *nc = [[NSWorkspace sharedWorkspace] notificationCenter];
+    [nc addObserver:self selector:@selector(appDidLaunch:) name:NSWorkspaceDidLaunchApplicationNotification object:nil];
+    [nc addObserver:self selector:@selector(appDidTerminate:) name:NSWorkspaceDidTerminateApplicationNotification object:nil];
+    [nc addObserver:self selector:@selector(appDidHideOrUnhide:) name:NSWorkspaceDidHideApplicationNotification object:nil];
+    [nc addObserver:self selector:@selector(appDidHideOrUnhide:) name:NSWorkspaceDidUnhideApplicationNotification object:nil];
+}
+
+- (void)stopWatching {
+    if (!self.isWatching) return;
+    self.isWatching = NO;
+
+    [self.debounceTimer invalidate];
+    self.debounceTimer = nil;
+
+    [[[NSWorkspace sharedWorkspace] notificationCenter] removeObserver:self];
+
+    for (NSNumber *pidNum in self.observers) {
+        AXObserverRef observer = (AXObserverRef)[self.observers[pidNum] pointerValue];
+        if (observer) {
+            CFRunLoopRemoveSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(observer), kCFRunLoopCommonModes);
+            CFRelease(observer);
+        }
+    }
+    [self.observers removeAllObjects];
+}
+
+- (void)attachToApp:(NSRunningApplication *)app {
+    pid_t pid = app.processIdentifier;
+    if (self.observers[@(pid)]) return;
+
+    AXObserverRef observer = NULL;
+    AXError err = AXObserverCreate(pid, axObserverCallback, &observer);
+    if (err != kAXErrorSuccess || !observer) return;
+
+    AXUIElementRef appRef = AXUIElementCreateApplication(pid);
+    if (appRef) {
+        AXObserverAddNotification(observer, appRef, kAXWindowCreatedNotification, (__bridge void *)self);
+        AXObserverAddNotification(observer, appRef, kAXUIElementDestroyedNotification, (__bridge void *)self);
+        AXObserverAddNotification(observer, appRef, kAXWindowMiniaturizedNotification, (__bridge void *)self);
+        AXObserverAddNotification(observer, appRef, kAXWindowDeminiaturizedNotification, (__bridge void *)self);
+
+        CFRunLoopAddSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(observer), kCFRunLoopCommonModes);
+        self.observers[@(pid)] = [NSValue valueWithPointer:observer];
+
+        CFRelease(appRef);
+    } else {
+        CFRelease(observer);
+    }
+}
+
+- (void)detachFromPid:(pid_t)pid {
+    NSValue *val = self.observers[@(pid)];
+    if (!val) return;
+
+    AXObserverRef observer = (AXObserverRef)[val pointerValue];
+    if (observer) {
+        CFRunLoopRemoveSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(observer), kCFRunLoopCommonModes);
+        CFRelease(observer);
+    }
+    [self.observers removeObjectForKey:@(pid)];
+}
+
+- (void)appDidLaunch:(NSNotification *)note {
+    NSRunningApplication *app = note.userInfo[NSWorkspaceApplicationKey];
+    if (app && app.activationPolicy == NSApplicationActivationPolicyRegular) {
+        [self attachToApp:app];
+        [self scheduleDebouncedChange];
+    }
+}
+
+- (void)appDidTerminate:(NSNotification *)note {
+    NSRunningApplication *app = note.userInfo[NSWorkspaceApplicationKey];
+    if (app) {
+        [self detachFromPid:app.processIdentifier];
+        [self scheduleDebouncedChange];
+    }
+}
+
+- (void)appDidHideOrUnhide:(NSNotification *)note {
+    (void)note;
+    [self scheduleDebouncedChange];
+}
+
+- (void)scheduleDebouncedChange {
+    if (!self.isWatching) return;
+
+    [self.debounceTimer invalidate];
+    self.debounceTimer = [NSTimer scheduledTimerWithTimeInterval:self.debounceInterval
+                                                          target:self
+                                                        selector:@selector(handleDebounceTimer:)
+                                                        userInfo:nil
+                                                         repeats:NO];
+}
+
+- (void)handleDebounceTimer:(NSTimer *)timer {
+    (void)timer;
+    if (!self.isWatching) return;
+    if ([self.delegate respondsToSelector:@selector(windowWatcherDidDetectChange:)]) {
+        [self.delegate windowWatcherDidDetectChange:self];
+    }
+}
+
+@end

@@ -63,6 +63,12 @@ Helper class: `LoginItemManager`
 - `+ (BOOL)setStartAtLoginEnabled:(BOOL)enabled error:(NSError **)outError;`
 - `+ (NSString *)launchAgentPlistPath;`
 
+Watcher class: `WindowWatcher`
+- `- (instancetype)initWithDelegate:(id<WindowWatcherDelegate>)delegate;`
+- `- (void)startWatching;`
+- `- (void)stopWatching;`
+- `- (void)scheduleDebouncedChange;`
+
 ## 5. Acceptance Criteria
 
 1. On a screen with dimensions $W \times H$ and inset $T$, calculated window origins never exceed screen boundaries.
@@ -75,6 +81,9 @@ Helper class: `LoginItemManager`
 8. Toggling start-at-login registers the application via `SMAppService` with fallback to `~/Library/LaunchAgents/com.brunobrise.cascade.plist`.
 9. The status bar menu dynamically displays a checkmark reflecting active login item registration.
 10. The CLI command `--start-at-login <enable|disable|status>` provides scriptable login item management.
+11. `WindowWatcher` attaches accessibility observers for `kAXWindowCreatedNotification`, `kAXUIElementDestroyedNotification`, `kAXWindowMiniaturizedNotification`, and `kAXWindowDeminiaturizedNotification` across all active applications.
+12. Detected lifecycle changes are debounced over 350ms to ensure animation completion and prevent rapid UI flicker.
+13. Status bar menu toggle "Auto-Rearrange on Open / Minimize / Close" and CLI `--watch` flag enable continuous automatic re-cascading.
 
 ## 6. Test Plan
 
@@ -82,3 +91,4 @@ Helper class: `LoginItemManager`
 - Unit test disjointness invariants for top-right and bottom-left click tabs.
 - Unit test sorting algorithms for MRU, Spatial, and Alphabetical modes.
 - Unit test login item registration, verification, disabling, and state restoration (`tests/test_login.m`).
+- Unit test `WindowWatcher` observer registration, debouncing, and teardown (`tests/test_watcher.m`).

@@ -46,6 +46,7 @@ make test          # Run the unit test suite
 make run           # Launch Cascade.app into the status bar
 make run-cli       # Preview layout in terminal (--plan)
 make apply         # Cascade windows immediately (--apply)
+make watch         # Continuously watch and auto-rearrange on window lifecycle
 make login-enable  # Register Cascade to start at login
 make login-status  # Check login item registration status
 make login-disable # Unregister Cascade from login items
@@ -80,6 +81,7 @@ The menu bar icon appears in the macOS status bar:
 - **Window Order:** Switch between **Most Recently Used**, **Spatial Order**, and **Alphabetical**.
 - **Tab Size (Delta):** Adjust margin between 30 px, 40 px, 50 px, and 60 px.
 - **Restack Z-Order:** Re-raise windows in order to match spatial layout.
+- **Auto-Rearrange on Open / Minimize / Close:** Automatically re-cascade windows whenever a window opens, closes, or is minimized.
 - **Start at Login:** Toggle whether Cascade launches automatically on login.
 
 ### Command-Line Interface
@@ -90,6 +92,9 @@ cascade --plan
 
 # Apply layout to active windows
 cascade --apply
+
+# Continuously watch and rearrange on window open/minimize/close
+cascade --watch
 
 # Order by application name (alphabetical)
 cascade --order alpha --apply
