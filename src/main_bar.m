@@ -52,13 +52,9 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
 
 - (void)applicationDidFinishLaunching:(NSNotification *)notification {
     (void)notification;
-    if ([[NSUserDefaults standardUserDefaults] objectForKey:@"orderMode"]) {
-        self.orderMode = (CascadeOrderMode)[[NSUserDefaults standardUserDefaults] integerForKey:@"orderMode"];
-    } else {
-        self.orderMode = CascadeOrderModeMRU;
-    }
-    self.delta = 40.0;
-    self.restackZOrder = YES;
+    self.orderMode = [CascadeEngine savedOrderMode];
+    self.delta = [CascadeEngine savedDelta];
+    self.restackZOrder = [CascadeEngine savedRestackZOrder];
 
     // 0. Set Application Icon
     NSImage *appIcon = [self cascadeAppIcon];
@@ -68,7 +64,7 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
 
     // 1. Setup Window Watcher
     self.watcher = [[WindowWatcher alloc] initWithDelegate:self];
-    if ([[NSUserDefaults standardUserDefaults] boolForKey:@"autoRearrange"]) {
+    if ([CascadeEngine savedAutoRearrange]) {
         [self.watcher startWatching];
     }
 
@@ -195,10 +191,10 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
     (void)sender;
     if (self.watcher.isWatching) {
         [self.watcher stopWatching];
-        [[NSUserDefaults standardUserDefaults] setBool:NO forKey:@"autoRearrange"];
+        [CascadeEngine saveAutoRearrange:NO];
     } else {
         [self.watcher startWatching];
-        [[NSUserDefaults standardUserDefaults] setBool:YES forKey:@"autoRearrange"];
+        [CascadeEngine saveAutoRearrange:YES];
         [self performCascade:nil];
     }
     [self rebuildMenu];
@@ -217,39 +213,23 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
     [self rebuildMenu];
 }
 
-- (void)setOrderMRU:(id)sender {
-    (void)sender;
-    self.orderMode = CascadeOrderModeMRU;
-    [[NSUserDefaults standardUserDefaults] setInteger:self.orderMode forKey:@"orderMode"];
+- (void)setOrderModeValue:(CascadeOrderMode)mode {
+    self.orderMode = mode;
+    [CascadeEngine saveOrderMode:mode];
     [self rebuildMenu];
     [self performCascade:nil];
 }
 
-- (void)setOrderSpatial:(id)sender {
-    (void)sender;
-    self.orderMode = CascadeOrderModeSpatial;
-    [[NSUserDefaults standardUserDefaults] setInteger:self.orderMode forKey:@"orderMode"];
-    [self rebuildMenu];
-    [self performCascade:nil];
-}
-
-- (void)setOrderAlpha:(id)sender {
-    (void)sender;
-    self.orderMode = CascadeOrderModeAlphabetical;
-    [[NSUserDefaults standardUserDefaults] setInteger:self.orderMode forKey:@"orderMode"];
-    [self rebuildMenu];
-    [self performCascade:nil];
-}
+- (void)setOrderMRU:(id)s { (void)s; [self setOrderModeValue:CascadeOrderModeMRU]; }
+- (void)setOrderSpatial:(id)s { (void)s; [self setOrderModeValue:CascadeOrderModeSpatial]; }
+- (void)setOrderAlpha:(id)s { (void)s; [self setOrderModeValue:CascadeOrderModeAlphabetical]; }
 
 - (void)setOrderCustom:(id)sender {
     if ([CascadeEngine preferredAppOrder].count == 0) {
         [self configureAppOrder:sender];
         return;
     }
-    self.orderMode = CascadeOrderModeCustom;
-    [[NSUserDefaults standardUserDefaults] setInteger:self.orderMode forKey:@"orderMode"];
-    [self rebuildMenu];
-    [self performCascade:nil];
+    [self setOrderModeValue:CascadeOrderModeCustom];
 }
 
 - (void)configureAppOrder:(id)sender {
@@ -272,15 +252,13 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
     if ([alert runModal] == NSAlertFirstButtonReturn) {
         NSArray<NSString *> *parsed = [CascadeEngine parseAppOrderString:input.stringValue];
         [CascadeEngine setPreferredAppOrder:parsed];
-        self.orderMode = CascadeOrderModeCustom;
-        [[NSUserDefaults standardUserDefaults] setInteger:self.orderMode forKey:@"orderMode"];
-        [self rebuildMenu];
-        [self performCascade:nil];
+        [self setOrderModeValue:CascadeOrderModeCustom];
     }
 }
 
 - (void)setDeltaValue:(NSMenuItem *)sender {
     self.delta = [sender.representedObject doubleValue];
+    [CascadeEngine saveDelta:self.delta];
     [self rebuildMenu];
     [self performCascade:nil];
 }
@@ -288,6 +266,7 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
 - (void)toggleRestack:(id)sender {
     (void)sender;
     self.restackZOrder = !self.restackZOrder;
+    [CascadeEngine saveRestackZOrder:self.restackZOrder];
     [self rebuildMenu];
 }
 

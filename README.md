@@ -106,13 +106,20 @@ cascade --order preferred --apply
 # Set and persist preferred application order list
 cascade --set-app-order "Cursor, Google Chrome, Terminal, Slack"
 
-# Query currently persisted preferred application order
-cascade --get-app-order
+# View all currently saved user preferences
+cascade --get-preferences
+
+# Persist preferences from the command line
+cascade --set-order preferred
+cascade --set-delta 50
+cascade --set-restack enable
+cascade --set-auto-rearrange enable
+cascade --set-app-order "Cursor, Google Chrome, Terminal, Slack"
 
 # One-off preferred order override
 cascade --app-order "Cursor, Chrome" --apply
 
-# Custom margin size
+# Custom margin size for a single run
 cascade --delta 50 --apply
 
 # Manage start at login
@@ -131,6 +138,7 @@ cascade --only "Cursor,Google Chrome" --apply
 - [Success Story](docs/stories/01a0f7ec7c122619-invariant-cascade-success.md)
 - [Order Preservation Story](docs/stories/01a0f7ec7c122619-order-preservation-success.md)
 - [Preferred App Order Story](docs/stories/01a0f7ec7c122619-preferred-app-order-success.md)
+- [User Preferences Persistence Story](docs/stories/01a0f7ec7c122619-user-preferences-persistence-success.md)
 - [Accessibility & Code Signing Postmortem](docs/stories/01a0f7ec7c122619-accessibility-code-signing-postmortem.md)
 
 ## License

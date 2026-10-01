@@ -68,6 +68,15 @@ Core class: `CascadeEngine`
 - `+ (BOOL)isAccessibilityTrustedWithPrompt:(BOOL)prompt;`
 - `+ (void)openAccessibilitySettings;`
 - `+ (NSArray<CascadeWindow *> *)collectStandardWindowsWithOnly:(NSArray<NSString *> *)onlyApps exclude:(NSArray<NSString *> *)excludeApps;`
+- `+ (NSUserDefaults *)userDefaults;`
+- `+ (CascadeOrderMode)savedOrderMode;`
+- `+ (void)saveOrderMode:(CascadeOrderMode)mode;`
+- `+ (CGFloat)savedDelta;`
+- `+ (void)saveDelta:(CGFloat)delta;`
+- `+ (BOOL)savedRestackZOrder;`
+- `+ (void)saveRestackZOrder:(BOOL)restack;`
+- `+ (BOOL)savedAutoRearrange;`
+- `+ (void)saveAutoRearrange:(BOOL)autoRearrange;`
 - `+ (NSArray<NSString *> *)preferredAppOrder;`
 - `+ (void)setPreferredAppOrder:(NSArray<NSString *> *)order;`
 - `+ (NSArray<NSString *> *)parseAppOrderString:(NSString *)string;`
@@ -113,6 +122,8 @@ Watcher class: `WindowWatcher`
 20. Automatic lifecycle events suppress Z-restacking (`kAXRaiseAction`), preventing focus stealing and preserving the active window.
 21. In Preferred App Order mode (`CascadeOrderModeCustom`), windows matching configured application names appear in front slots in specified priority order; unlisted applications follow in secondary MRU order; multiple windows of the same app preserve intra-app MRU order.
 22. Preferred application order can be configured interactively via status menu ("Configure App Order...") or CLI (`--set-app-order`, `--app-order`), persisted in user preferences.
+23. All user settings (`orderMode`, `delta`, `restackZOrder`, `autoRearrange`, `preferredAppOrder`) persist across application restarts and system reboots via the unified `com.brunobrise.cascade` suite domain.
+24. Status Bar app UI interactions and CLI preference commands (`--set-order`, `--set-delta`, `--set-restack`, `--set-auto-rearrange`, `--set-app-order`, `--get-preferences`) operate on the same shared preference store with immediate disk synchronization.
 
 ## 6. Test Plan
 
@@ -121,3 +132,4 @@ Watcher class: `WindowWatcher`
 - Unit test sorting algorithms for MRU, Spatial, and Alphabetical modes.
 - Unit test login item registration, verification, disabling, and state restoration (`tests/test_login.m`).
 - Unit test `WindowWatcher` observer registration, debouncing, and teardown (`tests/test_watcher.m`).
+- Unit test user preferences round-trip persistence and defaults fallback (`tests/test_engine.m`).

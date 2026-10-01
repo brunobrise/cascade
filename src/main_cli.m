@@ -38,6 +38,23 @@
 }
 @end
 
+static CascadeOrderMode parseOrderMode(NSString *modeStr) {
+    NSString *m = [modeStr lowercaseString];
+    if ([m isEqualToString:@"spatial"]) return CascadeOrderModeSpatial;
+    if ([m hasPrefix:@"alpha"]) return CascadeOrderModeAlphabetical;
+    if ([m isEqualToString:@"custom"] || [m isEqualToString:@"preferred"]) return CascadeOrderModeCustom;
+    return CascadeOrderModeMRU;
+}
+
+static const char *orderModeName(CascadeOrderMode mode) {
+    switch (mode) {
+        case CascadeOrderModeMRU: return "Most Recently Used (Front-to-Back)";
+        case CascadeOrderModeSpatial: return "Spatial (Left-to-Right)";
+        case CascadeOrderModeAlphabetical: return "Alphabetical (App Name)";
+        case CascadeOrderModeCustom: return "Preferred Application Order";
+    }
+}
+
 static void printHelp(const char *prog) {
     printf("Cascade - Maximize macOS windows while keeping all clickable at anytime\n\n");
     printf("Usage: %s [options]\n\n", prog);
@@ -46,12 +63,17 @@ static void printHelp(const char *prog) {
     printf("  --watch              Continuously watch and rearrange on window open/minimize/close\n");
     printf("  --plan               Display layout calculation without applying (default)\n");
     printf("  --list               List current standard windows and exit\n");
-    printf("  --order <mode>       Ordering: 'mru' (default), 'spatial', 'alpha', or 'preferred'\n");
+    printf("  --order <mode>       Ordering: 'mru', 'spatial', 'alpha', or 'preferred'\n");
+    printf("  --delta <pixels>     Offset/tab size in pixels (default: saved or 40)\n");
+    printf("  --no-restack         Do not re-raise windows in order\n");
+    printf("  --get-preferences    Print all saved user preferences and exit\n");
+    printf("  --set-order <mode>   Persist default order mode ('mru'|'spatial'|'alpha'|'preferred')\n");
+    printf("  --set-delta <pixels> Persist default delta in pixels\n");
+    printf("  --set-restack <on|off> Persist restack Z-order preference ('enable'|'disable')\n");
+    printf("  --set-auto-rearrange <on|off> Persist auto-rearrange watcher preference ('enable'|'disable')\n");
     printf("  --app-order <apps>   Comma-separated list of app names to prioritize (frontmost first)\n");
     printf("  --set-app-order <apps> Persist preferred app order to preferences and exit\n");
     printf("  --get-app-order      Print current preferred app order and exit\n");
-    printf("  --delta <pixels>     Offset/tab size in pixels (default: 40)\n");
-    printf("  --no-restack         Do not re-raise windows in order\n");
     printf("  --start-at-login <op> Enable, disable, or query login item ('enable'|'disable'|'status')\n");
     printf("  --only <apps>        Comma-separated list of app names to include\n");
     printf("  --exclude <apps>     Comma-separated list of app names to exclude\n");
@@ -63,9 +85,9 @@ int main(int argc, const char * argv[]) {
         BOOL doApply = NO;
         BOOL doWatch = NO;
         BOOL doList = NO;
-        BOOL restack = YES;
-        CGFloat delta = 40.0;
-        CascadeOrderMode orderMode = CascadeOrderModeMRU;
+        BOOL restack = [CascadeEngine savedRestackZOrder];
+        CGFloat delta = [CascadeEngine savedDelta];
+        CascadeOrderMode orderMode = [CascadeEngine savedOrderMode];
         NSArray<NSString *> *preferredOrder = [CascadeEngine preferredAppOrder];
         NSArray<NSString *> *onlyApps = nil;
         NSArray<NSString *> *excludeApps = nil;
@@ -84,6 +106,38 @@ int main(int argc, const char * argv[]) {
                 restack = NO;
             } else if ([arg isEqualToString:@"--delta"] && i + 1 < argc) {
                 delta = atof(argv[++i]);
+            } else if ([arg isEqualToString:@"--get-preferences"]) {
+                printf("Cascade User Preferences:\n");
+                printf("  Order Mode:        %s\n", orderModeName([CascadeEngine savedOrderMode]));
+                printf("  Delta:             %.0f px\n", [CascadeEngine savedDelta]);
+                printf("  Restack Z-Order:   %s\n", [CascadeEngine savedRestackZOrder] ? "YES" : "NO");
+                printf("  Auto-Rearrange:    %s\n", [CascadeEngine savedAutoRearrange] ? "YES" : "NO");
+                NSArray *apps = [CascadeEngine preferredAppOrder];
+                printf("  Preferred Apps:    %s\n", apps.count > 0 ? [apps componentsJoinedByString:@", "].UTF8String : "(none set)");
+                printf("  Start at Login:    %s\n", [LoginItemManager isStartAtLoginEnabled] ? "YES" : "NO");
+                return 0;
+            } else if ([arg isEqualToString:@"--set-order"] && i + 1 < argc) {
+                CascadeOrderMode m = parseOrderMode([NSString stringWithUTF8String:argv[++i]]);
+                [CascadeEngine saveOrderMode:m];
+                printf("Saved order mode: %s\n", orderModeName(m));
+                return 0;
+            } else if ([arg isEqualToString:@"--set-delta"] && i + 1 < argc) {
+                CGFloat d = atof(argv[++i]);
+                [CascadeEngine saveDelta:d];
+                printf("Saved delta: %.0f px\n", d);
+                return 0;
+            } else if ([arg isEqualToString:@"--set-restack"] && i + 1 < argc) {
+                NSString *val = [[NSString stringWithUTF8String:argv[++i]] lowercaseString];
+                BOOL en = [val isEqualToString:@"enable"] || [val isEqualToString:@"yes"] || [val isEqualToString:@"1"] || [val isEqualToString:@"true"];
+                [CascadeEngine saveRestackZOrder:en];
+                printf("Saved restack Z-order: %s\n", en ? "YES" : "NO");
+                return 0;
+            } else if ([arg isEqualToString:@"--set-auto-rearrange"] && i + 1 < argc) {
+                NSString *val = [[NSString stringWithUTF8String:argv[++i]] lowercaseString];
+                BOOL en = [val isEqualToString:@"enable"] || [val isEqualToString:@"yes"] || [val isEqualToString:@"1"] || [val isEqualToString:@"true"];
+                [CascadeEngine saveAutoRearrange:en];
+                printf("Saved auto-rearrange: %s\n", en ? "YES" : "NO");
+                return 0;
             } else if ([arg isEqualToString:@"--start-at-login"] && i + 1 < argc) {
                 NSString *action = [[NSString stringWithUTF8String:argv[++i]] lowercaseString];
                 if ([action isEqualToString:@"enable"]) {
@@ -106,16 +160,7 @@ int main(int argc, const char * argv[]) {
                 }
                 return 0;
             } else if ([arg isEqualToString:@"--order"] && i + 1 < argc) {
-                NSString *modeStr = [[NSString stringWithUTF8String:argv[++i]] lowercaseString];
-                if ([modeStr isEqualToString:@"spatial"]) {
-                    orderMode = CascadeOrderModeSpatial;
-                } else if ([modeStr hasPrefix:@"alpha"]) {
-                    orderMode = CascadeOrderModeAlphabetical;
-                } else if ([modeStr isEqualToString:@"custom"] || [modeStr isEqualToString:@"preferred"]) {
-                    orderMode = CascadeOrderModeCustom;
-                } else {
-                    orderMode = CascadeOrderModeMRU;
-                }
+                orderMode = parseOrderMode([NSString stringWithUTF8String:argv[++i]]);
             } else if ([arg isEqualToString:@"--app-order"] && i + 1 < argc) {
                 NSString *csv = [NSString stringWithUTF8String:argv[++i]];
                 preferredOrder = [CascadeEngine parseAppOrderString:csv];
@@ -214,9 +259,7 @@ int main(int argc, const char * argv[]) {
         CGFloat winArea = planned[0].targetFrame.size.width * planned[0].targetFrame.size.height;
         CGFloat ratio = (winArea / screenArea) * 100.0;
 
-        const char *orderName = (orderMode == CascadeOrderModeMRU) ? "MRU (Front-to-Back)" :
-                               (orderMode == CascadeOrderModeSpatial) ? "Spatial (Left-to-Right)" :
-                               (orderMode == CascadeOrderModeAlphabetical) ? "Alphabetical" : "Preferred App Order";
+        const char *orderName = orderModeName(orderMode);
 
         printf("=== Layout Plan [%s | Delta: %.0f px] ===\n", orderName, delta);
         printf("Window Dimensions: %.0f x %.0f (%.1f%% of screen per window!)\n",

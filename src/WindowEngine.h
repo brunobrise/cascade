@@ -26,6 +26,15 @@ typedef NS_ENUM(NSInteger, CascadeOrderMode) {
 + (void)openAccessibilitySettings;
 + (NSArray<CascadeWindow *> *)collectStandardWindowsWithOnly:(NSArray<NSString *> *)onlyApps
                                                       exclude:(NSArray<NSString *> *)excludeApps;
++ (NSUserDefaults *)userDefaults;
++ (CascadeOrderMode)savedOrderMode;
++ (void)saveOrderMode:(CascadeOrderMode)mode;
++ (CGFloat)savedDelta;
++ (void)saveDelta:(CGFloat)delta;
++ (BOOL)savedRestackZOrder;
++ (void)saveRestackZOrder:(BOOL)restack;
++ (BOOL)savedAutoRearrange;
++ (void)saveAutoRearrange:(BOOL)autoRearrange;
 + (NSArray<NSString *> *)preferredAppOrder;
 + (void)setPreferredAppOrder:(NSArray<NSString *> *)order;
 + (NSArray<NSString *> *)parseAppOrderString:(NSString *)string;

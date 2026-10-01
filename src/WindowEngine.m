@@ -146,14 +146,76 @@
     return result;
 }
 
++ (NSUserDefaults *)userDefaults {
+    static NSUserDefaults *defaults = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        defaults = [[NSUserDefaults alloc] initWithSuiteName:@"com.brunobrise.cascade"];
+        if (!defaults) defaults = [NSUserDefaults standardUserDefaults];
+    });
+    return defaults;
+}
+
+static id getPref(NSString *key, id defVal) {
+    id val = [[CascadeEngine userDefaults] objectForKey:key];
+    if (!val) val = [[NSUserDefaults standardUserDefaults] objectForKey:key];
+    return val ?: defVal;
+}
+
+static void setPref(NSString *key, id val) {
+    if (val) {
+        [[CascadeEngine userDefaults] setObject:val forKey:key];
+        [[NSUserDefaults standardUserDefaults] setObject:val forKey:key];
+    } else {
+        [[CascadeEngine userDefaults] removeObjectForKey:key];
+        [[NSUserDefaults standardUserDefaults] removeObjectForKey:key];
+    }
+    [[CascadeEngine userDefaults] synchronize];
+    [[NSUserDefaults standardUserDefaults] synchronize];
+}
+
++ (CascadeOrderMode)savedOrderMode {
+    NSNumber *n = getPref(@"orderMode", nil);
+    return n ? (CascadeOrderMode)[n integerValue] : CascadeOrderModeMRU;
+}
+
++ (void)saveOrderMode:(CascadeOrderMode)mode {
+    setPref(@"orderMode", @(mode));
+}
+
++ (CGFloat)savedDelta {
+    NSNumber *n = getPref(@"delta", nil);
+    return n ? (CGFloat)[n doubleValue] : 40.0;
+}
+
++ (void)saveDelta:(CGFloat)delta {
+    setPref(@"delta", @(delta));
+}
+
++ (BOOL)savedRestackZOrder {
+    NSNumber *n = getPref(@"restackZOrder", nil);
+    return n ? [n boolValue] : YES;
+}
+
++ (void)saveRestackZOrder:(BOOL)restack {
+    setPref(@"restackZOrder", @(restack));
+}
+
++ (BOOL)savedAutoRearrange {
+    NSNumber *n = getPref(@"autoRearrange", nil);
+    return n ? [n boolValue] : NO;
+}
+
++ (void)saveAutoRearrange:(BOOL)autoRearrange {
+    setPref(@"autoRearrange", @(autoRearrange));
+}
+
 + (NSArray<NSString *> *)preferredAppOrder {
-    NSArray *order = [[NSUserDefaults standardUserDefaults] stringArrayForKey:@"preferredAppOrder"];
-    return order ?: @[];
+    return getPref(@"preferredAppOrder", @[]);
 }
 
 + (void)setPreferredAppOrder:(NSArray<NSString *> *)order {
-    [[NSUserDefaults standardUserDefaults] setObject:(order ?: @[]) forKey:@"preferredAppOrder"];
-    [[NSUserDefaults standardUserDefaults] synchronize];
+    setPref(@"preferredAppOrder", order ?: @[]);
 }
 
 + (NSArray<NSString *> *)parseAppOrderString:(NSString *)string {

@@ -236,6 +236,45 @@ static void testPreferredAppOrderSorting() {
     printf("  [PASS] Preferred app order sorting verified with substring and tie-breakers.\n");
 }
 
+static void testPreferencesPersistence() {
+    printf("Running testPreferencesPersistence...\n");
+
+    // 1. Order mode
+    [CascadeEngine saveOrderMode:CascadeOrderModeCustom];
+    assert([CascadeEngine savedOrderMode] == CascadeOrderModeCustom);
+    [CascadeEngine saveOrderMode:CascadeOrderModeSpatial];
+    assert([CascadeEngine savedOrderMode] == CascadeOrderModeSpatial);
+
+    // 2. Delta
+    [CascadeEngine saveDelta:55.0];
+    assert(fabs([CascadeEngine savedDelta] - 55.0) < 0.001);
+    [CascadeEngine saveDelta:40.0];
+    assert(fabs([CascadeEngine savedDelta] - 40.0) < 0.001);
+
+    // 3. Restack Z-Order
+    [CascadeEngine saveRestackZOrder:NO];
+    assert([CascadeEngine savedRestackZOrder] == NO);
+    [CascadeEngine saveRestackZOrder:YES];
+    assert([CascadeEngine savedRestackZOrder] == YES);
+
+    // 4. Auto-Rearrange
+    [CascadeEngine saveAutoRearrange:YES];
+    assert([CascadeEngine savedAutoRearrange] == YES);
+    [CascadeEngine saveAutoRearrange:NO];
+    assert([CascadeEngine savedAutoRearrange] == NO);
+
+    // 5. Preferred App Order
+    NSArray<NSString *> *order = @[@"Cursor", @"Terminal", @"Chrome"];
+    [CascadeEngine setPreferredAppOrder:order];
+    NSArray<NSString *> *retrieved = [CascadeEngine preferredAppOrder];
+    assert(retrieved.count == 3);
+    assert([retrieved[0] isEqualToString:@"Cursor"]);
+    assert([retrieved[1] isEqualToString:@"Terminal"]);
+    assert([retrieved[2] isEqualToString:@"Chrome"]);
+
+    printf("  [PASS] All user preferences round-trip and persist via shared storage.\n");
+}
+
 int main(int argc, const char * argv[]) {
     (void)argc;
     (void)argv;
@@ -248,6 +287,7 @@ int main(int argc, const char * argv[]) {
         testOrderPreservationOnNewWindow();
         testOrderPreservationOnResize();
         testPreferredAppOrderSorting();
+        testPreferencesPersistence();
         printf("\n=== All Tests Passed Successfully! ===\n");
     }
     return 0;
