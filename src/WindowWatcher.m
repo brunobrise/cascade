@@ -39,12 +39,7 @@ static void axObserverCallback(AXObserverRef observer, AXUIElementRef element, C
     self.isWatching = YES;
 
     // 1. Observe all current regular running applications
-    NSArray<NSRunningApplication *> *apps = [[NSWorkspace sharedWorkspace] runningApplications];
-    for (NSRunningApplication *app in apps) {
-        if (app.activationPolicy == NSApplicationActivationPolicyRegular) {
-            [self attachToApp:app];
-        }
-    }
+    [self refreshObservers];
 
     // 2. Subscribe to application lifecycle events
     NSNotificationCenter *nc = [[NSWorkspace sharedWorkspace] notificationCenter];
@@ -52,6 +47,16 @@ static void axObserverCallback(AXObserverRef observer, AXUIElementRef element, C
     [nc addObserver:self selector:@selector(appDidTerminate:) name:NSWorkspaceDidTerminateApplicationNotification object:nil];
     [nc addObserver:self selector:@selector(appDidHideOrUnhide:) name:NSWorkspaceDidHideApplicationNotification object:nil];
     [nc addObserver:self selector:@selector(appDidHideOrUnhide:) name:NSWorkspaceDidUnhideApplicationNotification object:nil];
+}
+
+- (void)refreshObservers {
+    if (!self.isWatching) return;
+    NSArray<NSRunningApplication *> *apps = [[NSWorkspace sharedWorkspace] runningApplications];
+    for (NSRunningApplication *app in apps) {
+        if (app.activationPolicy == NSApplicationActivationPolicyRegular) {
+            [self attachToApp:app];
+        }
+    }
 }
 
 - (void)stopWatching {

@@ -4,7 +4,7 @@
 #import "LoginItemManager.h"
 #import "WindowWatcher.h"
 
-@interface CascadeBarApp : NSObject <NSApplicationDelegate, WindowWatcherDelegate>
+@interface CascadeBarApp : NSObject <NSApplicationDelegate, WindowWatcherDelegate, NSMenuDelegate>
 @property (nonatomic, strong) NSStatusItem *statusItem;
 @property (nonatomic, strong) NSMenu *statusMenu;
 @property (nonatomic, assign) CascadeOrderMode orderMode;
@@ -13,6 +13,7 @@
 @property (nonatomic, assign) EventHotKeyRef hotKeyRef;
 @property (nonatomic, strong) WindowWatcher *watcher;
 - (void)performCascade:(id)sender;
+- (void)openAccessibilitySettings:(id)sender;
 @end
 
 static OSStatus HotKeyHandler(EventHandlerCallRef nextHandler, EventRef theEvent, void *userData) {
@@ -37,7 +38,10 @@ static OSStatus HotKeyHandler(EventHandlerCallRef nextHandler, EventRef theEvent
         [self.watcher startWatching];
     }
 
-    // 2. Setup Status Bar Item
+    // 2. Prompt for Accessibility if not already granted
+    [CascadeEngine isAccessibilityTrustedWithPrompt:YES];
+
+    // 3. Setup Status Bar Item
     self.statusItem = [[NSStatusBar systemStatusBar] statusItemWithLength:NSVariableStatusItemLength];
     NSStatusBarButton *button = self.statusItem.button;
     if (button) {
@@ -72,6 +76,17 @@ static OSStatus HotKeyHandler(EventHandlerCallRef nextHandler, EventRef theEvent
 
 - (void)rebuildMenu {
     NSMenu *menu = [[NSMenu alloc] initWithTitle:@"Cascade"];
+    menu.delegate = self;
+
+    BOOL isTrusted = [CascadeEngine isAccessibilityTrustedWithPrompt:NO];
+    if (!isTrusted) {
+        NSMenuItem *warnItem = [[NSMenuItem alloc] initWithTitle:@"⚠️ Grant Accessibility Permission..."
+                                                          action:@selector(openAccessibilitySettings:)
+                                                   keyEquivalent:@""];
+        warnItem.target = self;
+        [menu addItem:warnItem];
+        [menu addItem:[NSMenuItem separatorItem]];
+    }
 
     NSMenuItem *cascadeItem = [[NSMenuItem alloc] initWithTitle:@"Cascade Windows"
                                                          action:@selector(performCascade:)
@@ -220,8 +235,43 @@ static OSStatus HotKeyHandler(EventHandlerCallRef nextHandler, EventRef theEvent
     [self rebuildMenu];
 }
 
+- (void)openAccessibilitySettings:(id)sender {
+    (void)sender;
+    [CascadeEngine openAccessibilitySettings];
+}
+
+- (void)menuWillOpen:(NSMenu *)menu {
+    (void)menu;
+    static BOOL lastTrusted = NO;
+    BOOL current = [CascadeEngine isAccessibilityTrustedWithPrompt:NO];
+    if (current != lastTrusted) {
+        lastTrusted = current;
+        if (current) {
+            [self.watcher refreshObservers];
+        }
+        [self rebuildMenu];
+    }
+}
+
 - (void)performCascade:(id)sender {
     (void)sender;
+    if (![CascadeEngine isAccessibilityTrustedWithPrompt:NO]) {
+        [CascadeEngine isAccessibilityTrustedWithPrompt:YES];
+        [self rebuildMenu];
+
+        NSAlert *alert = [[NSAlert alloc] init];
+        alert.messageText = @"Accessibility Permission Required";
+        alert.informativeText = @"Cascade needs Accessibility permission to move and resize windows.\n\nPlease enable Cascade in System Settings > Privacy & Security > Accessibility.";
+        [alert addButtonWithTitle:@"Open System Settings"];
+        [alert addButtonWithTitle:@"Cancel"];
+        if ([alert runModal] == NSAlertFirstButtonReturn) {
+            [CascadeEngine openAccessibilitySettings];
+        }
+        return;
+    }
+
+    [self.watcher refreshObservers];
+
     NSArray<CascadeWindow *> *windows = [CascadeEngine collectStandardWindowsWithOnly:nil exclude:nil];
     if (windows.count == 0) return;
 

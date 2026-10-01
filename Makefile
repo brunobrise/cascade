@@ -49,6 +49,7 @@ $(BUILD_DIR)/WindowWatcher.o: src/WindowWatcher.m src/WindowWatcher.h | $(BUILD_
 # CLI binary
 $(BUILD_DIR)/cascade: src/main_cli.m $(BUILD_DIR)/WindowEngine.o $(BUILD_DIR)/LoginItemManager.o $(BUILD_DIR)/WindowWatcher.o | $(BUILD_DIR)/.dir
 	$(CC) $(CFLAGS) $(LDFLAGS) src/main_cli.m $(BUILD_DIR)/WindowEngine.o $(BUILD_DIR)/LoginItemManager.o $(BUILD_DIR)/WindowWatcher.o -o $@
+	codesign --force -s - $@
 
 # Test binaries
 $(BUILD_DIR)/test_engine: tests/test_engine.m $(BUILD_DIR)/WindowEngine.o | $(BUILD_DIR)/.dir
@@ -71,6 +72,7 @@ $(BUILD_DIR)/Cascade.app: src/main_bar.m $(BUILD_DIR)/WindowEngine.o $(BUILD_DIR
 	mkdir -p $(BUILD_DIR)/Cascade.app/Contents/Resources
 	$(CC) $(CFLAGS) $(LDFLAGS) src/main_bar.m $(BUILD_DIR)/WindowEngine.o $(BUILD_DIR)/LoginItemManager.o $(BUILD_DIR)/WindowWatcher.o -o $(BUILD_DIR)/Cascade.app/Contents/MacOS/Cascade
 	cp resources/Info.plist $(BUILD_DIR)/Cascade.app/Contents/Info.plist
+	codesign --force --deep -s - $@
 
 install: build
 	mkdir -p $(INSTALL_BIN)
@@ -78,6 +80,7 @@ install: build
 	mkdir -p $(INSTALL_APP)
 	rm -rf $(INSTALL_APP)/Cascade.app
 	cp -R $(BUILD_DIR)/Cascade.app $(INSTALL_APP)/Cascade.app
+	codesign --force --deep -s - $(INSTALL_APP)/Cascade.app
 	@echo "Installed cascade to $(INSTALL_BIN)/cascade"
 	@echo "Installed Cascade.app to $(INSTALL_APP)/Cascade.app"
 
@@ -97,6 +100,7 @@ login-status: $(BUILD_DIR)/cascade
 
 run: build
 	@pkill -x Cascade 2>/dev/null || true
+	@pkill -x CascadeBar 2>/dev/null || true
 	open $(BUILD_DIR)/Cascade.app
 	@echo "Cascade.app launched in status bar."
 
@@ -110,7 +114,9 @@ watch: $(BUILD_DIR)/cascade
 	./$(BUILD_DIR)/cascade --watch
 
 stop:
-	@pkill -x Cascade 2>/dev/null && echo "Cascade stopped." || echo "Cascade was not running."
+	@pkill -x Cascade 2>/dev/null || true
+	@pkill -x CascadeBar 2>/dev/null || true
+	@echo "Cascade stopped."
 
 restart: stop run
 

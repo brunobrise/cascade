@@ -116,6 +116,7 @@ cascade --only "Cursor,Google Chrome" --apply
 - [Documentation Index](docs/index.md)
 - [Architecture & Engine Specification](docs/specs/01a0f7ec7c122619-window-cascade-engine.md)
 - [Success Story](docs/stories/01a0f7ec7c122619-invariant-cascade-success.md)
+- [Accessibility & Code Signing Postmortem](docs/stories/01a0f7ec7c122619-accessibility-code-signing-postmortem.md)
 
 ## License
 

@@ -54,6 +54,8 @@ typedef NS_ENUM(NSInteger, CascadeOrderMode) {
 
 Core class: `CascadeEngine`
 - `+ (CGRect)usableScreenFrameWithTopInset:(CGFloat *)outTopInset;`
+- `+ (BOOL)isAccessibilityTrustedWithPrompt:(BOOL)prompt;`
+- `+ (void)openAccessibilitySettings;`
 - `+ (NSArray<CascadeWindow *> *)collectStandardWindowsWithOnly:(NSArray<NSString *> *)onlyApps exclude:(NSArray<NSString *> *)excludeApps;`
 - `+ (NSArray<CascadeWindow *> *)calculateLayoutForWindows:(NSArray<CascadeWindow *> *)windows orderMode:(CascadeOrderMode)orderMode delta:(CGFloat)delta;`
 - `+ (void)applyLayoutToWindows:(NSArray<CascadeWindow *> *)windows restackZ:(BOOL)restackZ;`
@@ -67,6 +69,7 @@ Watcher class: `WindowWatcher`
 - `- (instancetype)initWithDelegate:(id<WindowWatcherDelegate>)delegate;`
 - `- (void)startWatching;`
 - `- (void)stopWatching;`
+- `- (void)refreshObservers;`
 - `- (void)scheduleDebouncedChange;`
 
 ## 5. Acceptance Criteria
@@ -84,6 +87,9 @@ Watcher class: `WindowWatcher`
 11. `WindowWatcher` attaches accessibility observers for `kAXWindowCreatedNotification`, `kAXUIElementDestroyedNotification`, `kAXWindowMiniaturizedNotification`, and `kAXWindowDeminiaturizedNotification` across all active applications.
 12. Detected lifecycle changes are debounced over 350ms to ensure animation completion and prevent rapid UI flicker.
 13. Status bar menu toggle "Auto-Rearrange on Open / Minimize / Close" and CLI `--watch` flag enable continuous automatic re-cascading.
+14. If Accessibility permissions are revoked or not granted, `Cascade.app` displays a warning in the status menu and prompts via an alert modal with a button linking directly to System Settings.
+15. When accessibility is granted while the menu is open, observers are dynamically refreshed without requiring an app restart.
+16. The app bundle and CLI binaries are signed with an ad-hoc code signature preserving bundle ID sealing across rebuilds.
 
 ## 6. Test Plan
 

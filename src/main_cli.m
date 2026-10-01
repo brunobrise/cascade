@@ -108,9 +108,15 @@ int main(int argc, const char * argv[]) {
             }
         }
 
-        if (!AXIsProcessTrusted()) {
-            fprintf(stderr, "Error: Accessibility permission is required.\n");
-            fprintf(stderr, "Grant permission in: System Settings > Privacy & Security > Accessibility\n");
+        if (![CascadeEngine isAccessibilityTrustedWithPrompt:YES]) {
+            fprintf(stderr, "\n============================================================\n");
+            fprintf(stderr, "Error: Accessibility permission is required for Cascade.\n\n");
+            fprintf(stderr, "To enable:\n");
+            fprintf(stderr, "  1. Open System Settings > Privacy & Security > Accessibility\n");
+            fprintf(stderr, "  2. Ensure Cascade (and your Terminal app) are enabled\n\n");
+            fprintf(stderr, "Or run this command to jump directly to settings:\n");
+            fprintf(stderr, "  open \"x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility\"\n");
+            fprintf(stderr, "============================================================\n\n");
             return 1;
         }
 

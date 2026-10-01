@@ -16,6 +16,7 @@
 - (instancetype)initWithDelegate:(id<WindowWatcherDelegate>)delegate;
 - (void)startWatching;
 - (void)stopWatching;
+- (void)refreshObservers;
 - (void)scheduleDebouncedChange;
 
 @end

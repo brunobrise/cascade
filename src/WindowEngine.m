@@ -19,6 +19,19 @@
     return CGRectMake(visibleFrame.origin.x, topInset, visibleFrame.size.width, visibleFrame.size.height);
 }
 
++ (BOOL)isAccessibilityTrustedWithPrompt:(BOOL)prompt {
+    if (prompt) {
+        NSDictionary *options = @{(__bridge id)kAXTrustedCheckOptionPrompt: @YES};
+        return AXIsProcessTrustedWithOptions((__bridge CFDictionaryRef)options);
+    }
+    return AXIsProcessTrusted();
+}
+
++ (void)openAccessibilitySettings {
+    NSURL *url = [NSURL URLWithString:@"x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"];
+    [[NSWorkspace sharedWorkspace] openURL:url];
+}
+
 + (NSArray<CascadeWindow *> *)collectStandardWindowsWithOnly:(NSArray<NSString *> *)onlyApps
                                                       exclude:(NSArray<NSString *> *)excludeApps {
     CFArrayRef windowList = CGWindowListCopyWindowInfo(kCGWindowListOptionOnScreenOnly | kCGWindowListExcludeDesktopElements, kCGNullWindowID);
