@@ -55,7 +55,8 @@ When window lifecycle events occur (window created, resized, minimized, or close
 typedef NS_ENUM(NSInteger, CascadeOrderMode) {
     CascadeOrderModeMRU = 0,         // Front-to-back (WindowServer Z-order)
     CascadeOrderModeSpatial = 1,     // Left-to-right (origin.x)
-    CascadeOrderModeAlphabetical = 2 // Alphabetical (localizedName)
+    CascadeOrderModeAlphabetical = 2, // Alphabetical (localizedName)
+    CascadeOrderModeCustom = 3       // Preferred application order by name
 };
 ```
 
@@ -67,6 +68,10 @@ Core class: `CascadeEngine`
 - `+ (BOOL)isAccessibilityTrustedWithPrompt:(BOOL)prompt;`
 - `+ (void)openAccessibilitySettings;`
 - `+ (NSArray<CascadeWindow *> *)collectStandardWindowsWithOnly:(NSArray<NSString *> *)onlyApps exclude:(NSArray<NSString *> *)excludeApps;`
+- `+ (NSArray<NSString *> *)preferredAppOrder;`
+- `+ (void)setPreferredAppOrder:(NSArray<NSString *> *)order;`
+- `+ (NSArray<NSString *> *)parseAppOrderString:(NSString *)string;`
+- `+ (NSArray<CascadeWindow *> *)calculateLayoutForWindows:(NSArray<CascadeWindow *> *)windows orderMode:(CascadeOrderMode)orderMode preferredOrder:(NSArray<NSString *> *)preferredOrder delta:(CGFloat)delta;`
 - `+ (NSArray<CascadeWindow *> *)calculateLayoutForWindows:(NSArray<CascadeWindow *> *)windows orderMode:(CascadeOrderMode)orderMode delta:(CGFloat)delta;`
 - `+ (NSArray<CascadeWindow *> *)calculateLayoutForWindows:(NSArray<CascadeWindow *> *)windows preservingOrderFrom:(NSArray<CascadeWindow *> *)previousOrder delta:(CGFloat)delta;`
 - `+ (void)applyLayoutToWindows:(NSArray<CascadeWindow *> *)windows restackZ:(BOOL)restackZ;`
@@ -106,6 +111,8 @@ Watcher class: `WindowWatcher`
 18. The status bar menu includes an "About Cascade" item presenting the application logo and version, and runtime alert dialogs display the app logo.
 19. Window lifecycle events (new, resize, minimize, close) do not change the established sequence of existing windows; only window dimensions and cascade offsets adjust to the new window count.
 20. Automatic lifecycle events suppress Z-restacking (`kAXRaiseAction`), preventing focus stealing and preserving the active window.
+21. In Preferred App Order mode (`CascadeOrderModeCustom`), windows matching configured application names appear in front slots in specified priority order; unlisted applications follow in secondary MRU order; multiple windows of the same app preserve intra-app MRU order.
+22. Preferred application order can be configured interactively via status menu ("Configure App Order...") or CLI (`--set-app-order`, `--app-order`), persisted in user preferences.
 
 ## 6. Test Plan
 

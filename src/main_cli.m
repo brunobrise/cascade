@@ -9,6 +9,7 @@
 @property (nonatomic, assign) BOOL restack;
 @property (nonatomic, strong) NSArray<NSString *> *onlyApps;
 @property (nonatomic, strong) NSArray<NSString *> *excludeApps;
+@property (nonatomic, strong) NSArray<NSString *> *preferredOrder;
 @property (nonatomic, strong) NSArray<CascadeWindow *> *establishedOrder;
 @end
 
@@ -26,6 +27,7 @@
             } else {
                 planned = [CascadeEngine calculateLayoutForWindows:windows
                                                          orderMode:self.orderMode
+                                                    preferredOrder:self.preferredOrder
                                                              delta:self.delta];
             }
             self.establishedOrder = planned;
@@ -44,7 +46,10 @@ static void printHelp(const char *prog) {
     printf("  --watch              Continuously watch and rearrange on window open/minimize/close\n");
     printf("  --plan               Display layout calculation without applying (default)\n");
     printf("  --list               List current standard windows and exit\n");
-    printf("  --order <mode>       Ordering: 'mru' (default), 'spatial', or 'alpha'\n");
+    printf("  --order <mode>       Ordering: 'mru' (default), 'spatial', 'alpha', or 'preferred'\n");
+    printf("  --app-order <apps>   Comma-separated list of app names to prioritize (frontmost first)\n");
+    printf("  --set-app-order <apps> Persist preferred app order to preferences and exit\n");
+    printf("  --get-app-order      Print current preferred app order and exit\n");
     printf("  --delta <pixels>     Offset/tab size in pixels (default: 40)\n");
     printf("  --no-restack         Do not re-raise windows in order\n");
     printf("  --start-at-login <op> Enable, disable, or query login item ('enable'|'disable'|'status')\n");
@@ -61,6 +66,7 @@ int main(int argc, const char * argv[]) {
         BOOL restack = YES;
         CGFloat delta = 40.0;
         CascadeOrderMode orderMode = CascadeOrderModeMRU;
+        NSArray<NSString *> *preferredOrder = [CascadeEngine preferredAppOrder];
         NSArray<NSString *> *onlyApps = nil;
         NSArray<NSString *> *excludeApps = nil;
 
@@ -105,9 +111,29 @@ int main(int argc, const char * argv[]) {
                     orderMode = CascadeOrderModeSpatial;
                 } else if ([modeStr hasPrefix:@"alpha"]) {
                     orderMode = CascadeOrderModeAlphabetical;
+                } else if ([modeStr isEqualToString:@"custom"] || [modeStr isEqualToString:@"preferred"]) {
+                    orderMode = CascadeOrderModeCustom;
                 } else {
                     orderMode = CascadeOrderModeMRU;
                 }
+            } else if ([arg isEqualToString:@"--app-order"] && i + 1 < argc) {
+                NSString *csv = [NSString stringWithUTF8String:argv[++i]];
+                preferredOrder = [CascadeEngine parseAppOrderString:csv];
+                orderMode = CascadeOrderModeCustom;
+            } else if ([arg isEqualToString:@"--set-app-order"] && i + 1 < argc) {
+                NSString *csv = [NSString stringWithUTF8String:argv[++i]];
+                NSArray<NSString *> *parsed = [CascadeEngine parseAppOrderString:csv];
+                [CascadeEngine setPreferredAppOrder:parsed];
+                printf("Preferred app order set to: %s\n", [parsed componentsJoinedByString:@", "].UTF8String);
+                return 0;
+            } else if ([arg isEqualToString:@"--get-app-order"]) {
+                NSArray<NSString *> *current = [CascadeEngine preferredAppOrder];
+                if (current.count > 0) {
+                    printf("Current preferred app order: %s\n", [current componentsJoinedByString:@", "].UTF8String);
+                } else {
+                    printf("Current preferred app order: (none set)\n");
+                }
+                return 0;
             } else if ([arg isEqualToString:@"--only"] && i + 1 < argc) {
                 NSString *csv = [NSString stringWithUTF8String:argv[++i]];
                 onlyApps = [csv componentsSeparatedByString:@","];
@@ -142,6 +168,7 @@ int main(int argc, const char * argv[]) {
             del.restack = restack;
             del.onlyApps = onlyApps;
             del.excludeApps = excludeApps;
+            del.preferredOrder = preferredOrder;
 
             WindowWatcher *watcher = [[WindowWatcher alloc] initWithDelegate:del];
             [watcher startWatching];
@@ -177,7 +204,10 @@ int main(int argc, const char * argv[]) {
 
         if (doList) return 0;
 
-        NSArray<CascadeWindow *> *planned = [CascadeEngine calculateLayoutForWindows:windows orderMode:orderMode delta:delta];
+        NSArray<CascadeWindow *> *planned = [CascadeEngine calculateLayoutForWindows:windows
+                                                                           orderMode:orderMode
+                                                                      preferredOrder:preferredOrder
+                                                                               delta:delta];
         if (planned.count == 0) return 0;
 
         CGFloat screenArea = usable.size.width * usable.size.height;
@@ -185,7 +215,8 @@ int main(int argc, const char * argv[]) {
         CGFloat ratio = (winArea / screenArea) * 100.0;
 
         const char *orderName = (orderMode == CascadeOrderModeMRU) ? "MRU (Front-to-Back)" :
-                               (orderMode == CascadeOrderModeSpatial) ? "Spatial (Left-to-Right)" : "Alphabetical";
+                               (orderMode == CascadeOrderModeSpatial) ? "Spatial (Left-to-Right)" :
+                               (orderMode == CascadeOrderModeAlphabetical) ? "Alphabetical" : "Preferred App Order";
 
         printf("=== Layout Plan [%s | Delta: %.0f px] ===\n", orderName, delta);
         printf("Window Dimensions: %.0f x %.0f (%.1f%% of screen per window!)\n",

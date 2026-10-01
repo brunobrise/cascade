@@ -207,6 +207,35 @@ static void testOrderPreservationOnResize() {
     printf("  [PASS] Order preserved on resize event.\n");
 }
 
+static void testPreferredAppOrderSorting() {
+    printf("Running testPreferredAppOrderSorting...\n");
+    CascadeWindow *wSlack = makeMockWindow(@"Slack", 0, 0, 800, 600, 1);
+    CascadeWindow *wChrome1 = makeMockWindow(@"Google Chrome", 0, 0, 800, 600, 2);
+    CascadeWindow *wChrome2 = makeMockWindow(@"Google Chrome", 0, 0, 800, 600, 4);
+    CascadeWindow *wCursor = makeMockWindow(@"Cursor", 0, 0, 800, 600, 3);
+    CascadeWindow *wTerminal = makeMockWindow(@"Terminal", 0, 0, 800, 600, 5);
+
+    NSArray<NSString *> *preferred = @[@"Cursor", @"Chrome", @"Terminal"];
+    NSArray<CascadeWindow *> *windows = @[wSlack, wChrome1, wChrome2, wCursor, wTerminal];
+
+    NSArray<CascadeWindow *> *planned = [CascadeEngine calculateLayoutForWindows:windows
+                                                                       orderMode:CascadeOrderModeCustom
+                                                                  preferredOrder:preferred
+                                                                           delta:40.0];
+    assert(planned.count == 5);
+    // 1. Cursor is rank 0
+    assert([planned[0].appName isEqualToString:@"Cursor"]);
+    // 2. Chrome is rank 1 (Chrome 1 has zRank 2, Chrome 2 has zRank 4)
+    assert([planned[1].appName isEqualToString:@"Google Chrome"] && planned[1].zRank == 2);
+    assert([planned[2].appName isEqualToString:@"Google Chrome"] && planned[2].zRank == 4);
+    // 3. Terminal is rank 2
+    assert([planned[3].appName isEqualToString:@"Terminal"]);
+    // 4. Slack is unlisted, so placed last
+    assert([planned[4].appName isEqualToString:@"Slack"]);
+
+    printf("  [PASS] Preferred app order sorting verified with substring and tie-breakers.\n");
+}
+
 int main(int argc, const char * argv[]) {
     (void)argc;
     (void)argv;
@@ -218,6 +247,7 @@ int main(int argc, const char * argv[]) {
         testOrderPreservationOnWindowClose();
         testOrderPreservationOnNewWindow();
         testOrderPreservationOnResize();
+        testPreferredAppOrderSorting();
         printf("\n=== All Tests Passed Successfully! ===\n");
     }
     return 0;

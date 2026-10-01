@@ -2,9 +2,10 @@
 #import <ApplicationServices/ApplicationServices.h>
 
 typedef NS_ENUM(NSInteger, CascadeOrderMode) {
-    CascadeOrderModeMRU = 0,         // Front-to-back (Most Recently Used)
-    CascadeOrderModeSpatial = 1,     // Left-to-right based on existing X position
-    CascadeOrderModeAlphabetical = 2 // Alphabetical by application name
+    CascadeOrderModeMRU = 0,          // Front-to-back (Most Recently Used)
+    CascadeOrderModeSpatial = 1,      // Left-to-right based on existing X position
+    CascadeOrderModeAlphabetical = 2,  // Alphabetical by application name
+    CascadeOrderModeCustom = 3        // Preferred application order by name
 };
 
 @interface CascadeWindow : NSObject
@@ -25,6 +26,13 @@ typedef NS_ENUM(NSInteger, CascadeOrderMode) {
 + (void)openAccessibilitySettings;
 + (NSArray<CascadeWindow *> *)collectStandardWindowsWithOnly:(NSArray<NSString *> *)onlyApps
                                                       exclude:(NSArray<NSString *> *)excludeApps;
++ (NSArray<NSString *> *)preferredAppOrder;
++ (void)setPreferredAppOrder:(NSArray<NSString *> *)order;
++ (NSArray<NSString *> *)parseAppOrderString:(NSString *)string;
++ (NSArray<CascadeWindow *> *)calculateLayoutForWindows:(NSArray<CascadeWindow *> *)windows
+                                              orderMode:(CascadeOrderMode)orderMode
+                                         preferredOrder:(NSArray<NSString *> *)preferredOrder
+                                                  delta:(CGFloat)delta;
 + (NSArray<CascadeWindow *> *)calculateLayoutForWindows:(NSArray<CascadeWindow *> *)windows
                                               orderMode:(CascadeOrderMode)orderMode
                                                   delta:(CGFloat)delta;

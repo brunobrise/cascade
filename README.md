@@ -13,7 +13,7 @@ Traditional window tiling partitions the screen into rigid slices, severely rest
 Cascade solves this conflict through an invariant staggered cascade geometry:
 - **Maximum usable size:** Each window occupies between 73% and 98% of the display.
 - **Permanent click targets:** Every window exposes an unoccluded tab (at top-right and bottom-left edges) that no other window can cover, regardless of the active stacking order.
-- **Multiple ordering strategies:** Order windows by Most Recently Used (front-to-back), Spatial Position (left-to-right), or Alphabetical application name.
+- **Multiple ordering strategies:** Order windows by Most Recently Used (front-to-back), Spatial Position (left-to-right), Alphabetical application name, or Preferred Application Order (by prioritized name).
 - **Status Bar Integration:** Lives in the macOS menu bar with configurable hotkey support (`Option + Command + C`).
 
 ## Mathematical Foundation
@@ -79,7 +79,7 @@ open -a ~/Applications/Cascade.app
 
 The menu bar icon appears in the macOS status bar:
 - **Trigger Cascade:** Press `Option + Command + C` or click **Cascade Windows**.
-- **Window Order:** Switch between **Most Recently Used**, **Spatial Order**, and **Alphabetical**.
+- **Window Order:** Switch between **Most Recently Used**, **Spatial Order**, **Alphabetical**, or **Preferred App Order** (configured via **Configure App Order...**).
 - **Tab Size (Delta):** Adjust margin between 30 px, 40 px, 50 px, and 60 px.
 - **Restack Z-Order:** Re-raise windows in order to match spatial layout.
 - **Auto-Rearrange on Open / Minimize / Close:** Automatically re-cascade windows whenever a window opens, closes, or is minimized.
@@ -100,6 +100,18 @@ cascade --watch
 # Order by application name (alphabetical)
 cascade --order alpha --apply
 
+# Order by user-configured preferred application order
+cascade --order preferred --apply
+
+# Set and persist preferred application order list
+cascade --set-app-order "Cursor, Google Chrome, Terminal, Slack"
+
+# Query currently persisted preferred application order
+cascade --get-app-order
+
+# One-off preferred order override
+cascade --app-order "Cursor, Chrome" --apply
+
 # Custom margin size
 cascade --delta 50 --apply
 
@@ -118,6 +130,7 @@ cascade --only "Cursor,Google Chrome" --apply
 - [Architecture & Engine Specification](docs/specs/01a0f7ec7c122619-window-cascade-engine.md)
 - [Success Story](docs/stories/01a0f7ec7c122619-invariant-cascade-success.md)
 - [Order Preservation Story](docs/stories/01a0f7ec7c122619-order-preservation-success.md)
+- [Preferred App Order Story](docs/stories/01a0f7ec7c122619-preferred-app-order-success.md)
 - [Accessibility & Code Signing Postmortem](docs/stories/01a0f7ec7c122619-accessibility-code-signing-postmortem.md)
 
 ## License

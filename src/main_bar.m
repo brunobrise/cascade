@@ -17,6 +17,8 @@
 - (void)rearrangePreservingOrder;
 - (void)openAccessibilitySettings:(id)sender;
 - (void)showAbout:(id)sender;
+- (void)setOrderCustom:(id)sender;
+- (void)configureAppOrder:(id)sender;
 - (NSImage *)cascadeAppIcon;
 @end
 
@@ -26,6 +28,13 @@ static OSStatus HotKeyHandler(EventHandlerCallRef nextHandler, EventRef theEvent
     CascadeBarApp *app = (__bridge CascadeBarApp *)userData;
     [app performCascade:nil];
     return noErr;
+}
+
+static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlStateValue state) {
+    NSMenuItem *item = [[NSMenuItem alloc] initWithTitle:title action:action keyEquivalent:@""];
+    item.target = target;
+    item.state = state;
+    return item;
 }
 
 @implementation CascadeBarApp
@@ -43,7 +52,11 @@ static OSStatus HotKeyHandler(EventHandlerCallRef nextHandler, EventRef theEvent
 
 - (void)applicationDidFinishLaunching:(NSNotification *)notification {
     (void)notification;
-    self.orderMode = CascadeOrderModeMRU;
+    if ([[NSUserDefaults standardUserDefaults] objectForKey:@"orderMode"]) {
+        self.orderMode = (CascadeOrderMode)[[NSUserDefaults standardUserDefaults] integerForKey:@"orderMode"];
+    } else {
+        self.orderMode = CascadeOrderModeMRU;
+    }
     self.delta = 40.0;
     self.restackZOrder = YES;
 
@@ -122,26 +135,12 @@ static OSStatus HotKeyHandler(EventHandlerCallRef nextHandler, EventRef theEvent
     NSMenuItem *orderSubmenuItem = [[NSMenuItem alloc] initWithTitle:@"Window Order" action:nil keyEquivalent:@""];
     NSMenu *orderMenu = [[NSMenu alloc] initWithTitle:@"Window Order"];
 
-    NSMenuItem *mruItem = [[NSMenuItem alloc] initWithTitle:@"Most Recently Used (Front-to-Back)"
-                                                     action:@selector(setOrderMRU:)
-                                              keyEquivalent:@""];
-    mruItem.target = self;
-    mruItem.state = (self.orderMode == CascadeOrderModeMRU) ? NSControlStateValueOn : NSControlStateValueOff;
-    [orderMenu addItem:mruItem];
-
-    NSMenuItem *spatialItem = [[NSMenuItem alloc] initWithTitle:@"Spatial Order (Left-to-Right)"
-                                                         action:@selector(setOrderSpatial:)
-                                                  keyEquivalent:@""];
-    spatialItem.target = self;
-    spatialItem.state = (self.orderMode == CascadeOrderModeSpatial) ? NSControlStateValueOn : NSControlStateValueOff;
-    [orderMenu addItem:spatialItem];
-
-    NSMenuItem *alphaItem = [[NSMenuItem alloc] initWithTitle:@"Alphabetical (App Name)"
-                                                       action:@selector(setOrderAlpha:)
-                                                keyEquivalent:@""];
-    alphaItem.target = self;
-    alphaItem.state = (self.orderMode == CascadeOrderModeAlphabetical) ? NSControlStateValueOn : NSControlStateValueOff;
-    [orderMenu addItem:alphaItem];
+    [orderMenu addItem:makeItem(@"Most Recently Used (Front-to-Back)", self, @selector(setOrderMRU:), (self.orderMode == CascadeOrderModeMRU) ? NSControlStateValueOn : NSControlStateValueOff)];
+    [orderMenu addItem:makeItem(@"Spatial Order (Left-to-Right)", self, @selector(setOrderSpatial:), (self.orderMode == CascadeOrderModeSpatial) ? NSControlStateValueOn : NSControlStateValueOff)];
+    [orderMenu addItem:makeItem(@"Alphabetical (App Name)", self, @selector(setOrderAlpha:), (self.orderMode == CascadeOrderModeAlphabetical) ? NSControlStateValueOn : NSControlStateValueOff)];
+    [orderMenu addItem:makeItem(@"Preferred App Order", self, @selector(setOrderCustom:), (self.orderMode == CascadeOrderModeCustom) ? NSControlStateValueOn : NSControlStateValueOff)];
+    [orderMenu addItem:[NSMenuItem separatorItem]];
+    [orderMenu addItem:makeItem(@"Configure App Order...", self, @selector(configureAppOrder:), NSControlStateValueOff)];
 
     orderSubmenuItem.submenu = orderMenu;
     [menu addItem:orderSubmenuItem];
@@ -162,29 +161,10 @@ static OSStatus HotKeyHandler(EventHandlerCallRef nextHandler, EventRef theEvent
     deltaSubmenuItem.submenu = deltaMenu;
     [menu addItem:deltaSubmenuItem];
 
-    // Restack Z-order toggle
-    NSMenuItem *restackItem = [[NSMenuItem alloc] initWithTitle:@"Restack Z-Order with Cascade"
-                                                         action:@selector(toggleRestack:)
-                                                  keyEquivalent:@""];
-    restackItem.target = self;
-    restackItem.state = self.restackZOrder ? NSControlStateValueOn : NSControlStateValueOff;
-    [menu addItem:restackItem];
-
-    // Auto-rearrange on window open/minimize/close
-    NSMenuItem *autoItem = [[NSMenuItem alloc] initWithTitle:@"Auto-Rearrange on Open / Minimize / Close"
-                                                      action:@selector(toggleAutoRearrange:)
-                                               keyEquivalent:@""];
-    autoItem.target = self;
-    autoItem.state = self.watcher.isWatching ? NSControlStateValueOn : NSControlStateValueOff;
-    [menu addItem:autoItem];
-
-    // Start at Login toggle
-    NSMenuItem *loginItem = [[NSMenuItem alloc] initWithTitle:@"Start at Login"
-                                                       action:@selector(toggleStartAtLogin:)
-                                                keyEquivalent:@""];
-    loginItem.target = self;
-    loginItem.state = [LoginItemManager isStartAtLoginEnabled] ? NSControlStateValueOn : NSControlStateValueOff;
-    [menu addItem:loginItem];
+    // Toggles
+    [menu addItem:makeItem(@"Restack Z-Order with Cascade", self, @selector(toggleRestack:), self.restackZOrder ? NSControlStateValueOn : NSControlStateValueOff)];
+    [menu addItem:makeItem(@"Auto-Rearrange on Open / Minimize / Close", self, @selector(toggleAutoRearrange:), self.watcher.isWatching ? NSControlStateValueOn : NSControlStateValueOff)];
+    [menu addItem:makeItem(@"Start at Login", self, @selector(toggleStartAtLogin:), [LoginItemManager isStartAtLoginEnabled] ? NSControlStateValueOn : NSControlStateValueOff)];
 
     [menu addItem:[NSMenuItem separatorItem]];
 
@@ -240,6 +220,7 @@ static OSStatus HotKeyHandler(EventHandlerCallRef nextHandler, EventRef theEvent
 - (void)setOrderMRU:(id)sender {
     (void)sender;
     self.orderMode = CascadeOrderModeMRU;
+    [[NSUserDefaults standardUserDefaults] setInteger:self.orderMode forKey:@"orderMode"];
     [self rebuildMenu];
     [self performCascade:nil];
 }
@@ -247,6 +228,7 @@ static OSStatus HotKeyHandler(EventHandlerCallRef nextHandler, EventRef theEvent
 - (void)setOrderSpatial:(id)sender {
     (void)sender;
     self.orderMode = CascadeOrderModeSpatial;
+    [[NSUserDefaults standardUserDefaults] setInteger:self.orderMode forKey:@"orderMode"];
     [self rebuildMenu];
     [self performCascade:nil];
 }
@@ -254,8 +236,47 @@ static OSStatus HotKeyHandler(EventHandlerCallRef nextHandler, EventRef theEvent
 - (void)setOrderAlpha:(id)sender {
     (void)sender;
     self.orderMode = CascadeOrderModeAlphabetical;
+    [[NSUserDefaults standardUserDefaults] setInteger:self.orderMode forKey:@"orderMode"];
     [self rebuildMenu];
     [self performCascade:nil];
+}
+
+- (void)setOrderCustom:(id)sender {
+    if ([CascadeEngine preferredAppOrder].count == 0) {
+        [self configureAppOrder:sender];
+        return;
+    }
+    self.orderMode = CascadeOrderModeCustom;
+    [[NSUserDefaults standardUserDefaults] setInteger:self.orderMode forKey:@"orderMode"];
+    [self rebuildMenu];
+    [self performCascade:nil];
+}
+
+- (void)configureAppOrder:(id)sender {
+    (void)sender;
+    [NSApp activateIgnoringOtherApps:YES];
+    NSAlert *alert = [[NSAlert alloc] init];
+    alert.messageText = @"Preferred Application Order";
+    alert.informativeText = @"Enter comma-separated application names in order of priority (frontmost first):\nExample: Cursor, Google Chrome, Terminal, Slack";
+
+    NSTextField *input = [[NSTextField alloc] initWithFrame:NSMakeRect(0, 0, 320, 24)];
+    input.stringValue = [[CascadeEngine preferredAppOrder] componentsJoinedByString:@", "];
+    alert.accessoryView = input;
+    NSImage *appIcon = [self cascadeAppIcon];
+    if (appIcon) alert.icon = appIcon;
+
+    [alert addButtonWithTitle:@"Save"];
+    [alert addButtonWithTitle:@"Cancel"];
+    [alert.window setInitialFirstResponder:input];
+
+    if ([alert runModal] == NSAlertFirstButtonReturn) {
+        NSArray<NSString *> *parsed = [CascadeEngine parseAppOrderString:input.stringValue];
+        [CascadeEngine setPreferredAppOrder:parsed];
+        self.orderMode = CascadeOrderModeCustom;
+        [[NSUserDefaults standardUserDefaults] setInteger:self.orderMode forKey:@"orderMode"];
+        [self rebuildMenu];
+        [self performCascade:nil];
+    }
 }
 
 - (void)setDeltaValue:(NSMenuItem *)sender {
