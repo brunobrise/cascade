@@ -35,31 +35,32 @@ For detailed proofs and architecture, see the [Window Cascade Engine Spec](docs/
 
 ## Building and Installation
 
-### Build from Source
+### Quick Commands
+
+The included `Makefile` provides commands to build, test, run, and install Cascade:
 
 ```bash
-git clone https://github.com/brunobrise/cascade.git
-cd cascade
-make all
+make help        # Display all available make commands
+make build       # Compile CLI binary and Status Bar app bundle
+make test        # Run the unit test suite
+make run         # Launch Cascade.app into the status bar
+make run-cli     # Preview layout in terminal (--plan)
+make apply       # Cascade windows immediately (--apply)
+make status      # Check if Cascade is running
+make stop        # Terminate running Cascade instance
+make restart     # Stop and re-launch Cascade.app
+make install     # Install CLI to ~/.local/bin and App to ~/Applications
+make uninstall   # Remove installed binaries
+make clean       # Remove build directory
 ```
 
-This compiles:
-- `build/cascade`: Command-line interface.
-- `build/Cascade.app`: Native status bar application bundle.
+### Installation
 
-### Run Tests
-
-```bash
-make test
-```
-
-### Install to System
+To install `cascade` into `~/.local/bin` and `Cascade.app` into `~/Applications`:
 
 ```bash
 make install
 ```
-
-This installs `cascade` into `~/.local/bin/cascade` and `Cascade.app` into `~/Applications/Cascade.app`.
 
 ## Usage
 
