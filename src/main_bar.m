@@ -33,7 +33,18 @@ static OSStatus HotKeyHandler(EventHandlerCallRef nextHandler, EventRef theEvent
     self.statusItem = [[NSStatusBar systemStatusBar] statusItemWithLength:NSVariableStatusItemLength];
     NSStatusBarButton *button = self.statusItem.button;
     if (button) {
-        button.title = @"⧉";
+        NSImage *icon = [NSImage imageWithSystemSymbolName:@"macwindow.on.rectangle" accessibilityDescription:@"Cascade"];
+        if (icon) {
+            NSImageSymbolConfiguration *config = [NSImageSymbolConfiguration configurationWithPointSize:18.0 weight:NSFontWeightSemibold];
+            icon = [icon imageWithSymbolConfiguration:config];
+            [icon setTemplate:YES];
+            button.image = icon;
+            button.imagePosition = NSImageOnly;
+            button.title = @"";
+        } else {
+            button.title = @"⧉";
+            button.font = [NSFont boldSystemFontOfSize:18.0];
+        }
         button.toolTip = @"Cascade (Click to arrange or configure)";
     }
 
