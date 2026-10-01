@@ -40,18 +40,21 @@ For detailed proofs and architecture, see the [Window Cascade Engine Spec](docs/
 The included `Makefile` provides commands to build, test, run, and install Cascade:
 
 ```bash
-make help        # Display all available make commands
-make build       # Compile CLI binary and Status Bar app bundle
-make test        # Run the unit test suite
-make run         # Launch Cascade.app into the status bar
-make run-cli     # Preview layout in terminal (--plan)
-make apply       # Cascade windows immediately (--apply)
-make status      # Check if Cascade is running
-make stop        # Terminate running Cascade instance
-make restart     # Stop and re-launch Cascade.app
-make install     # Install CLI to ~/.local/bin and App to ~/Applications
-make uninstall   # Remove installed binaries
-make clean       # Remove build directory
+make help          # Display all available make commands
+make build         # Compile CLI binary and Status Bar app bundle
+make test          # Run the unit test suite
+make run           # Launch Cascade.app into the status bar
+make run-cli       # Preview layout in terminal (--plan)
+make apply         # Cascade windows immediately (--apply)
+make login-enable  # Register Cascade to start at login
+make login-status  # Check login item registration status
+make login-disable # Unregister Cascade from login items
+make status        # Check if Cascade is running
+make stop          # Terminate running Cascade instance
+make restart       # Stop and re-launch Cascade.app
+make install       # Install CLI to ~/.local/bin and App to ~/Applications
+make uninstall     # Remove installed binaries
+make clean         # Remove build directory
 ```
 
 ### Installation
@@ -77,6 +80,7 @@ The menu bar icon appears in the macOS status bar:
 - **Window Order:** Switch between **Most Recently Used**, **Spatial Order**, and **Alphabetical**.
 - **Tab Size (Delta):** Adjust margin between 30 px, 40 px, 50 px, and 60 px.
 - **Restack Z-Order:** Re-raise windows in order to match spatial layout.
+- **Start at Login:** Toggle whether Cascade launches automatically on login.
 
 ### Command-Line Interface
 
@@ -92,6 +96,11 @@ cascade --order alpha --apply
 
 # Custom margin size
 cascade --delta 50 --apply
+
+# Manage start at login
+cascade --start-at-login enable
+cascade --start-at-login status
+cascade --start-at-login disable
 
 # Arrange only specific applications
 cascade --only "Cursor,Google Chrome" --apply

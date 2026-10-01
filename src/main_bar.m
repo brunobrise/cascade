@@ -1,6 +1,7 @@
 #import <Cocoa/Cocoa.h>
 #import <Carbon/Carbon.h>
 #import "WindowEngine.h"
+#import "LoginItemManager.h"
 
 @interface CascadeBarApp : NSObject <NSApplicationDelegate>
 @property (nonatomic, strong) NSStatusItem *statusItem;
@@ -114,6 +115,14 @@ static OSStatus HotKeyHandler(EventHandlerCallRef nextHandler, EventRef theEvent
     restackItem.state = self.restackZOrder ? NSControlStateValueOn : NSControlStateValueOff;
     [menu addItem:restackItem];
 
+    // Start at Login toggle
+    NSMenuItem *loginItem = [[NSMenuItem alloc] initWithTitle:@"Start at Login"
+                                                       action:@selector(toggleStartAtLogin:)
+                                                keyEquivalent:@""];
+    loginItem.target = self;
+    loginItem.state = [LoginItemManager isStartAtLoginEnabled] ? NSControlStateValueOn : NSControlStateValueOff;
+    [menu addItem:loginItem];
+
     [menu addItem:[NSMenuItem separatorItem]];
 
     NSMenuItem *quitItem = [[NSMenuItem alloc] initWithTitle:@"Quit Cascade"
@@ -123,6 +132,14 @@ static OSStatus HotKeyHandler(EventHandlerCallRef nextHandler, EventRef theEvent
 
     self.statusMenu = menu;
     self.statusItem.menu = menu;
+}
+
+- (void)toggleStartAtLogin:(id)sender {
+    (void)sender;
+    BOOL current = [LoginItemManager isStartAtLoginEnabled];
+    NSError *err = nil;
+    [LoginItemManager setStartAtLoginEnabled:!current error:&err];
+    [self rebuildMenu];
 }
 
 - (void)setOrderMRU:(id)sender {

@@ -1,5 +1,6 @@
 #import <Foundation/Foundation.h>
 #import "WindowEngine.h"
+#import "LoginItemManager.h"
 
 static void printHelp(const char *prog) {
     printf("Cascade - Maximize macOS windows while keeping all clickable at anytime\n\n");
@@ -11,6 +12,7 @@ static void printHelp(const char *prog) {
     printf("  --order <mode>       Ordering: 'mru' (default), 'spatial', or 'alpha'\n");
     printf("  --delta <pixels>     Offset/tab size in pixels (default: 40)\n");
     printf("  --no-restack         Do not re-raise windows in order\n");
+    printf("  --start-at-login <op> Enable, disable, or query login item ('enable'|'disable'|'status')\n");
     printf("  --only <apps>        Comma-separated list of app names to include\n");
     printf("  --exclude <apps>     Comma-separated list of app names to exclude\n");
     printf("  --help, -h           Show this help message\n");
@@ -38,6 +40,27 @@ int main(int argc, const char * argv[]) {
                 restack = NO;
             } else if ([arg isEqualToString:@"--delta"] && i + 1 < argc) {
                 delta = atof(argv[++i]);
+            } else if ([arg isEqualToString:@"--start-at-login"] && i + 1 < argc) {
+                NSString *action = [[NSString stringWithUTF8String:argv[++i]] lowercaseString];
+                if ([action isEqualToString:@"enable"]) {
+                    NSError *err = nil;
+                    if ([LoginItemManager setStartAtLoginEnabled:YES error:&err]) {
+                        printf("Start at login: ENABLED\n");
+                    } else {
+                        fprintf(stderr, "Failed to enable start at login: %s\n", err.localizedDescription.UTF8String);
+                    }
+                } else if ([action isEqualToString:@"disable"]) {
+                    NSError *err = nil;
+                    if ([LoginItemManager setStartAtLoginEnabled:NO error:&err]) {
+                        printf("Start at login: DISABLED\n");
+                    } else {
+                        fprintf(stderr, "Failed to disable start at login: %s\n", err.localizedDescription.UTF8String);
+                    }
+                } else {
+                    BOOL enabled = [LoginItemManager isStartAtLoginEnabled];
+                    printf("Start at login: %s\n", enabled ? "ENABLED" : "DISABLED");
+                }
+                return 0;
             } else if ([arg isEqualToString:@"--order"] && i + 1 < argc) {
                 NSString *modeStr = [[NSString stringWithUTF8String:argv[++i]] lowercaseString];
                 if ([modeStr isEqualToString:@"spatial"]) {

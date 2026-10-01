@@ -58,6 +58,11 @@ Core class: `CascadeEngine`
 - `+ (NSArray<CascadeWindow *> *)calculateLayoutForWindows:(NSArray<CascadeWindow *> *)windows orderMode:(CascadeOrderMode)orderMode delta:(CGFloat)delta;`
 - `+ (void)applyLayoutToWindows:(NSArray<CascadeWindow *> *)windows restackZ:(BOOL)restackZ;`
 
+Helper class: `LoginItemManager`
+- `+ (BOOL)isStartAtLoginEnabled;`
+- `+ (BOOL)setStartAtLoginEnabled:(BOOL)enabled error:(NSError **)outError;`
+- `+ (NSString *)launchAgentPlistPath;`
+
 ## 5. Acceptance Criteria
 
 1. On a screen with dimensions $W \times H$ and inset $T$, calculated window origins never exceed screen boundaries.
@@ -67,9 +72,13 @@ Core class: `CascadeEngine`
 5. In MRU mode, windows preserve the exact global Z-order returned by `CGWindowListCopyWindowInfo`.
 6. In Spatial mode, windows are ordered strictly by ascending $X$ coordinate.
 7. In Alphabetical mode, windows are ordered strictly by ascending application name.
+8. Toggling start-at-login registers the application via `SMAppService` with fallback to `~/Library/LaunchAgents/com.brunobrise.cascade.plist`.
+9. The status bar menu dynamically displays a checkmark reflecting active login item registration.
+10. The CLI command `--start-at-login <enable|disable|status>` provides scriptable login item management.
 
 ## 6. Test Plan
 
 - Unit test layout mathematics across $N=1, 2, 3, 5, 8$ windows with various screen sizes ($1920 \times 1080$, $1800 \times 1130$, $3840 \times 2160$).
 - Unit test disjointness invariants for top-right and bottom-left click tabs.
 - Unit test sorting algorithms for MRU, Spatial, and Alphabetical modes.
+- Unit test login item registration, verification, disabling, and state restoration (`tests/test_login.m`).
