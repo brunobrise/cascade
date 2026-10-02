@@ -1,5 +1,6 @@
 #import <Foundation/Foundation.h>
 #import "WindowEngine.h"
+#import "ScreenManager.h"
 #import "LoginItemManager.h"
 #import "WindowWatcher.h"
 
@@ -11,28 +12,42 @@
 @property (nonatomic, strong) NSArray<NSString *> *excludeApps;
 @property (nonatomic, strong) NSArray<NSString *> *preferredOrder;
 @property (nonatomic, strong) NSArray<CascadeWindow *> *establishedOrder;
+@property (nonatomic, copy) NSString *targetScreen;
 @end
 
 @implementation CliWatcherDelegate
 - (void)windowWatcherDidDetectChange:(WindowWatcher *)watcher {
     printf("\n[Watcher] Window lifecycle event detected! Adjusting window sizes...\n");
     [watcher performWithoutTriggering:^{
-        NSArray<CascadeWindow *> *windows = [CascadeEngine collectStandardWindowsWithOnly:self.onlyApps exclude:self.excludeApps];
-        if (windows.count > 0) {
+        NSArray<CascadeWindow *> *allWindows = [CascadeEngine collectStandardWindowsWithOnly:self.onlyApps exclude:self.excludeApps];
+        if (allWindows.count == 0) return;
+        NSArray<CascadeScreen *> *allScreens = [ScreenManager availableScreens];
+        NSArray<CascadeScreen *> *targetScreens = [ScreenManager screensMatchingTarget:self.targetScreen inScreens:allScreens];
+        NSMutableArray<CascadeWindow *> *allPlanned = [NSMutableArray array];
+        for (CascadeScreen *screen in targetScreens) {
+            NSMutableArray<CascadeWindow *> *screenWins = [NSMutableArray array];
+            for (CascadeWindow *w in allWindows) {
+                if ([ScreenManager screenForFrame:w.currentFrame inScreens:allScreens] == screen) [screenWins addObject:w];
+            }
+            if (screenWins.count == 0) continue;
             NSArray<CascadeWindow *> *planned = nil;
             if (self.establishedOrder.count > 0) {
-                planned = [CascadeEngine calculateLayoutForWindows:windows
-                                               preservingOrderFrom:self.establishedOrder
-                                                             delta:self.delta];
+                planned = [CascadeEngine calculateLayoutForWindows:screenWins preservingOrderFrom:self.establishedOrder delta:self.delta onUsableFrame:screen.quartzVisibleFrame];
             } else {
-                planned = [CascadeEngine calculateLayoutForWindows:windows
-                                                         orderMode:self.orderMode
-                                                    preferredOrder:self.preferredOrder
-                                                             delta:self.delta];
+                planned = [CascadeEngine calculateLayoutForWindows:screenWins orderMode:self.orderMode preferredOrder:self.preferredOrder delta:self.delta onUsableFrame:screen.quartzVisibleFrame];
             }
-            self.establishedOrder = planned;
+            [allPlanned addObjectsFromArray:planned];
             [CascadeEngine applyLayoutToWindows:planned restackZ:NO];
-            printf("  [OK] %lu windows updated without changing order.\n", (unsigned long)planned.count);
+        }
+        if (allPlanned.count > 0) {
+            NSMutableArray<CascadeWindow *> *merged = [allPlanned mutableCopy];
+            for (CascadeWindow *prev in (self.establishedOrder ?: @[])) {
+                BOOL has = NO;
+                for (CascadeWindow *p in allPlanned) { if ([p matchesWindow:prev]) { has = YES; break; } }
+                if (!has) [merged addObject:prev];
+            }
+            self.establishedOrder = merged;
+            printf("  [OK] %lu windows updated without changing order across %lu screen(s).\n", (unsigned long)allPlanned.count, (unsigned long)targetScreens.count);
         }
     }];
 }
@@ -63,10 +78,13 @@ static void printHelp(const char *prog) {
     printf("  --watch              Continuously watch and rearrange on window open/minimize/close\n");
     printf("  --plan               Display layout calculation without applying (default)\n");
     printf("  --list               List current standard windows and exit\n");
+    printf("  --list-screens       List connected screens/monitors and exit\n");
+    printf("  --screen <target>    Target screen ('all', 'active', 'primary', index, or name)\n");
     printf("  --order <mode>       Ordering: 'mru', 'spatial', 'alpha', or 'preferred'\n");
     printf("  --delta <pixels>     Offset/tab size in pixels (default: saved or 40)\n");
     printf("  --no-restack         Do not re-raise windows in order\n");
     printf("  --get-preferences    Print all saved user preferences and exit\n");
+    printf("  --set-screen <target> Persist default target screen ('all'|'active'|name|index)\n");
     printf("  --set-order <mode>   Persist default order mode ('mru'|'spatial'|'alpha'|'preferred')\n");
     printf("  --set-delta <pixels> Persist default delta in pixels\n");
     printf("  --set-restack <on|off> Persist restack Z-order preference ('enable'|'disable')\n");
@@ -90,6 +108,7 @@ int main(int argc, const char * argv[]) {
         CGFloat delta = [CascadeEngine savedDelta];
         CascadeOrderMode orderMode = [CascadeEngine savedOrderMode];
         NSArray<NSString *> *preferredOrder = [CascadeEngine preferredAppOrder];
+        NSString *targetScreen = [ScreenManager savedScreenTarget];
         NSArray<NSString *> *onlyApps = nil;
         NSArray<NSString *> *excludeApps = nil;
 
@@ -103,6 +122,27 @@ int main(int argc, const char * argv[]) {
                 doApply = NO;
             } else if ([arg isEqualToString:@"--list"]) {
                 doList = YES;
+            } else if ([arg isEqualToString:@"--list-screens"]) {
+                NSArray<CascadeScreen *> *screens = [ScreenManager availableScreens];
+                printf("Connected Displays (%lu):\n", (unsigned long)screens.count);
+                for (CascadeScreen *s in screens) {
+                    printf("  [%ld] %-24s | %4.0fx%4.0f at (%5.0f, %5.0f)%s\n",
+                           (long)s.index, [s.name UTF8String],
+                           s.quartzFrame.size.width, s.quartzFrame.size.height,
+                           s.quartzFrame.origin.x, s.quartzFrame.origin.y,
+                           s.isPrimary ? " [Primary]" : "");
+                    printf("       Usable: %4.0fx%4.0f at (%5.0f, %5.0f)\n",
+                           s.quartzVisibleFrame.size.width, s.quartzVisibleFrame.size.height,
+                           s.quartzVisibleFrame.origin.x, s.quartzVisibleFrame.origin.y);
+                }
+                return 0;
+            } else if ([arg isEqualToString:@"--screen"] && i + 1 < argc) {
+                targetScreen = [NSString stringWithUTF8String:argv[++i]];
+            } else if ([arg isEqualToString:@"--set-screen"] && i + 1 < argc) {
+                NSString *target = [NSString stringWithUTF8String:argv[++i]];
+                [ScreenManager saveScreenTarget:target];
+                printf("Saved target screen preference: %s\n", target.UTF8String);
+                return 0;
             } else if ([arg isEqualToString:@"--no-restack"]) {
                 restack = NO;
             } else if ([arg isEqualToString:@"--delta"] && i + 1 < argc) {
@@ -113,6 +153,7 @@ int main(int argc, const char * argv[]) {
                 printf("  Delta:             %.0f px\n", [CascadeEngine savedDelta]);
                 printf("  Restack Z-Order:   %s\n", [CascadeEngine savedRestackZOrder] ? "YES" : "NO");
                 printf("  Auto-Rearrange:    %s\n", [CascadeEngine savedAutoRearrange] ? "YES" : "NO");
+                printf("  Screen Target:     %s\n", [ScreenManager savedScreenTarget].UTF8String);
                 NSArray *apps = [CascadeEngine preferredAppOrder];
                 printf("  Preferred Apps:    %s\n", apps.count > 0 ? [apps componentsJoinedByString:@", "].UTF8String : "(none set)");
                 printf("  Start at Login:    %s\n", [LoginItemManager isStartAtLoginEnabled] ? "YES" : "NO");
@@ -233,6 +274,7 @@ int main(int argc, const char * argv[]) {
 
         if (doWatch) {
             printf("Starting Cascade watcher daemon (auto-rearranging on window open/minimize/close)...\n");
+            printf("Target Screen: %s\n", targetScreen.UTF8String);
             printf("Press Ctrl+C to stop.\n\n");
 
             CliWatcherDelegate *del = [[CliWatcherDelegate alloc] init];
@@ -242,6 +284,7 @@ int main(int argc, const char * argv[]) {
             del.onlyApps = onlyApps;
             del.excludeApps = excludeApps;
             del.preferredOrder = preferredOrder;
+            del.targetScreen = targetScreen;
 
             WindowWatcher *watcher = [[WindowWatcher alloc] initWithDelegate:del];
             [watcher startWatching];
@@ -253,10 +296,10 @@ int main(int argc, const char * argv[]) {
             return 0;
         }
 
-        CGFloat topInset = 0;
-        CGRect usable = [CascadeEngine usableScreenFrameWithTopInset:&topInset];
-        printf("Screen Usable Bounds: X=%.0f, Y=%.0f, W=%.0f, H=%.0f (Top Inset: %.0f)\n\n",
-               usable.origin.x, usable.origin.y, usable.size.width, usable.size.height, topInset);
+        NSArray<CascadeScreen *> *allScreens = [ScreenManager availableScreens];
+        NSArray<CascadeScreen *> *targetScreens = [ScreenManager screensMatchingTarget:targetScreen inScreens:allScreens];
+        printf("Screen Target: %s (%lu screen(s) selected out of %lu connected)\n\n",
+               targetScreen.UTF8String, (unsigned long)targetScreens.count, (unsigned long)allScreens.count);
 
         NSArray<CascadeWindow *> *windows = [CascadeEngine collectStandardWindowsWithOnly:onlyApps exclude:excludeApps];
         if (windows.count == 0) {
@@ -264,11 +307,12 @@ int main(int argc, const char * argv[]) {
             return 0;
         }
 
-        printf("Found %lu window(s):\n", (unsigned long)windows.count);
+        printf("Found %lu window(s) across displays:\n", (unsigned long)windows.count);
         for (NSUInteger i = 0; i < windows.count; i++) {
             CascadeWindow *w = windows[i];
-            printf("  [%lu] %-16s | pos=(%.0f, %.0f) size=(%.0f x %.0f) | \"%s\"\n",
-                   i + 1, [w.appName UTF8String],
+            CascadeScreen *s = [ScreenManager screenForFrame:w.currentFrame inScreens:allScreens];
+            printf("  [%lu] %-16s | Screen: %s | pos=(%.0f, %.0f) size=(%.0f x %.0f) | \"%s\"\n",
+                   i + 1, [w.appName UTF8String], s ? [s.name UTF8String] : "Unknown",
                    w.currentFrame.origin.x, w.currentFrame.origin.y,
                    w.currentFrame.size.width, w.currentFrame.size.height,
                    [w.title UTF8String]);
@@ -277,46 +321,60 @@ int main(int argc, const char * argv[]) {
 
         if (doList) return 0;
 
-        NSArray<CascadeWindow *> *planned = [CascadeEngine calculateLayoutForWindows:windows
-                                                                           orderMode:orderMode
-                                                                      preferredOrder:preferredOrder
-                                                                               delta:delta];
-        if (planned.count == 0) return 0;
+        NSUInteger totalPlanned = 0;
+        for (CascadeScreen *screen in targetScreens) {
+            NSMutableArray<CascadeWindow *> *screenWins = [NSMutableArray array];
+            for (CascadeWindow *w in windows) {
+                if ([ScreenManager screenForFrame:w.currentFrame inScreens:allScreens] == screen) {
+                    [screenWins addObject:w];
+                }
+            }
+            if (screenWins.count == 0) {
+                printf("=== Screen [%s] === No matching windows to cascade.\n\n", [screen.name UTF8String]);
+                continue;
+            }
 
-        CGFloat screenArea = usable.size.width * usable.size.height;
-        CGFloat winArea = planned[0].targetFrame.size.width * planned[0].targetFrame.size.height;
-        CGFloat ratio = (winArea / screenArea) * 100.0;
+            NSArray<CascadeWindow *> *planned = [CascadeEngine calculateLayoutForWindows:screenWins
+                                                                               orderMode:orderMode
+                                                                          preferredOrder:preferredOrder
+                                                                                   delta:delta
+                                                                           onUsableFrame:screen.quartzVisibleFrame];
+            if (planned.count == 0) continue;
+            totalPlanned += planned.count;
 
-        const char *orderName = orderModeName(orderMode);
+            CGFloat screenArea = screen.quartzVisibleFrame.size.width * screen.quartzVisibleFrame.size.height;
+            CGFloat winArea = planned[0].targetFrame.size.width * planned[0].targetFrame.size.height;
+            CGFloat ratio = (winArea / screenArea) * 100.0;
+            const char *orderName = orderModeName(orderMode);
 
-        printf("=== Layout Plan [%s | Delta: %.0f px] ===\n", orderName, delta);
-        printf("Window Dimensions: %.0f x %.0f (%.1f%% of screen per window!)\n",
-               planned[0].targetFrame.size.width, planned[0].targetFrame.size.height, ratio);
-        printf("--------------------------------------------------------------------------------\n");
+            printf("=== Display: %s (%dx%d) [%s | Delta: %.0f px] ===\n",
+                   [screen.name UTF8String], (int)screen.quartzFrame.size.width, (int)screen.quartzFrame.size.height,
+                   orderName, delta);
+            printf("Usable Bounds: X=%.0f, Y=%.0f, W=%.0f, H=%.0f\n",
+                   screen.quartzVisibleFrame.origin.x, screen.quartzVisibleFrame.origin.y,
+                   screen.quartzVisibleFrame.size.width, screen.quartzVisibleFrame.size.height);
+            printf("Window Dimensions: %.0f x %.0f (%.1f%% of screen per window!)\n",
+                   planned[0].targetFrame.size.width, planned[0].targetFrame.size.height, ratio);
+            printf("--------------------------------------------------------------------------------\n");
 
-        for (NSUInteger i = 0; i < planned.count; i++) {
-            CascadeWindow *w = planned[i];
-            CGRect tf = w.targetFrame;
-            printf("  [%lu] %-16s -> X=%.0f, Y=%.0f, W=%.0f, H=%.0f\n",
-                   i + 1, [w.appName UTF8String], tf.origin.x, tf.origin.y, tf.size.width, tf.size.height);
-            if (planned.count == 2) {
-                if (i == 0) printf("      * Tab (Left edge):  [X=%.0f..%.0f, Y=%.0f..%.0f]\n", usable.origin.x, usable.origin.x + delta, usable.origin.y, usable.origin.y + usable.size.height);
-                if (i == 1) printf("      * Tab (Right edge): [X=%.0f..%.0f, Y=%.0f..%.0f]\n", usable.origin.x + usable.size.width - delta, usable.origin.x + usable.size.width, usable.origin.y, usable.origin.y + usable.size.height);
-            } else {
-                printf("      * Permanent Tab (Top-Right):   [X=%.0f..%.0f, Y=%.0f..%.0f]\n",
-                       tf.origin.x + tf.size.width - delta, tf.origin.x + tf.size.width, tf.origin.y, tf.origin.y + delta);
-                printf("      * Permanent Tab (Bottom-Left): [X=%.0f..%.0f, Y=%.0f..%.0f]\n",
-                       tf.origin.x, tf.origin.x + delta, tf.origin.y + tf.size.height - delta, tf.origin.y + tf.size.height);
+            for (NSUInteger i = 0; i < planned.count; i++) {
+                CascadeWindow *w = planned[i];
+                CGRect tf = w.targetFrame;
+                printf("  [%lu] %-16s -> X=%.0f, Y=%.0f, W=%.0f, H=%.0f\n",
+                       i + 1, [w.appName UTF8String], tf.origin.x, tf.origin.y, tf.size.width, tf.size.height);
+            }
+            printf("--------------------------------------------------------------------------------\n\n");
+
+            if (doApply) {
+                printf("Applying changes to %s...\n", [screen.name UTF8String]);
+                [CascadeEngine applyLayoutToWindows:planned restackZ:restack];
             }
         }
-        printf("--------------------------------------------------------------------------------\n");
 
         if (doApply) {
-            printf("\nApplying changes...\n");
-            [CascadeEngine applyLayoutToWindows:planned restackZ:restack];
-            printf("Done! Windows arranged with maximum size and permanent click access.\n");
+            printf("Done! %lu windows arranged across %lu target screen(s).\n", (unsigned long)totalPlanned, (unsigned long)targetScreens.count);
         } else {
-            printf("\n[Dry Run] Pass '--apply' to arrange windows.\n");
+            printf("[Dry Run] Pass '--apply' to arrange windows.\n");
         }
     }
     return 0;

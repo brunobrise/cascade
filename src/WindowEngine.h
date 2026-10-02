@@ -45,10 +45,19 @@ typedef NS_ENUM(NSInteger, CascadeOrderMode) {
                                                   delta:(CGFloat)delta;
 + (NSArray<CascadeWindow *> *)calculateLayoutForWindows:(NSArray<CascadeWindow *> *)windows
                                               orderMode:(CascadeOrderMode)orderMode
+                                         preferredOrder:(NSArray<NSString *> *)preferredOrder
+                                                  delta:(CGFloat)delta
+                                          onUsableFrame:(CGRect)usableFrame;
++ (NSArray<CascadeWindow *> *)calculateLayoutForWindows:(NSArray<CascadeWindow *> *)windows
+                                              orderMode:(CascadeOrderMode)orderMode
                                                   delta:(CGFloat)delta;
 + (NSArray<CascadeWindow *> *)calculateLayoutForWindows:(NSArray<CascadeWindow *> *)windows
                                     preservingOrderFrom:(NSArray<CascadeWindow *> *)previousOrder
                                                   delta:(CGFloat)delta;
++ (NSArray<CascadeWindow *> *)calculateLayoutForWindows:(NSArray<CascadeWindow *> *)windows
+                                    preservingOrderFrom:(NSArray<CascadeWindow *> *)previousOrder
+                                                  delta:(CGFloat)delta
+                                          onUsableFrame:(CGRect)usableFrame;
 + (NSArray<NSDictionary<NSString *, NSString *> *> *)serializeWindows:(NSArray<CascadeWindow *> *)windows;
 + (NSArray<CascadeWindow *> *)matchWindows:(NSArray<CascadeWindow *> *)currentWindows
                       withSavedDescriptors:(NSArray<NSDictionary<NSString *, NSString *> *> *)saved;

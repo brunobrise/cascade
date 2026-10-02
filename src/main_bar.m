@@ -1,6 +1,7 @@
 #import <Cocoa/Cocoa.h>
 #import <Carbon/Carbon.h>
 #import "WindowEngine.h"
+#import "ScreenManager.h"
 #import "LoginItemManager.h"
 #import "WindowWatcher.h"
 #import "AppOrderWindowController.h"
@@ -9,6 +10,7 @@
 @property (nonatomic, strong) NSStatusItem *statusItem;
 @property (nonatomic, strong) NSMenu *statusMenu;
 @property (nonatomic, assign) CascadeOrderMode orderMode;
+@property (nonatomic, copy) NSString *targetScreen;
 @property (nonatomic, assign) CGFloat delta;
 @property (nonatomic, assign) BOOL restackZOrder;
 @property (nonatomic, assign) EventHotKeyRef hotKeyRef;
@@ -42,14 +44,12 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
 @implementation CascadeBarApp
 
 - (NSImage *)cascadeAppIcon {
-    NSImage *appIcon = [NSImage imageNamed:@"AppIcon"];
-    if (!appIcon) {
-        NSString *iconPath = [[NSBundle mainBundle] pathForResource:@"AppIcon" ofType:@"icns"];
-        if (iconPath) {
-            appIcon = [[NSImage alloc] initWithContentsOfFile:iconPath];
-        }
+    NSImage *icon = [NSImage imageNamed:@"AppIcon"];
+    if (!icon) {
+        NSString *p = [[NSBundle mainBundle] pathForResource:@"AppIcon" ofType:@"icns"];
+        if (p) icon = [[NSImage alloc] initWithContentsOfFile:p];
     }
-    return appIcon;
+    return icon;
 }
 
 - (void)applicationDidFinishLaunching:(NSNotification *)notification {
@@ -57,20 +57,12 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
     self.orderMode = [CascadeEngine savedOrderMode];
     self.delta = [CascadeEngine savedDelta];
     self.restackZOrder = [CascadeEngine savedRestackZOrder];
-
-    // 0. Set Application Icon
     NSImage *appIcon = [self cascadeAppIcon];
-    if (appIcon) {
-        [NSApp setApplicationIconImage:appIcon];
-    }
+    if (appIcon) [NSApp setApplicationIconImage:appIcon];
 
-    // 1. Setup Window Watcher
     self.watcher = [[WindowWatcher alloc] initWithDelegate:self];
-    if ([CascadeEngine savedAutoRearrange]) {
-        [self.watcher startWatching];
-    }
+    if ([CascadeEngine savedAutoRearrange]) [self.watcher startWatching];
 
-    // 2. Prompt for Accessibility and observe permission changes
     [CascadeEngine isAccessibilityTrustedWithPrompt:YES];
     [[[NSWorkspace sharedWorkspace] notificationCenter] addObserver:self
                                                            selector:@selector(checkPermissionsChange)
@@ -78,37 +70,29 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
                                                              object:nil];
     [NSTimer scheduledTimerWithTimeInterval:2.0 target:self selector:@selector(checkPermissionsChange) userInfo:nil repeats:YES];
 
-    // 3. Setup Status Bar Item
     self.statusItem = [[NSStatusBar systemStatusBar] statusItemWithLength:NSVariableStatusItemLength];
     NSStatusBarButton *button = self.statusItem.button;
     if (button) {
         NSImage *icon = [NSImage imageWithSystemSymbolName:@"macwindow.on.rectangle" accessibilityDescription:@"Cascade"];
         if (icon) {
-            NSImageSymbolConfiguration *config = [NSImageSymbolConfiguration configurationWithPointSize:18.0 weight:NSFontWeightSemibold];
-            icon = [icon imageWithSymbolConfiguration:config];
-            [icon setTemplate:YES];
-            button.image = icon;
-            button.imagePosition = NSImageOnly;
-            button.title = @"";
+            NSImageSymbolConfiguration *cfg = [NSImageSymbolConfiguration configurationWithPointSize:18.0 weight:NSFontWeightSemibold];
+            button.image = [icon imageWithSymbolConfiguration:cfg] ?: icon;
+            [button.image setTemplate:YES];
+            button.imagePosition = NSImageOnly; button.title = @"";
         } else {
-            button.title = @"⧉";
-            button.font = [NSFont boldSystemFontOfSize:18.0];
+            button.title = @"⧉"; button.font = [NSFont boldSystemFontOfSize:18.0];
         }
         button.toolTip = @"Cascade (Click to arrange or configure)";
     }
-
     [self rebuildMenu];
 
-    // 2. Global Hotkey (Option + Command + C)
-    EventTypeSpec eventType;
-    eventType.eventClass = kEventClassKeyboard;
-    eventType.eventKind = kEventHotKeyPressed;
+    EventTypeSpec eventType = { kEventClassKeyboard, kEventHotKeyPressed };
     InstallApplicationEventHandler(&HotKeyHandler, 1, &eventType, (__bridge void *)self, NULL);
-
-    EventHotKeyID hotKeyID;
-    hotKeyID.signature = 'CSCD';
-    hotKeyID.id = 1;
+    EventHotKeyID hotKeyID = { 'CSCD', 1 };
     RegisterEventHotKey(0x08, cmdKey | optionKey, hotKeyID, GetApplicationEventTarget(), 0, &_hotKeyRef);
+
+    self.targetScreen = [ScreenManager savedScreenTarget];
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(screensDidChange:) name:NSApplicationDidChangeScreenParametersNotification object:nil];
 
     NSArray *savedOrder = [CascadeEngine savedEstablishedWindowOrder];
     if (savedOrder.count > 0 && [CascadeEngine isAccessibilityTrustedWithPrompt:NO]) {
@@ -120,24 +104,14 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
 - (void)rebuildMenu {
     NSMenu *menu = [[NSMenu alloc] initWithTitle:@"Cascade"];
     menu.delegate = self;
-
-    BOOL isTrusted = [CascadeEngine isAccessibilityTrustedWithPrompt:NO];
-    if (!isTrusted) {
-        NSMenuItem *warnItem = [[NSMenuItem alloc] initWithTitle:@"⚠️ Grant Accessibility Permission..."
-                                                          action:@selector(openAccessibilitySettings:)
-                                                   keyEquivalent:@""];
-        warnItem.target = self;
-        [menu addItem:warnItem];
+    if (![CascadeEngine isAccessibilityTrustedWithPrompt:NO]) {
+        [menu addItem:makeItem(@"⚠️ Grant Accessibility Permission...", self, @selector(openAccessibilitySettings:), NSControlStateValueOff)];
         [menu addItem:[NSMenuItem separatorItem]];
     }
-
-    NSMenuItem *cascadeItem = [[NSMenuItem alloc] initWithTitle:@"Cascade Windows"
-                                                         action:@selector(performCascade:)
-                                                  keyEquivalent:@"c"];
+    NSMenuItem *cascadeItem = makeItem(@"Cascade Windows", self, @selector(performCascade:), NSControlStateValueOff);
+    cascadeItem.keyEquivalent = @"c";
     cascadeItem.keyEquivalentModifierMask = NSEventModifierFlagOption | NSEventModifierFlagCommand;
-    cascadeItem.target = self;
     [menu addItem:cascadeItem];
-
     [menu addItem:[NSMenuItem separatorItem]];
 
     // Window Order Submenu
@@ -169,6 +143,25 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
     }
     deltaSubmenuItem.submenu = deltaMenu;
     [menu addItem:deltaSubmenuItem];
+
+    // Target Screen Submenu
+    NSMenuItem *screenSubmenuItem = [[NSMenuItem alloc] initWithTitle:@"Target Screen" action:nil keyEquivalent:@""];
+    NSMenu *screenMenu = [[NSMenu alloc] initWithTitle:@"Target Screen"];
+    BOOL isAll = [self.targetScreen localizedCaseInsensitiveCompare:@"all"] == NSOrderedSame;
+    BOOL isActive = [self.targetScreen localizedCaseInsensitiveCompare:@"active"] == NSOrderedSame;
+    [screenMenu addItem:makeItem(@"All Screens (Independent)", self, @selector(setScreenTargetAll:), isAll ? NSControlStateValueOn : NSControlStateValueOff)];
+    [screenMenu addItem:makeItem(@"Active Screen (Follows Focus)", self, @selector(setScreenTargetActive:), isActive ? NSControlStateValueOn : NSControlStateValueOff)];
+    [screenMenu addItem:[NSMenuItem separatorItem]];
+
+    for (CascadeScreen *s in [ScreenManager availableScreens]) {
+        NSString *title = [NSString stringWithFormat:@"%@ (%dx%d)%@", s.name, (int)s.quartzFrame.size.width, (int)s.quartzFrame.size.height, s.isPrimary ? @" [Primary]" : @""];
+        BOOL selected = (!isAll && !isActive && ([self.targetScreen isEqualToString:s.name] || [self.targetScreen isEqualToString:[@(s.index) stringValue]]));
+        NSMenuItem *sItem = makeItem(title, self, @selector(setScreenTargetSpecific:), selected ? NSControlStateValueOn : NSControlStateValueOff);
+        sItem.representedObject = s.name;
+        [screenMenu addItem:sItem];
+    }
+    screenSubmenuItem.submenu = screenMenu;
+    [menu addItem:screenSubmenuItem];
 
     // Toggles
     [menu addItem:makeItem(@"Restack Z-Order with Cascade", self, @selector(toggleRestack:), self.restackZOrder ? NSControlStateValueOn : NSControlStateValueOff)];
@@ -313,32 +306,71 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
     [self checkPermissionsChange];
 }
 
-- (void)rearrangePreservingOrder {
-    if (![CascadeEngine isAccessibilityTrustedWithPrompt:NO]) return;
+- (void)setScreenTargetValue:(NSString *)target {
+    self.targetScreen = target;
+    [ScreenManager saveScreenTarget:target];
+    [self rebuildMenu];
+    [self performCascade:nil];
+}
+- (void)setScreenTargetAll:(id)s { (void)s; [self setScreenTargetValue:@"all"]; }
+- (void)setScreenTargetActive:(id)s { (void)s; [self setScreenTargetValue:@"active"]; }
+- (void)setScreenTargetSpecific:(NSMenuItem *)s { [self setScreenTargetValue:s.representedObject]; }
+- (void)screensDidChange:(NSNotification *)n { (void)n; [self rebuildMenu]; }
 
-    [self.watcher performWithoutTriggering:^{
-        NSArray<CascadeWindow *> *windows = [CascadeEngine collectStandardWindowsWithOnly:nil exclude:nil];
-        if (windows.count == 0) return;
+- (void)cascadeWindowsOnTargetScreensWithRestack:(BOOL)restack {
+    NSArray<CascadeWindow *> *allWindows = [CascadeEngine collectStandardWindowsWithOnly:nil exclude:nil];
+    if (allWindows.count == 0) return;
 
-        if (self.establishedOrder.count == 0) {
-            NSArray *saved = [CascadeEngine savedEstablishedWindowOrder];
-            if (saved.count > 0) self.establishedOrder = [CascadeEngine matchWindows:windows withSavedDescriptors:saved];
+    if (self.establishedOrder.count == 0) {
+        NSArray *saved = [CascadeEngine savedEstablishedWindowOrder];
+        if (saved.count > 0) self.establishedOrder = [CascadeEngine matchWindows:allWindows withSavedDescriptors:saved];
+    }
+
+    NSArray<CascadeScreen *> *allScreens = [ScreenManager availableScreens];
+    NSArray<CascadeScreen *> *targetScreens = [ScreenManager screensMatchingTarget:self.targetScreen inScreens:allScreens];
+    NSMutableArray<CascadeWindow *> *allPlanned = [NSMutableArray array];
+
+    for (CascadeScreen *screen in targetScreens) {
+        NSMutableArray<CascadeWindow *> *screenWins = [NSMutableArray array];
+        for (CascadeWindow *w in allWindows) {
+            if ([ScreenManager screenForFrame:w.currentFrame inScreens:allScreens] == screen) {
+                [screenWins addObject:w];
+            }
         }
+        if (screenWins.count == 0) continue;
 
         NSArray<CascadeWindow *> *planned = nil;
         if (self.establishedOrder.count > 0) {
-            planned = [CascadeEngine calculateLayoutForWindows:windows
+            planned = [CascadeEngine calculateLayoutForWindows:screenWins
                                            preservingOrderFrom:self.establishedOrder
-                                                         delta:self.delta];
+                                                         delta:self.delta
+                                                 onUsableFrame:screen.quartzVisibleFrame];
         } else {
-            planned = [CascadeEngine calculateLayoutForWindows:windows
+            planned = [CascadeEngine calculateLayoutForWindows:screenWins
                                                      orderMode:self.orderMode
-                                                         delta:self.delta];
+                                                preferredOrder:[CascadeEngine preferredAppOrder]
+                                                         delta:self.delta
+                                                 onUsableFrame:screen.quartzVisibleFrame];
         }
-        self.establishedOrder = planned;
-        [CascadeEngine saveEstablishedWindowOrder:planned];
-        // Event-driven rearrange does NOT restack Z, keeping current focus untouched
-        [CascadeEngine applyLayoutToWindows:planned restackZ:NO];
+        [allPlanned addObjectsFromArray:planned];
+        [CascadeEngine applyLayoutToWindows:planned restackZ:restack];
+    }
+    if (allPlanned.count > 0) {
+        NSMutableArray<CascadeWindow *> *merged = [allPlanned mutableCopy];
+        for (CascadeWindow *prev in (self.establishedOrder ?: @[])) {
+            BOOL has = NO;
+            for (CascadeWindow *p in allPlanned) { if ([p matchesWindow:prev]) { has = YES; break; } }
+            if (!has) [merged addObject:prev];
+        }
+        self.establishedOrder = merged;
+        [CascadeEngine saveEstablishedWindowOrder:merged];
+    }
+}
+
+- (void)rearrangePreservingOrder {
+    if (![CascadeEngine isAccessibilityTrustedWithPrompt:NO]) return;
+    [self.watcher performWithoutTriggering:^{
+        [self cascadeWindowsOnTargetScreensWithRestack:NO];
     }];
 }
 
@@ -362,29 +394,8 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
     }
 
     [self.watcher refreshObservers];
-
     [self.watcher performWithoutTriggering:^{
-        NSArray<CascadeWindow *> *windows = [CascadeEngine collectStandardWindowsWithOnly:nil exclude:nil];
-        if (windows.count == 0) return;
-
-        if (self.establishedOrder.count == 0) {
-            NSArray *saved = [CascadeEngine savedEstablishedWindowOrder];
-            if (saved.count > 0) self.establishedOrder = [CascadeEngine matchWindows:windows withSavedDescriptors:saved];
-        }
-
-        NSArray<CascadeWindow *> *planned = nil;
-        if (self.establishedOrder.count > 0) {
-            planned = [CascadeEngine calculateLayoutForWindows:windows
-                                           preservingOrderFrom:self.establishedOrder
-                                                         delta:self.delta];
-        } else {
-            planned = [CascadeEngine calculateLayoutForWindows:windows
-                                                     orderMode:self.orderMode
-                                                         delta:self.delta];
-        }
-        self.establishedOrder = planned;
-        [CascadeEngine saveEstablishedWindowOrder:planned];
-        [CascadeEngine applyLayoutToWindows:planned restackZ:self.restackZOrder];
+        [self cascadeWindowsOnTargetScreensWithRestack:self.restackZOrder];
     }];
 }
 

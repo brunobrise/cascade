@@ -1,0 +1,74 @@
+@startuml
+skinparam backgroundColor white
+skinparam handwritten false
+skinparam shadowing false
+skinparam defaultFontName -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif
+skinparam roundCorner 8
+
+skinparam sequence {
+    ArrowColor #2563EB
+    ActorBorderColor #2563EB
+    LifeLineBorderColor #94A3B8
+    LifeLineBackgroundColor #F8FAFC
+    ParticipantBorderColor #2563EB
+    ParticipantBackgroundColor #EFF6FF
+    ParticipantFontColor #1E293B
+    BoxBorderColor #CBD5E1
+    BoxBackgroundColor #F8FAFC
+}
+
+title Multi-Screen Selection & Auto-Cascade Lifecycle
+
+actor User as U
+participant "Status Bar Menu\n/ CLI" as UI
+participant "ScreenManager" as SM
+participant "WindowWatcher" as WW
+participant "CascadeEngine" as CE
+participant "macOS Quartz / AX" as AX
+
+== Target Selection ==
+U -> UI: Select "Target Screen" (e.g. Ultrawide or Active)
+UI -> SM: saveScreenTarget("C49RG9x")
+SM -> SM: Persist to NSUserDefaults (com.brunobrise.cascade)
+UI -> UI: Refresh menu indicators
+
+== Window Lifecycle Event or Manual Cascade ==
+alt Window Event (Created / Destroyed / Minimized)
+    AX -> WW: NSWorkspace / AX Notification
+    WW -> UI: windowWatcherDidDetectChange()
+else Manual Trigger
+    U -> UI: Click "Cascade Now" / Run `cascade --apply`
+end
+
+UI -> CE: collectStandardWindowsWithOnly:exclude:
+CE -> AX: CGWindowListCopyWindowInfo + AXUIElement
+AX --> CE: Return raw window list with PIDs and frames
+CE --> UI: NSArray<CascadeWindow *> allWindows
+
+UI -> SM: availableScreens()
+SM -> AX: [NSScreen screens] (Cocoa)
+AX --> SM: Screen list with frames
+SM -> SM: Invert Cocoa (Y-up) to Quartz (Y-down) bounds
+SM --> UI: NSArray<CascadeScreen *> allScreens
+
+UI -> SM: screensMatchingTarget(targetScreen, inScreens: allScreens)
+SM --> UI: NSArray<CascadeScreen *> targetScreens
+
+loop For each screen in targetScreens
+    UI -> SM: Filter allWindows intersecting screen.quartzFrame
+    SM --> UI: NSArray<CascadeWindow *> screenWins
+    alt Has Established Order
+        UI -> CE: calculateLayoutForWindows:preservingOrderFrom:delta:onUsableFrame:
+    else Fresh Sort
+        UI -> CE: calculateLayoutForWindows:orderMode:preferredOrder:delta:onUsableFrame:
+    end
+    CE --> UI: NSArray<CascadeWindow *> planned
+    UI -> CE: applyLayoutToWindows:planned restackZ:restack
+    CE -> AX: AXUIElementSetAttributeValue(kAXPosition, kAXSize) + AXRaiseAction
+    AX --> CE: Window layout committed
+end
+
+UI -> UI: Merge planned windows with establishedOrder (keep untargeted screens safe)
+UI -> CE: saveEstablishedWindowOrder:merged
+
+@enduml

@@ -1,4 +1,5 @@
 #import "WindowEngine.h"
+#import "ScreenManager.h"
 
 @implementation CascadeWindow
 - (void)dealloc {
@@ -23,14 +24,16 @@
 @implementation CascadeEngine
 
 + (CGRect)usableScreenFrameWithTopInset:(CGFloat *)outTopInset {
+    CascadeScreen *primary = [ScreenManager primaryScreen];
+    if (primary) {
+        if (outTopInset) *outTopInset = primary.quartzVisibleFrame.origin.y;
+        return primary.quartzVisibleFrame;
+    }
     NSScreen *screen = [NSScreen mainScreen];
-    NSRect screenFrame = [screen frame];
-    NSRect visibleFrame = [screen visibleFrame];
-
-    CGFloat topInset = screenFrame.size.height - (visibleFrame.origin.y + visibleFrame.size.height);
+    NSRect sf = [screen frame], vf = [screen visibleFrame];
+    CGFloat topInset = sf.size.height - (vf.origin.y + vf.size.height);
     if (outTopInset) *outTopInset = topInset;
-
-    return CGRectMake(visibleFrame.origin.x, topInset, visibleFrame.size.width, visibleFrame.size.height);
+    return CGRectMake(vf.origin.x, topInset, vf.size.width, vf.size.height);
 }
 
 + (NSDictionary<NSString *, id> *)accessibilityDiagnostics {
@@ -286,10 +289,9 @@ static NSInteger rankForApp(NSString *appName, NSArray<NSString *> *preferred) {
 + (NSArray<CascadeWindow *> *)calculateLayoutForWindows:(NSArray<CascadeWindow *> *)windows
                                               orderMode:(CascadeOrderMode)orderMode
                                          preferredOrder:(NSArray<NSString *> *)preferredOrder
-                                                  delta:(CGFloat)delta {
-    NSUInteger count = windows.count;
-    if (count == 0) return @[];
-
+                                                  delta:(CGFloat)delta
+                                          onUsableFrame:(CGRect)usableFrame {
+    if (windows.count == 0) return @[];
     NSMutableArray<CascadeWindow *> *sorted = [windows mutableCopy];
     if (orderMode == CascadeOrderModeMRU) {
         [sorted sortUsingComparator:^NSComparisonResult(CascadeWindow *a, CascadeWindow *b) {
@@ -315,77 +317,72 @@ static NSInteger rankForApp(NSString *appName, NSArray<NSString *> *preferred) {
             return [a.title ?: @"" localizedCaseInsensitiveCompare:b.title ?: @""];
         }];
     }
-
-    [self assignFramesToOrderedWindows:sorted delta:delta];
+    [self assignFramesToOrderedWindows:sorted onUsableFrame:usableFrame delta:delta];
     return sorted;
 }
 
-+ (void)assignFramesToOrderedWindows:(NSArray<CascadeWindow *> *)ordered delta:(CGFloat)delta {
++ (NSArray<CascadeWindow *> *)calculateLayoutForWindows:(NSArray<CascadeWindow *> *)windows
+                                              orderMode:(CascadeOrderMode)orderMode
+                                         preferredOrder:(NSArray<NSString *> *)preferredOrder
+                                                  delta:(CGFloat)delta {
+    return [self calculateLayoutForWindows:windows orderMode:orderMode preferredOrder:preferredOrder delta:delta onUsableFrame:[self usableScreenFrameWithTopInset:nil]];
+}
+
++ (void)assignFramesToOrderedWindows:(NSArray<CascadeWindow *> *)ordered
+                       onUsableFrame:(CGRect)usable
+                               delta:(CGFloat)delta {
     NSUInteger count = ordered.count;
     if (count == 0) return;
-
-    CGFloat topInset = 0;
-    CGRect usable = [self usableScreenFrameWithTopInset:&topInset];
-    CGFloat usableW = usable.size.width;
-    CGFloat usableH = usable.size.height;
-    CGFloat originX = usable.origin.x;
-    CGFloat originY = usable.origin.y;
+    CGFloat usableW = usable.size.width, usableH = usable.size.height;
+    CGFloat originX = usable.origin.x, originY = usable.origin.y;
 
     if (count == 1) {
         ordered[0].targetFrame = usable;
     } else if (count == 2) {
-        // Optimal opposing edge layout: 98% screen area each
         ordered[0].targetFrame = CGRectMake(originX, originY, usableW - delta, usableH);
         ordered[1].targetFrame = CGRectMake(originX + delta, originY, usableW - delta, usableH);
     } else {
-        // Invariant staggered cascade
-        CGFloat totalOffsetX = (count - 1) * delta;
-        CGFloat totalOffsetY = (count - 1) * delta;
-
+        CGFloat totalOffsetX = (count - 1) * delta, totalOffsetY = (count - 1) * delta;
         if (usableW - totalOffsetX < 400 || usableH - totalOffsetY < 300) {
             delta = MIN((usableW - 400) / (count - 1), (usableH - 300) / (count - 1));
-            totalOffsetX = (count - 1) * delta;
-            totalOffsetY = (count - 1) * delta;
+            totalOffsetX = (count - 1) * delta; totalOffsetY = (count - 1) * delta;
         }
-
-        CGFloat targetW = usableW - totalOffsetX;
-        CGFloat targetH = usableH - totalOffsetY;
-
+        CGFloat targetW = usableW - totalOffsetX, targetH = usableH - totalOffsetY;
         for (NSUInteger i = 0; i < count; i++) {
             ordered[i].targetFrame = CGRectMake(originX + i * delta, originY + i * delta, targetW, targetH);
         }
     }
 }
 
++ (void)assignFramesToOrderedWindows:(NSArray<CascadeWindow *> *)ordered delta:(CGFloat)delta {
+    [self assignFramesToOrderedWindows:ordered onUsableFrame:[self usableScreenFrameWithTopInset:nil] delta:delta];
+}
+
 + (NSArray<CascadeWindow *> *)calculateLayoutForWindows:(NSArray<CascadeWindow *> *)windows
                                     preservingOrderFrom:(NSArray<CascadeWindow *> *)previousOrder
-                                                  delta:(CGFloat)delta {
+                                                  delta:(CGFloat)delta
+                                          onUsableFrame:(CGRect)usableFrame {
     if (windows.count == 0) return @[];
     if (previousOrder.count == 0) {
-        return [self calculateLayoutForWindows:windows orderMode:CascadeOrderModeMRU delta:delta];
+        return [self calculateLayoutForWindows:windows orderMode:CascadeOrderModeMRU preferredOrder:[self preferredAppOrder] delta:delta onUsableFrame:usableFrame];
     }
-
-    NSMutableArray<CascadeWindow *> *remaining = [windows mutableCopy];
-    NSMutableArray<CascadeWindow *> *ordered = [NSMutableArray array];
-
-    // 1. Maintain established sequence for windows already present in previousOrder
+    NSMutableArray<CascadeWindow *> *remaining = [windows mutableCopy], *ordered = [NSMutableArray array];
     for (CascadeWindow *prev in previousOrder) {
         CascadeWindow *matched = nil;
         for (CascadeWindow *cur in remaining) {
-            if ([cur matchesWindow:prev]) {
-                matched = cur;
-                break;
-            }
+            if ([cur matchesWindow:prev]) { matched = cur; break; }
         }
-        if (matched) {
-            [ordered addObject:matched];
-            [remaining removeObject:matched];
-        }
+        if (matched) { [ordered addObject:matched]; [remaining removeObject:matched]; }
     }
-
     if (remaining.count > 0) [ordered addObjectsFromArray:remaining];
-    [self assignFramesToOrderedWindows:ordered delta:delta];
+    [self assignFramesToOrderedWindows:ordered onUsableFrame:usableFrame delta:delta];
     return ordered;
+}
+
++ (NSArray<CascadeWindow *> *)calculateLayoutForWindows:(NSArray<CascadeWindow *> *)windows
+                                    preservingOrderFrom:(NSArray<CascadeWindow *> *)previousOrder
+                                                  delta:(CGFloat)delta {
+    return [self calculateLayoutForWindows:windows preservingOrderFrom:previousOrder delta:delta onUsableFrame:[self usableScreenFrameWithTopInset:nil]];
 }
 
 + (void)applyLayoutToWindows:(NSArray<CascadeWindow *> *)windows restackZ:(BOOL)restackZ {

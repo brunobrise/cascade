@@ -17,6 +17,7 @@ Traditional window tiling partitions the screen into rigid slices, severely rest
 Cascade solves this conflict through an invariant staggered cascade geometry:
 - **Maximum usable size:** Each window occupies between 73% and 98% of the display.
 - **Permanent click targets:** Every window exposes an unoccluded tab (at top-right and bottom-left edges) that no other window can cover, regardless of the active stacking order.
+- **Multi-screen partitioning:** Partition windows across displays with pixel-perfect Cocoa-to-Quartz coordinate inversion, cascading each monitor independently or targeting a specific screen.
 - **Multiple ordering strategies:** Order windows by Most Recently Used (front-to-back), Spatial Position (left-to-right), Alphabetical application name, or Preferred Application Order (by prioritized name).
 - **Status Bar Integration:** Lives in the macOS menu bar with configurable hotkey support (`Option + Command + C`).
 
@@ -112,6 +113,7 @@ open -a ~/Applications/Cascade.app
 
 The menu bar icon appears in the macOS status bar:
 - **Trigger Cascade:** Press `Option + Command + C` or click **Cascade Windows**.
+- **Target Screen:** Select **All Screens (Independent)** to cascade every monitor on its own, **Active Screen (Follows Focus)** to target only where you are working, or target a specific display (e.g. `C49RG9x` or built-in display).
 - **Window Order:** Switch between **Most Recently Used**, **Spatial Order**, **Alphabetical**, or **Preferred App Order** (configured via interactive panel with running app picker, drag-and-drop, and window order capture via **Configure App Order...**).
 - **Tab Size (Delta):** Adjust margin between 30 px, 40 px, 50 px, and 60 px.
 - **Restack Z-Order:** Re-raise windows in order to match spatial layout.
@@ -123,6 +125,17 @@ The menu bar icon appears in the macOS status bar:
 ```bash
 # Preview layout calculation without moving windows
 cascade --plan
+
+# List all connected displays and usable bounds
+cascade --list-screens
+
+# Target a specific screen or all displays
+cascade --screen "all" --apply
+cascade --screen "active" --apply
+cascade --screen "C49RG9x" --apply
+
+# Set and persist default screen target
+cascade --set-screen "all"
 
 # Apply layout to active windows
 cascade --apply
@@ -177,10 +190,12 @@ cascade --open-permissions
 - [Brand Identity & Native Icon Specification](docs/specs/01a0fc49a5197278-minimalist-identity-and-icon-system.md)
 - [Persistent Code Signing Specification](docs/specs/01a0fc7ed70771c2-persistent-code-signing-and-tcc.md)
 - [Window Order Persistence Specification](docs/specs/f449f0cfe05f4db0-window-order-persistence.md)
+- [Multi-Screen Support Specification](docs/specs/ab844179246d4c2d-multi-screen-support.md)
 - [Invariant Cascade Success Story](docs/stories/01a0f7ec7c122619-invariant-cascade-success.md)
 - [Minimalist Identity Success Story](docs/stories/01a0fc49a5197278-minimalist-identity-and-icon-success.md)
 - [Persistent Code Signing Story](docs/stories/01a0fc7ed70771c2-persistent-code-signing-success.md)
 - [Window Order Persistence Story](docs/stories/f449f0cfe05f4db0-window-order-persistence-success.md)
+- [Multi-Screen Support Story](docs/stories/ab844179246d4c2d-multi-screen-support-success.md)
 - [Order Preservation Story](docs/stories/01a0f7ec7c122619-order-preservation-success.md)
 - [Preferred App Order Story](docs/stories/01a0f7ec7c122619-preferred-app-order-success.md)
 - [User Preferences Persistence Story](docs/stories/01a0f7ec7c122619-user-preferences-persistence-success.md)

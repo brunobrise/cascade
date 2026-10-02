@@ -1,0 +1,53 @@
+@startuml
+skinparam backgroundColor white
+skinparam handwritten false
+skinparam monochrome false
+skinparam shadowing false
+skinparam roundcorner 8
+skinparam defaultFontName -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif
+
+participant "User / Menu Bar" as User
+participant "CascadeBarApp\n(Runtime)" as App
+participant "ScreenManager\n(Multi-Display)" as SM
+participant "WindowEngine\n(Layout Engine)" as Engine
+participant "macOS Displays\n(NSScreen / Quartz)" as Display
+
+== Phase 1: Display Discovery & Coordinate Inversion ==
+App -> SM: availableScreens()
+activate SM
+SM -> Display: [NSScreen screens]
+Display --> SM: [Screen 0 (Primary), Screen 1 (Secondary), ...]
+SM -> SM: Convert Cocoa (Y-up) to Quartz (Y-down)\nXq = Xc, Yq = H0 - (Yc + Hscreen)
+SM --> App: [CascadeScreen 0 (C49RG9x), CascadeScreen 1 (Built-in)]
+deactivate SM
+
+== Phase 2: User Selects Target Screen ==
+User -> App: Select Target Screen ("C49RG9x" / "All Screens" / "Active")
+App -> SM: saveScreenTarget("C49RG9x")
+SM -> App: Target screen persisted in com.brunobrise.cascade
+
+== Phase 3: Window Collection & Partitioning ==
+App -> Display: collectStandardWindows()
+Display --> App: [Window A, Window B, Window C, Window D]
+loop For each window W
+    App -> SM: screenForFrame(W.currentFrame)
+    SM -> SM: Calculate max intersection area across all screens
+    SM --> App: Assigned Screen (e.g. Screen 0 or Screen 1)
+end
+App -> App: Partition windows by screen\nScreen 0: [Win A, Win B], Screen 1: [Win C, Win D]
+
+== Phase 4: Filtered Cascade Execution ==
+alt Target = Specific Screen ("C49RG9x")
+    App -> Engine: calculateLayout(Screen 0 Windows, onUsableFrame: Screen 0 Frame)
+    Engine --> App: Repositioned Windows for Screen 0
+    App -> Display: Apply layout only to Screen 0 Windows
+    note over App: Windows on Screen 1 (e.g. laptop) are 100% UNTOUCHED!
+else Target = "All Screens (Independent)"
+    loop For each connected Screen S
+        App -> Engine: calculateLayout(Screen S Windows, onUsableFrame: Screen S Frame)
+        Engine --> App: Repositioned Windows for Screen S
+        App -> Display: Apply layout to Screen S Windows
+    end
+end
+
+@enduml
