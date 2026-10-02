@@ -1,5 +1,9 @@
 # Cascade
 
+<p align="center">
+  <img src="resources/brand/brand-primary.svg" width="128" height="128" alt="Cascade Icon" />
+</p>
+
 [![macOS](https://img.shields.io/badge/platform-macOS%2011.0%2B-blue.svg)](https://apple.com/macos)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)]()
@@ -143,13 +147,16 @@ cascade --open-permissions
 
 - [Documentation Index](docs/index.md)
 - [Architecture & Engine Specification](docs/specs/01a0f7ec7c122619-window-cascade-engine.md)
-- [Success Story](docs/stories/01a0f7ec7c122619-invariant-cascade-success.md)
+- [Brand Identity & Native Icon Specification](docs/specs/01a0fc49a5197278-minimalist-identity-and-icon-system.md)
+- [Invariant Cascade Success Story](docs/stories/01a0f7ec7c122619-invariant-cascade-success.md)
+- [Minimalist Identity Success Story](docs/stories/01a0fc49a5197278-minimalist-identity-and-icon-success.md)
 - [Order Preservation Story](docs/stories/01a0f7ec7c122619-order-preservation-success.md)
 - [Preferred App Order Story](docs/stories/01a0f7ec7c122619-preferred-app-order-success.md)
 - [User Preferences Persistence Story](docs/stories/01a0f7ec7c122619-user-preferences-persistence-success.md)
 - [Resilient Permissions Story](docs/stories/01a0f7ec7c122619-resilient-permissions-check-success.md)
 - [Windows Order Redesign Story](docs/stories/01a0f7ec7c122619-windows-order-modal-redesign-success.md)
 - [Accessibility & Code Signing Postmortem](docs/stories/01a0f7ec7c122619-accessibility-code-signing-postmortem.md)
+- [Interactive Brand Showcase](resources/brand/brand-preview.html)
 
 ## License
 

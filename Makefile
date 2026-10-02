@@ -70,11 +70,15 @@ $(BUILD_DIR)/test_watcher: tests/test_watcher.m $(BUILD_DIR)/WindowWatcher.o | $
 $(BUILD_DIR)/test_app_order: tests/test_app_order.m $(BUILD_DIR)/AppOrderWindowController.o $(BUILD_DIR)/WindowEngine.o | $(BUILD_DIR)/.dir
 	$(CC) $(CFLAGS) $(LDFLAGS) tests/test_app_order.m $(BUILD_DIR)/AppOrderWindowController.o $(BUILD_DIR)/WindowEngine.o -o $@
 
-test: $(BUILD_DIR)/test_engine $(BUILD_DIR)/test_login $(BUILD_DIR)/test_watcher $(BUILD_DIR)/test_app_order
+$(BUILD_DIR)/test_icon_generator: tests/test_icon_generator.m | $(BUILD_DIR)/.dir
+	$(CC) $(CFLAGS) $(LDFLAGS) tests/test_icon_generator.m -o $@
+
+test: $(BUILD_DIR)/test_engine $(BUILD_DIR)/test_login $(BUILD_DIR)/test_watcher $(BUILD_DIR)/test_app_order $(BUILD_DIR)/test_icon_generator
 	./$(BUILD_DIR)/test_engine
 	./$(BUILD_DIR)/test_login
 	./$(BUILD_DIR)/test_watcher
 	./$(BUILD_DIR)/test_app_order
+	./$(BUILD_DIR)/test_icon_generator
 
 # App Icon
 resources/AppIcon.icns: tools/generate_icon.m

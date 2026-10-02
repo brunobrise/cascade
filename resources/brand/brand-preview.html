@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cascade Brand Identity & Icon System Preview</title>
+  <style>
+    :root {
+      --bg: #0B0F19;
+      --surface: #131A2A;
+      --border: #1E293B;
+      --text: #F8FAFC;
+      --text-muted: #94A3B8;
+      --accent: #38BDF8;
+      --accent-deep: #0284C7;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      padding: 48px 24px;
+    }
+
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    header {
+      margin-bottom: 48px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 24px;
+    }
+
+    h1 {
+      font-size: 32px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-bottom: 8px;
+    }
+
+    p.subtitle {
+      color: var(--text-muted);
+      font-size: 16px;
+    }
+
+    .grid-section {
+      margin-bottom: 56px;
+    }
+
+    h2 {
+      font-size: 20px;
+      font-weight: 600;
+      margin-bottom: 20px;
+      color: var(--accent);
+      letter-spacing: -0.01em;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 24px;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      transition: transform 0.2s ease, border-color 0.2s ease;
+    }
+
+    .card:hover {
+      border-color: var(--accent);
+      transform: translateY(-2px);
+    }
+
+    .card.light-card {
+      background: #F8FAFC;
+      color: #0F172A;
+      border-color: #E2E8F0;
+    }
+
+    .card.light-card .card-caption {
+      color: #64748B;
+    }
+
+    .preview-box {
+      width: 220px;
+      height: 220px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 16px;
+    }
+
+    .preview-box img, .preview-box object {
+      max-width: 100%;
+      max-height: 100%;
+    }
+
+    .card-title {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .card-caption {
+      font-size: 13px;
+      color: var(--text-muted);
+      text-align: center;
+    }
+
+    /* Scales row */
+    .scales-row {
+      display: flex;
+      align-items: flex-end;
+      gap: 32px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 32px;
+      flex-wrap: wrap;
+    }
+
+    .scale-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .scale-label {
+      font-size: 12px;
+      color: var(--text-muted);
+      font-family: monospace;
+    }
+
+    /* Palette */
+    .palette-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 16px;
+    }
+
+    .swatch {
+      border-radius: 12px;
+      padding: 16px;
+      border: 1px solid var(--border);
+    }
+
+    .swatch-color {
+      height: 48px;
+      border-radius: 8px;
+      margin-bottom: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .swatch-name {
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 2px;
+    }
+
+    .swatch-hex {
+      font-size: 12px;
+      color: var(--text-muted);
+      font-family: monospace;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Cascade Brand Identity System</h1>
+      <p class="subtitle">Production minimalist vector assets and native macOS icon specification</p>
+    </header>
+
+    <!-- Main Deliverables Grid -->
+    <section class="grid-section">
+      <h2>Brand Variants</h2>
+      <div class="card-grid">
+        <!-- Primary -->
+        <div class="card">
+          <div class="preview-box">
+            <img src="./brand-primary.svg" alt="Cascade Primary Mark">
+          </div>
+          <div class="card-title">brand-primary.svg</div>
+          <div class="card-caption">Full-color master macOS squircle mark with staggered planar geometry and permanent click tabs.</div>
+        </div>
+
+        <!-- Animated -->
+        <div class="card">
+          <div class="preview-box">
+            <img src="./brand-animated.svg" alt="Cascade Animated Mark">
+          </div>
+          <div class="card-title">brand-animated.svg</div>
+          <div class="card-caption">Pure CSS-animated cascade reveal with staggered easing and reduced-motion handling.</div>
+        </div>
+
+        <!-- Inverse -->
+        <div class="card">
+          <div class="preview-box">
+            <img src="./brand-inverse.svg" alt="Cascade Inverse Mark">
+          </div>
+          <div class="card-title">brand-inverse.svg</div>
+          <div class="card-caption">High-contrast dark mode variant for OLED surfaces, dashboards, and deep contrast contexts.</div>
+        </div>
+
+        <!-- Monochrome Dark -->
+        <div class="card" style="color: #38BDF8;">
+          <div class="preview-box" style="color: #38BDF8;">
+            <img src="./brand-mono.svg" alt="Cascade Monochrome Dark Mark" style="filter: brightness(0) invert(1);">
+          </div>
+          <div class="card-title" style="color: #F8FAFC;">brand-mono.svg (Dark)</div>
+          <div class="card-caption">Pure currentColor vector with negative-space knockout channels for universal reproduction.</div>
+        </div>
+
+        <!-- Monochrome Light -->
+        <div class="card light-card">
+          <div class="preview-box">
+            <img src="./brand-mono.svg" alt="Cascade Monochrome Light Mark">
+          </div>
+          <div class="card-title">brand-mono.svg (Light)</div>
+          <div class="card-caption">Single-color black mark on white for documentation, laser etching, and 1-bit printing.</div>
+        </div>
+
+        <!-- Small / Favicon -->
+        <div class="card">
+          <div class="preview-box">
+            <img src="./brand-small.svg" alt="Cascade Small Mark" style="width: 96px; height: 96px;">
+          </div>
+          <div class="card-title">brand-small.svg</div>
+          <div class="card-caption">Optically calibrated for 16px to 64px display with boosted stroke weights.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Scale Verification -->
+    <section class="grid-section">
+      <h2>Scale Verification (Favicon &amp; UI Dock Tests)</h2>
+      <div class="scales-row">
+        <div class="scale-item">
+          <img src="./brand-small.svg" style="width: 16px; height: 16px;" alt="16px">
+          <span class="scale-label">16 px</span>
+        </div>
+        <div class="scale-item">
+          <img src="./brand-small.svg" style="width: 24px; height: 24px;" alt="24px">
+          <span class="scale-label">24 px</span>
+        </div>
+        <div class="scale-item">
+          <img src="./brand-small.svg" style="width: 32px; height: 32px;" alt="32px">
+          <span class="scale-label">32 px</span>
+        </div>
+        <div class="scale-item">
+          <img src="./brand-small.svg" style="width: 48px; height: 48px;" alt="48px">
+          <span class="scale-label">48 px</span>
+        </div>
+        <div class="scale-item">
+          <img src="./brand-primary.svg" style="width: 64px; height: 64px;" alt="64px">
+          <span class="scale-label">64 px</span>
+        </div>
+        <div class="scale-item">
+          <img src="./brand-primary.svg" style="width: 128px; height: 128px;" alt="128px">
+          <span class="scale-label">128 px</span>
+        </div>
+        <div class="scale-item">
+          <img src="./brand-primary.svg" style="width: 200px; height: 200px;" alt="200px">
+          <span class="scale-label">200 px</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Palette -->
+    <section class="grid-section">
+      <h2>System Color Palette</h2>
+      <div class="palette-grid">
+        <div class="swatch">
+          <div class="swatch-color" style="background: #38BDF8;"></div>
+          <div class="swatch-name">Electric Cyan</div>
+          <div class="swatch-hex">#38BDF8</div>
+        </div>
+        <div class="swatch">
+          <div class="swatch-color" style="background: #0284C7;"></div>
+          <div class="swatch-name">Cobalt Core</div>
+          <div class="swatch-hex">#0284C7</div>
+        </div>
+        <div class="swatch">
+          <div class="swatch-color" style="background: #1E293B;"></div>
+          <div class="swatch-name">Slate Glass</div>
+          <div class="swatch-hex">#1E293B</div>
+        </div>
+        <div class="swatch">
+          <div class="swatch-color" style="background: #0F172A;"></div>
+          <div class="swatch-name">Deep Midnight</div>
+          <div class="swatch-hex">#0F172A</div>
+        </div>
+        <div class="swatch">
+          <div class="swatch-color" style="background: #020408;"></div>
+          <div class="swatch-name">Obsidian Black</div>
+          <div class="swatch-hex">#020408</div>
+        </div>
+      </div>
+    </section>
+  </div>
+</body>
+</html>

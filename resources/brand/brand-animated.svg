@@ -1,0 +1,149 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%" role="img" aria-labelledby="cascadeAnimTitle cascadeAnimDesc">
+  <title id="cascadeAnimTitle">Cascade App Icon - Animated</title>
+  <desc id="cascadeAnimDesc">Living animated SVG mark illustrating the staggered cascade layout and permanent click tab discovery.</desc>
+  <defs>
+    <!-- Background Gradient -->
+    <linearGradient id="animBgGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#0F172A"/>
+      <stop offset="50%" stop-color="#090D16"/>
+      <stop offset="100%" stop-color="#020408"/>
+    </linearGradient>
+
+    <!-- Window Gradients -->
+    <linearGradient id="animWin1Grad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#1E293B" stop-opacity="0.85"/>
+      <stop offset="100%" stop-color="#0F172A" stop-opacity="0.95"/>
+    </linearGradient>
+
+    <linearGradient id="animWin2Grad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#243247" stop-opacity="0.90"/>
+      <stop offset="100%" stop-color="#131B2B" stop-opacity="0.95"/>
+    </linearGradient>
+
+    <linearGradient id="animWin3Grad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#2D3E56" stop-opacity="0.95"/>
+      <stop offset="100%" stop-color="#172233" stop-opacity="0.98"/>
+    </linearGradient>
+
+    <linearGradient id="animTabGradActive" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38BDF8"/>
+      <stop offset="100%" stop-color="#0284C7"/>
+    </linearGradient>
+
+    <!-- Filters -->
+    <filter id="animShadow" x="-15%" y="-15%" width="135%" height="140%">
+      <feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#000000" flood-opacity="0.45"/>
+    </filter>
+
+    <style>
+      /* Keyframe Orchestration: Staggered Cascade Slide */
+      @keyframes cascadeSlide1 {
+        0% {
+          opacity: 0;
+          transform: translate(-30px, -30px);
+        }
+        40%, 100% {
+          opacity: 1;
+          transform: translate(0, 0);
+        }
+      }
+
+      @keyframes cascadeSlide2 {
+        0%, 15% {
+          opacity: 0;
+          transform: translate(-30px, -30px);
+        }
+        55%, 100% {
+          opacity: 1;
+          transform: translate(0, 0);
+        }
+      }
+
+      @keyframes cascadeSlide3 {
+        0%, 30% {
+          opacity: 0;
+          transform: translate(-30px, -30px);
+        }
+        70%, 100% {
+          opacity: 1;
+          transform: translate(0, 0);
+        }
+      }
+
+      @keyframes tabGlow {
+        0%, 65% {
+          opacity: 0.2;
+          transform: scale(0.9);
+        }
+        85% {
+          opacity: 1;
+          transform: scale(1.08);
+        }
+        100% {
+          opacity: 1;
+          transform: scale(1);
+        }
+      }
+
+      .anim-win-1 {
+        animation: cascadeSlide1 1.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      }
+
+      .anim-win-2 {
+        animation: cascadeSlide2 1.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      }
+
+      .anim-win-3 {
+        animation: cascadeSlide3 1.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      }
+
+      .anim-tab {
+        animation: tabGlow 1.6s ease-out forwards;
+        transform-origin: center;
+      }
+
+      /* Accessibility: Disable motion when requested by system */
+      @media (prefers-reduced-motion: reduce) {
+        .anim-win-1, .anim-win-2, .anim-win-3, .anim-tab {
+          animation: none !important;
+          opacity: 1 !important;
+          transform: none !important;
+        }
+      }
+    </style>
+  </defs>
+
+  <!-- Master Canvas Squircle -->
+  <rect x="50" y="50" width="412" height="412" rx="92" fill="url(#animBgGrad)" stroke="#334155" stroke-width="1.5" stroke-opacity="0.5"/>
+
+  <!-- Window 1 (Back) -->
+  <g class="anim-win-1" filter="url(#animShadow)">
+    <rect x="96" y="112" width="220" height="154" rx="14" fill="url(#animWin1Grad)" stroke="#475569" stroke-width="1.5" stroke-opacity="0.45"/>
+    <path class="anim-tab" d="M 282 112 L 302 112 A 14 14 0 0 1 316 126 L 316 146 L 282 146 Z" fill="#075985"/>
+    <circle cx="299" cy="129" r="3.5" fill="#FFFFFF" fill-opacity="0.9"/>
+  </g>
+
+  <!-- Window 2 (Middle) -->
+  <g class="anim-win-2" filter="url(#animShadow)">
+    <rect x="146" y="162" width="220" height="154" rx="14" fill="url(#animWin2Grad)" stroke="#64748B" stroke-width="1.5" stroke-opacity="0.6"/>
+    <path class="anim-tab" d="M 332 162 L 352 162 A 14 14 0 0 1 366 176 L 366 196 L 332 196 Z" fill="#0284C7"/>
+    <circle cx="349" cy="179" r="3.5" fill="#FFFFFF" fill-opacity="0.9"/>
+  </g>
+
+  <!-- Window 3 (Front Active) -->
+  <g class="anim-win-3" filter="url(#animShadow)">
+    <rect x="196" y="212" width="220" height="154" rx="14" fill="url(#animWin3Grad)" stroke="#38BDF8" stroke-width="1.8" stroke-opacity="0.75"/>
+    <line x1="196" y1="238" x2="416" y2="238" stroke="#FFFFFF" stroke-opacity="0.10" stroke-width="1"/>
+    
+    <circle cx="212" cy="225" r="3.5" fill="#F43F5E" fill-opacity="0.85"/>
+    <circle cx="224" cy="225" r="3.5" fill="#FBBF24" fill-opacity="0.85"/>
+    <circle cx="236" cy="225" r="3.5" fill="#10B981" fill-opacity="0.85"/>
+
+    <path class="anim-tab" d="M 382 212 L 402 212 A 14 14 0 0 1 416 226 L 416 246 L 382 246 Z" fill="url(#animTabGradActive)"/>
+    <circle cx="399" cy="229" r="3.5" fill="#FFFFFF" fill-opacity="0.95"/>
+
+    <rect x="214" y="258" width="80" height="4" rx="2" fill="#FFFFFF" fill-opacity="0.25"/>
+    <rect x="214" y="272" width="130" height="4" rx="2" fill="#FFFFFF" fill-opacity="0.15"/>
+    <rect x="214" y="286" width="105" height="4" rx="2" fill="#FFFFFF" fill-opacity="0.10"/>
+  </g>
+</svg>

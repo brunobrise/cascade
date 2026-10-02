@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="100%" height="100%" role="img" aria-labelledby="cascadeSmallTitle cascadeSmallDesc">
+  <title id="cascadeSmallTitle">Cascade Favicon - Small</title>
+  <desc id="cascadeSmallDesc">Optically tuned 16-64px small-size icon for Cascade showing bold cascading window geometry.</desc>
+  <defs>
+    <!-- Knockout mask to ensure high contrast separation at 16px -->
+    <mask id="smallCutout">
+      <rect width="64" height="64" fill="#FFFFFF"/>
+      <rect x="15" y="15" width="44" height="34" rx="8" fill="#000000"/>
+    </mask>
+  </defs>
+
+  <!-- Window 1 (Back) with knockout -->
+  <g mask="url(#smallCutout)">
+    <rect x="7" y="7" width="38" height="28" rx="6" fill="#1E293B" stroke="#64748B" stroke-width="4"/>
+    <!-- Bold Top-Right Tab 1 -->
+    <path d="M 33 7 L 39 7 A 6 6 0 0 1 45 13 L 45 19 L 33 19 Z" fill="#0284C7"/>
+  </g>
+
+  <!-- Window 2 (Front Active) -->
+  <rect x="19" y="19" width="38" height="28" rx="6" fill="#0F172A" stroke="#38BDF8" stroke-width="4.5"/>
+  <!-- Bold Top-Right Tab 2 -->
+  <path d="M 45 19 L 51 19 A 6 6 0 0 1 57 25 L 57 31 L 45 31 Z" fill="#38BDF8"/>
+</svg>

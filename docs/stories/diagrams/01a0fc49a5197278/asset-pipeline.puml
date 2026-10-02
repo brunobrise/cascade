@@ -1,0 +1,27 @@
+@startuml
+skinparam backgroundColor white
+skinparam handwritten false
+skinparam monochrome false
+skinparam shadowing false
+skinparam defaultFontName -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif
+skinparam roundCorner 8
+
+skinparam activity {
+  BackgroundColor #F8FAFC
+  BorderColor #0284C7
+  FontColor #0F172A
+}
+
+start
+:Mathematical Invariant\n(Invariant Staggered Layout & Permanent Tabs);
+fork
+  :Vector Brand Suite (resources/brand/)\n- brand-primary.svg (Full color)\n- brand-mono.svg (currentColor)\n- brand-inverse.svg (OLED/Dark)\n- brand-small.svg (16-64px)\n- brand-animated.svg (CSS keyframes)\n- brand-preview.html (Showcase);
+fork again
+  :Native macOS Icon Generator (tools/generate_icon.m);
+  :Generate 10 PNG resolutions in AppIcon.iconset;
+  :Package AppIcon.icns via iconutil;
+end fork
+:Embed into Cascade.app Application Bundle;
+:Validate via test_icon_generator Unit Tests;
+stop
+@enduml

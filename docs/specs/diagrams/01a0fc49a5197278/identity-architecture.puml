@@ -1,0 +1,56 @@
+@startuml
+skinparam backgroundColor white
+skinparam handwritten false
+skinparam monochrome false
+skinparam shadowing false
+skinparam defaultFontName -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif
+skinparam roundCorner 8
+
+skinparam package {
+  BackgroundColor #F8FAFC
+  BorderColor #CBD5E1
+  FontColor #0F172A
+}
+
+skinparam node {
+  BackgroundColor #FFFFFF
+  BorderColor #94A3B8
+  FontColor #0F172A
+}
+
+package "Cascade Brand Identity System" {
+  [Mathematical Foundation\n(Invariant Staggered Geometry)] as Math
+  [Brand Vector Suite\n(resources/brand/)] as BrandSuite
+  [macOS AppIcon Generator\n(tools/generate_icon.m)] as AppIconGen
+  [macOS Menu Bar / Status Bar\n(src/main_bar.m)] as MenuBar
+}
+
+package "SVG Deliverables" {
+  node "brand-primary.svg\n(Full-color master mark + lockup)" as Primary
+  node "brand-mono.svg\n(Monochrome currentColor vector)" as Mono
+  node "brand-inverse.svg\n(High-contrast dark surface mark)" as Inverse
+  node "brand-small.svg\n(Optically tuned 16-64px favicon)" as Small
+  node "brand-animated.svg\n(Semantic CSS keyframe cascade)" as Animated
+  node "brand-preview.html\n(Interactive design testbench)" as Preview
+}
+
+package "Native macOS Artifacts" {
+  node "AppIcon.iconset\n(16x16 to 1024x1024 PNGs)" as IconSet
+  node "AppIcon.icns\n(Multi-res Apple Icon Resource)" as Icns
+  node "Menu Bar Status Icon\n(Crisp template vector)" as StatusIcon
+}
+
+Math --> BrandSuite : Geometry & Tab Offset Logic
+BrandSuite --> Primary
+BrandSuite --> Mono
+BrandSuite --> Inverse
+BrandSuite --> Small
+BrandSuite --> Animated
+BrandSuite --> Preview
+
+Primary --> AppIconGen : Vector master geometry
+AppIconGen --> IconSet : Generates 10 resolutions
+IconSet --> Icns : iconutil -c icns
+Icns --> MenuBar : Application Bundle Icon
+Mono --> StatusIcon : Crisp template silhouette
+@enduml
