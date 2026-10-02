@@ -50,6 +50,7 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
     self.orderMode = [CascadeEngine savedOrderMode];
     self.delta = [CascadeEngine savedDelta];
     self.restackZOrder = [CascadeEngine savedRestackZOrder];
+    self.targetScreen = [ScreenManager savedScreenTarget];
     NSImage *appIcon = [self cascadeAppIcon];
     if (appIcon) [NSApp setApplicationIconImage:appIcon];
 
@@ -84,7 +85,6 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
     EventHotKeyID hotKeyID = { 'CSCD', 1 };
     RegisterEventHotKey(0x08, cmdKey | optionKey, hotKeyID, GetApplicationEventTarget(), 0, &_hotKeyRef);
 
-    self.targetScreen = [ScreenManager savedScreenTarget];
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(screensDidChange:) name:NSApplicationDidChangeScreenParametersNotification object:nil];
 
     NSArray *savedOrder = [CascadeEngine savedEstablishedWindowOrder];
@@ -140,15 +140,16 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
     // Target Screen Submenu
     NSMenuItem *screenSubmenuItem = [[NSMenuItem alloc] initWithTitle:@"Target Screen" action:nil keyEquivalent:@""];
     NSMenu *screenMenu = [[NSMenu alloc] initWithTitle:@"Target Screen"];
-    BOOL isAll = [self.targetScreen localizedCaseInsensitiveCompare:@"all"] == NSOrderedSame;
-    BOOL isActive = [self.targetScreen localizedCaseInsensitiveCompare:@"active"] == NSOrderedSame;
+    NSString *currTarget = self.targetScreen ?: [ScreenManager savedScreenTarget];
+    BOOL isAll = [currTarget localizedCaseInsensitiveCompare:@"all"] == NSOrderedSame;
+    BOOL isActive = [currTarget localizedCaseInsensitiveCompare:@"active"] == NSOrderedSame;
     [screenMenu addItem:makeItem(@"All Screens (Independent)", self, @selector(setScreenTargetAll:), isAll ? NSControlStateValueOn : NSControlStateValueOff)];
     [screenMenu addItem:makeItem(@"Active Screen (Follows Focus)", self, @selector(setScreenTargetActive:), isActive ? NSControlStateValueOn : NSControlStateValueOff)];
     [screenMenu addItem:[NSMenuItem separatorItem]];
 
     for (CascadeScreen *s in [ScreenManager availableScreens]) {
         NSString *title = [NSString stringWithFormat:@"%@ (%dx%d)%@", s.name, (int)s.quartzFrame.size.width, (int)s.quartzFrame.size.height, s.isPrimary ? @" [Primary]" : @""];
-        BOOL selected = (!isAll && !isActive && ([self.targetScreen isEqualToString:s.name] || [self.targetScreen isEqualToString:[@(s.index) stringValue]]));
+        BOOL selected = (!isAll && !isActive && ([s.name localizedCaseInsensitiveCompare:currTarget] == NSOrderedSame || [s.name localizedCaseInsensitiveContainsString:currTarget] || (s.displayID.length > 0 && [s.displayID isEqualToString:currTarget]) || [currTarget isEqualToString:[@(s.index) stringValue]]));
         NSMenuItem *sItem = makeItem(title, self, @selector(setScreenTargetSpecific:), selected ? NSControlStateValueOn : NSControlStateValueOff);
         sItem.representedObject = s.name;
         [screenMenu addItem:sItem];
@@ -260,10 +261,7 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
     [self rebuildMenu];
 }
 
-- (void)openAccessibilitySettings:(id)sender {
-    (void)sender;
-    [CascadeEngine openAccessibilitySettings];
-}
+- (void)openAccessibilitySettings:(id)s { (void)s; [CascadeEngine openAccessibilitySettings]; }
 
 - (void)showAbout:(id)sender {
     (void)sender;
@@ -314,7 +312,7 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
 - (void)setScreenTargetAll:(id)s { (void)s; [self setScreenTargetValue:@"all"]; }
 - (void)setScreenTargetActive:(id)s { (void)s; [self setScreenTargetValue:@"active"]; }
 - (void)setScreenTargetSpecific:(NSMenuItem *)s { [self setScreenTargetValue:s.representedObject]; }
-- (void)screensDidChange:(NSNotification *)n { (void)n; [self rebuildMenu]; }
+- (void)screensDidChange:(NSNotification *)n { (void)n; self.targetScreen = [ScreenManager savedScreenTarget]; [self rebuildMenu]; }
 
 - (void)cascadeWindowsOnTargetScreensWithRestack:(BOOL)restack {
     NSArray<CascadeWindow *> *allWindows = [CascadeEngine collectStandardWindowsWithOnly:nil exclude:nil];

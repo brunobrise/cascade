@@ -130,6 +130,11 @@ static void testTargetMatching() {
     NSArray *matchInvalid = [ScreenManager screensMatchingTarget:@"Nonexistent Display" inScreens:screens];
     assert(matchInvalid.count == 1 && matchInvalid[0] == s0);
 
+    // Display ID matching
+    s0.displayID = @"69734123";
+    NSArray *matchID = [ScreenManager screensMatchingTarget:@"69734123" inScreens:screens];
+    assert(matchID.count == 1 && matchID[0] == s0);
+
     printf("  [PASS] Screen target selection and fallback resolution verified.\n");
 }
 
@@ -137,14 +142,31 @@ static void testPreferencesRoundTrip() {
     printf("Running testPreferencesRoundTrip...\n");
     NSString *orig = [ScreenManager savedScreenTarget];
 
+    NSUserDefaults *suiteDefaults = [[NSUserDefaults alloc] initWithSuiteName:@"com.brunobrise.cascade"];
+    assert(suiteDefaults != nil);
+
     [ScreenManager saveScreenTarget:@"C49RG9x"];
     assert([[ScreenManager savedScreenTarget] isEqualToString:@"C49RG9x"]);
+    assert([[suiteDefaults stringForKey:@"screenTarget"] isEqualToString:@"C49RG9x"]);
+
+    [ScreenManager saveScreenTarget:@"active"];
+    assert([[ScreenManager savedScreenTarget] isEqualToString:@"active"]);
+    assert([[suiteDefaults stringForKey:@"screenTarget"] isEqualToString:@"active"]);
 
     [ScreenManager saveScreenTarget:@"all"];
     assert([[ScreenManager savedScreenTarget] isEqualToString:@"all"]);
+    assert([[suiteDefaults stringForKey:@"screenTarget"] isEqualToString:@"all"]);
+
+    [ScreenManager saveScreenTarget:nil];
+    assert([[ScreenManager savedScreenTarget] isEqualToString:@"all"]);
+
+    // Direct suite defaults modification (e.g. from CLI or external tool)
+    [suiteDefaults setObject:@"ExternalDisplay" forKey:@"screenTarget"];
+    [suiteDefaults synchronize];
+    assert([[ScreenManager savedScreenTarget] isEqualToString:@"ExternalDisplay"]);
 
     [ScreenManager saveScreenTarget:orig];
-    printf("  [PASS] Screen target preference saved and restored cleanly.\n");
+    printf("  [PASS] Screen target preference saved and restored cleanly across suite defaults.\n");
 }
 
 int main(int argc, const char * argv[]) {

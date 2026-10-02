@@ -97,14 +97,28 @@ static NSString * const kScreenTargetKey = @"screenTarget";
     return [self screenForFrame:quartzFrame inScreens:[self availableScreens]];
 }
 
+static NSUserDefaults *screenDefaults(void) {
+    static NSUserDefaults *defs = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        defs = [[NSUserDefaults alloc] initWithSuiteName:kScreenDomain];
+        if (!defs) defs = [NSUserDefaults standardUserDefaults];
+    });
+    return defs;
+}
+
 + (NSString *)savedScreenTarget {
-    id val = [[NSUserDefaults standardUserDefaults] persistentDomainForName:kScreenDomain][kScreenTargetKey];
+    id val = [screenDefaults() objectForKey:kScreenTargetKey];
+    if (!val) val = [[NSUserDefaults standardUserDefaults] persistentDomainForName:kScreenDomain][kScreenTargetKey];
     if (!val) val = [[NSUserDefaults standardUserDefaults] stringForKey:kScreenTargetKey];
     return ([val isKindOfClass:[NSString class]] && [val length] > 0) ? (NSString *)val : @"all";
 }
 
 + (void)saveScreenTarget:(NSString *)target {
-    NSString *val = target ?: @"all";
+    NSString *val = (target && target.length > 0) ? target : @"all";
+    [screenDefaults() setObject:val forKey:kScreenTargetKey];
+    [screenDefaults() synchronize];
+
     NSUserDefaults *defs = [NSUserDefaults standardUserDefaults];
     NSMutableDictionary *domain = [[defs persistentDomainForName:kScreenDomain] mutableCopy] ?: [NSMutableDictionary dictionary];
     domain[kScreenTargetKey] = val;
@@ -125,6 +139,13 @@ static NSString * const kScreenTargetKey = @"screenTarget";
     if ([target localizedCaseInsensitiveCompare:@"primary"] == NSOrderedSame ||
         [target localizedCaseInsensitiveCompare:@"main"] == NSOrderedSame) {
         return @[screens.firstObject];
+    }
+
+    // Match by displayID
+    for (CascadeScreen *s in screens) {
+        if (s.displayID.length > 0 && [s.displayID isEqualToString:target]) {
+            return @[s];
+        }
     }
 
     // Match by name

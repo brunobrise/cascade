@@ -1,0 +1,42 @@
+@startuml
+skinparam backgroundColor white
+skinparam handwritten false
+skinparam shadowing false
+skinparam defaultFontName -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif
+skinparam roundCorner 8
+
+title Screen Configuration Persistence & Lifecycle Synchronization
+
+actor User as u
+participant "CLI / Menu Bar" as ui
+participant "ScreenManager" as sm
+database "Suite Defaults\n(com.brunobrise.cascade)" as suite
+database "Standard Defaults\n(persistentDomain)" as std
+participant "NSStatusBar Menu" as menu
+
+== Preference Storage & Parity Synchronization ==
+u -> ui : Select Screen (e.g. "C49RG9x" / "active" / "all")
+ui -> sm : +saveScreenTarget: target
+sm -> suite : setObject:target forKey:@"screenTarget"
+sm -> suite : synchronize
+sm -> std : setPersistentDomain:domain forName:@"com.brunobrise.cascade"
+sm -> std : synchronize
+note right of sm: Guaranteed shared storage across\nCLI binary and Cascade.app bundle
+
+== Startup Lifecycle in Cascade.app ==
+[-> ui : applicationDidFinishLaunching:
+ui -> sm : +savedScreenTarget
+sm -> suite : objectForKey:@"screenTarget"
+suite --> sm : "C49RG9x"
+sm --> ui : return targetScreen
+ui -> menu : [self rebuildMenu]
+note right of menu: Checkmark immediately evaluated:\nCase-insensitive name, displayID, or index\nTarget screen item marked ON
+menu --> u : Status bar item rendered with saved state
+
+== Dynamic Monitor Reconfiguration ==
+[-> ui : NSApplicationDidChangeScreenParametersNotification
+ui -> sm : +savedScreenTarget
+sm --> ui : targetScreen
+ui -> menu : [self rebuildMenu]
+menu --> u : Validated screen checkmark restored
+@enduml
