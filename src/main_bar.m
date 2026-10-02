@@ -192,7 +192,8 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
 - (void)showAbout:(id)sender {
     (void)sender;
     [NSApp activateIgnoringOtherApps:YES];
-    NSMutableDictionary *options = [@{ NSAboutPanelOptionApplicationName: @"Cascade", NSAboutPanelOptionVersion: @"1.0" } mutableCopy];
+    NSString *ver = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"CFBundleShortVersionString"] ?: @"0.17.0";
+    NSMutableDictionary *options = [@{ NSAboutPanelOptionApplicationName: @"Cascade", NSAboutPanelOptionVersion: ver } mutableCopy];
     NSImage *appIcon = [self cascadeAppIcon];
     if (appIcon) options[NSAboutPanelOptionApplicationIcon] = appIcon;
     [NSApp orderFrontStandardAboutPanelWithOptions:options];

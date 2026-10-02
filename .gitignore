@@ -4,4 +4,7 @@ build/
 *.dSYM/
 tools/generate_icon
 resources/AppIcon.iconset/
+__pycache__/
+*.pyc
 
+/VERSION

@@ -1,0 +1,60 @@
+@startuml semver-lefthook-lifecycle
+skinparam backgroundColor white
+skinparam BoxPadding 10
+skinparam ParticipantPadding 10
+skinparam roundcorner 8
+skinparam shadowing false
+skinparam defaultFontName -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif
+
+actor "Developer / Agent" as Dev
+participant "Git CLI" as Git
+participant "Lefthook / Hooks\n(commit-msg)" as HookPre
+participant "SemVer Engine\n(tools/semver.py)" as Engine
+participant "Lefthook / Hooks\n(post-commit)" as HookPost
+participant "Git Object DB\n& Tags" as GitDB
+participant "Cascade Runtime\n(CLI & Menu Bar)" as Cascade
+
+== 1. Commit Creation & Conventional Format Validation ==
+Dev -> Git : git commit -m "feat: add new feature"
+Git -> HookPre : commit-msg (msg file)
+HookPre -> Engine : check-msg <file>
+alt Invalid Message (e.g. "update code")
+  Engine --> HookPre : exit 1 (Invalid Conventional Format)
+  HookPre --> Git : Abort commit
+  Git --> Dev : Error: must follow <type>: <description>
+else Valid Message (e.g. "feat: ...")
+  Engine --> HookPre : exit 0 (Valid Conventional Commit)
+  HookPre --> Git : Proceed with commit
+end
+
+== 2. Commit Object Creation ==
+Git -> GitDB : Record commit object (HEAD)
+
+== 3. Post-Commit Automatic SemVer Bumping ==
+Git -> HookPost : post-commit
+HookPost -> Engine : post-commit
+Engine -> GitDB : Read HEAD commit subject & previous tag (e.g. v0.17.0)
+
+note over Engine
+  Strict Sequential Bumping Rules (from 0.0.0):
+  - breaking (! or BREAKING CHANGE) -> major + 1, minor=0, patch=0
+  - feat -> minor + 1, patch=0 (e.g. 0.17.0 -> 0.18.0)
+  - fix/chore/refactor/docs -> patch + 1 (e.g. 0.17.0 -> 0.17.1)
+end note
+
+Engine -> GitDB : git tag -a v0.18.0 HEAD -m "v0.18.0"
+Engine -> Engine : Update VERSION file ("0.18.0")
+Engine --> HookPost : [Lefthook] Version bumped: v0.17.0 -> v0.18.0 on HEAD
+HookPost --> Git : Complete
+
+== 4. Zero-Node.js Build & Runtime Resolution ==
+Dev -> Git : make build
+note over Cascade
+  Makefile reads SemVer version:
+  - Injects -DCASCADE_VERSION="0.18.0" into cascade CLI
+  - Stamps CFBundleShortVersionString in Info.plist
+  Zero Node.js runtime required (Pure Go + Python/ObjC)
+end note
+Dev -> Cascade : cascade --version
+Cascade --> Dev : "Cascade 0.18.0"
+@enduml

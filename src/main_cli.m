@@ -95,6 +95,7 @@ static void printHelp(const char *prog) {
     printf("  --only <apps>        Comma-separated list of app names to include\n");
     printf("  --check-permissions Run diagnostic tests on Accessibility permissions and exit\n");
     printf("  --open-permissions  Open System Settings directly to Accessibility panel and exit\n");
+    printf("  --version, -v        Display Cascade version and exit\n");
     printf("  --help, -h           Show this help message\n");
 }
 
@@ -258,6 +259,13 @@ int main(int argc, const char * argv[]) {
             } else if ([arg isEqualToString:@"--open-permissions"]) {
                 [CascadeEngine openAccessibilitySettings];
                 printf("Opened System Settings > Privacy & Security > Accessibility\n");
+                return 0;
+            } else if ([arg isEqualToString:@"--version"] || [arg isEqualToString:@"-v"]) {
+#ifdef CASCADE_VERSION
+                printf("Cascade %s\n", CASCADE_VERSION);
+#else
+                printf("Cascade 0.17.0\n");
+#endif
                 return 0;
             } else if ([arg isEqualToString:@"--help"] || [arg isEqualToString:@"-h"]) {
                 printHelp(argv[0]);

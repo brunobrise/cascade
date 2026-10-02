@@ -1,0 +1,12 @@
+# Lefthook configuration for Cascade
+# https://github.com/evilmartians/lefthook
+
+commit-msg:
+  commands:
+    conventional-commit:
+      run: python3 tools/semver.py check-msg {1}
+
+post-commit:
+  commands:
+    bump-semver:
+      run: python3 tools/semver.py post-commit

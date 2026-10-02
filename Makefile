@@ -1,5 +1,6 @@
+VERSION ?= $(shell python3 tools/semver.py current 2>/dev/null || cat VERSION 2>/dev/null || echo "0.17.0")
 CC = clang
-CFLAGS = -O2 -Wall -Wextra -fobjc-arc
+CFLAGS = -O2 -Wall -Wextra -fobjc-arc -DCASCADE_VERSION=\"$(VERSION)\"
 LDFLAGS = -framework Cocoa -framework ApplicationServices -framework Carbon -framework ServiceManagement
 BUILD_DIR = build
 INSTALL_BIN = $(HOME)/.local/bin
@@ -11,7 +12,7 @@ ifeq ($(SIGNING_IDENTITY),)
     SIGNING_IDENTITY := -
 endif
 
-.PHONY: all build clean test run run-cli apply watch stop restart status install uninstall login-enable login-disable login-status check-permissions open-permissions cert reset-permissions help
+.PHONY: all build clean test run run-cli apply watch stop restart status install uninstall login-enable login-disable login-status check-permissions open-permissions cert reset-permissions version hooks push-tags help
 
 all: build
 
@@ -35,11 +36,32 @@ help:
 	@echo "  make login-enable      Register Cascade to start automatically at login"
 	@echo "  make login-disable     Unregister Cascade from starting at login"
 	@echo "  make login-status      Check start-at-login status"
+	@echo "  make version           Display current SemVer version"
+	@echo "  make hooks             Install Lefthook git commit hooks"
+	@echo "  make push-tags         Push all version tags to remote"
 	@echo "  make stop              Terminate any running Cascade instance"
 	@echo "  make restart           Stop and re-launch Cascade.app"
 	@echo "  make status            Check whether Cascade.app is currently running"
 	@echo "  make clean             Remove build artifacts"
 	@echo ""
+
+version:
+	@echo $(VERSION)
+
+hooks:
+	@if command -v lefthook >/dev/null 2>&1; then \
+		lefthook install; \
+	else \
+		mkdir -p .git/hooks; \
+		printf '#!/bin/sh\nexec python3 tools/semver.py check-msg "$$1"\n' > .git/hooks/commit-msg; \
+		chmod +x .git/hooks/commit-msg; \
+		printf '#!/bin/sh\nexec python3 tools/semver.py post-commit\n' > .git/hooks/post-commit; \
+		chmod +x .git/hooks/post-commit; \
+		echo "Installed native zero-dependency git hooks into .git/hooks/"; \
+	fi
+
+push-tags:
+	git push origin --tags
 
 build: $(BUILD_DIR)/cascade $(BUILD_DIR)/Cascade.app
 
@@ -67,7 +89,7 @@ $(BUILD_DIR)/SettingsWindowController.o: src/SettingsWindowController.m src/Sett
 	$(CC) $(CFLAGS) -c src/SettingsWindowController.m -o $@
 
 # CLI binary
-$(BUILD_DIR)/cascade: src/main_cli.m $(BUILD_DIR)/WindowEngine.o $(BUILD_DIR)/ScreenManager.o $(BUILD_DIR)/LoginItemManager.o $(BUILD_DIR)/WindowWatcher.o | $(BUILD_DIR)/.dir
+$(BUILD_DIR)/cascade: src/main_cli.m $(BUILD_DIR)/WindowEngine.o $(BUILD_DIR)/ScreenManager.o $(BUILD_DIR)/LoginItemManager.o $(BUILD_DIR)/WindowWatcher.o $(wildcard VERSION) | $(BUILD_DIR)/.dir
 	$(CC) $(CFLAGS) $(LDFLAGS) src/main_cli.m $(BUILD_DIR)/WindowEngine.o $(BUILD_DIR)/ScreenManager.o $(BUILD_DIR)/LoginItemManager.o $(BUILD_DIR)/WindowWatcher.o -o $@
 	codesign --force -s "$(SIGNING_IDENTITY)" $@
 
@@ -105,6 +127,7 @@ test: $(BUILD_DIR)/test_engine $(BUILD_DIR)/test_login $(BUILD_DIR)/test_watcher
 	./$(BUILD_DIR)/test_settings
 	./$(BUILD_DIR)/test_icon_generator
 	./$(BUILD_DIR)/test_signing
+	python3 tests/test_semver.py
 
 # App Icon
 resources/AppIcon.icns: tools/generate_icon.m
@@ -123,11 +146,12 @@ reset-permissions:
 	@echo "Reset Accessibility permissions for com.brunobrise.cascade in TCC database."
 
 # Status Bar App Bundle
-$(BUILD_DIR)/Cascade.app: src/main_bar.m $(BUILD_DIR)/WindowEngine.o $(BUILD_DIR)/ScreenManager.o $(BUILD_DIR)/LoginItemManager.o $(BUILD_DIR)/WindowWatcher.o $(BUILD_DIR)/AppOrderWindowController.o $(BUILD_DIR)/SettingsWindowController.o resources/Info.plist resources/AppIcon.icns | $(BUILD_DIR)/.dir
+$(BUILD_DIR)/Cascade.app: src/main_bar.m $(BUILD_DIR)/WindowEngine.o $(BUILD_DIR)/ScreenManager.o $(BUILD_DIR)/LoginItemManager.o $(BUILD_DIR)/WindowWatcher.o $(BUILD_DIR)/AppOrderWindowController.o $(BUILD_DIR)/SettingsWindowController.o resources/Info.plist resources/AppIcon.icns $(wildcard VERSION) | $(BUILD_DIR)/.dir
 	mkdir -p $(BUILD_DIR)/Cascade.app/Contents/MacOS
 	mkdir -p $(BUILD_DIR)/Cascade.app/Contents/Resources
 	$(CC) $(CFLAGS) $(LDFLAGS) src/main_bar.m $(BUILD_DIR)/WindowEngine.o $(BUILD_DIR)/ScreenManager.o $(BUILD_DIR)/LoginItemManager.o $(BUILD_DIR)/WindowWatcher.o $(BUILD_DIR)/AppOrderWindowController.o $(BUILD_DIR)/SettingsWindowController.o -o $(BUILD_DIR)/Cascade.app/Contents/MacOS/Cascade
 	cp resources/Info.plist $(BUILD_DIR)/Cascade.app/Contents/Info.plist
+	/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $(VERSION)" $(BUILD_DIR)/Cascade.app/Contents/Info.plist 2>/dev/null || true
 	cp resources/AppIcon.icns $(BUILD_DIR)/Cascade.app/Contents/Resources/AppIcon.icns
 	codesign --force --deep -s "$(SIGNING_IDENTITY)" $@
 

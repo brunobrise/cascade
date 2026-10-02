@@ -60,6 +60,9 @@ make reset-permissions # Reset TCC accessibility permissions (clears stale hashe
 make login-enable      # Register Cascade to start at login
 make login-status      # Check login item registration status
 make login-disable     # Unregister Cascade from login items
+make version           # Display current SemVer version (e.g. 0.17.0)
+make hooks             # Install zero-Node.js Lefthook git commit hooks
+make push-tags         # Push all local SemVer tags to remote
 make status            # Check if Cascade is running
 make stop              # Terminate running Cascade instance
 make restart           # Stop and re-launch Cascade.app
@@ -185,12 +188,28 @@ cascade --start-at-login disable
 # Arrange only specific applications
 cascade --only "Cursor,Google Chrome" --apply
 
+# Display Cascade version
+cascade --version
+cascade -v
+
 # Check accessibility permissions and probe diagnostics
 cascade --check-permissions
 
 # Open Accessibility settings pane in System Settings
 cascade --open-permissions
 ```
+
+## Strict Sequential SemVer & Git Hooks (Zero-Node.js)
+
+Cascade enforces strict SemVer 2.0.0 calculated sequentially from `0.0.0` across conventional commits with **zero Node.js dependencies**:
+- **`feat:`** $\to$ Minor version increment ($X.Y+1.0$, resets patch).
+- **`fix:` / `chore:` / `refactor:` / `docs:` / `test:`** $\to$ Patch version increment ($X.Y.Z+1$).
+- **`!` or `BREAKING CHANGE:`** $\to$ Major version increment ($X+1.0.0$, resets minor and patch).
+
+### Hook Automation Lifecycle
+- **`commit-msg` Hook:** Enforces that every commit strictly adheres to conventional commits syntax (`<type>(<scope>)?: <description>`). Non-conventional commits are rejected immediately.
+- **`post-commit` Hook:** Automatically calculates the next SemVer version, creates an annotated git tag `vX.Y.Z` on `HEAD`, and writes the version to `VERSION`.
+- **Lefthook & Native Fallback:** Managed via native Go binary `lefthook` or standard POSIX hooks (`make hooks`). No npm, no node, no external runtime required.
 
 ## Documentation
 
@@ -212,6 +231,7 @@ cascade --open-permissions
 - [Auto-Cascade Target Screen Story](docs/stories/31d539e4f4de4d6d-auto-cascade-target-screen-success.md)
 - [Minimal Menu & Settings Modal Story](docs/stories/132c794fc802d82a-minimal-menu-and-settings-modal-success.md)
 - [Multi-Column Screen Splits Story](docs/stories/d249d328d4d14b80-wide-screen-splits-success.md)
+- [Strict Sequential SemVer & Git Hooks Story](docs/stories/5a89bb6b48394edc-semver-lefthook-success.md)
 - [Order Preservation Story](docs/stories/01a0f7ec7c122619-order-preservation-success.md)
 - [Preferred App Order Story](docs/stories/01a0f7ec7c122619-preferred-app-order-success.md)
 - [User Preferences Persistence Story](docs/stories/01a0f7ec7c122619-user-preferences-persistence-success.md)
