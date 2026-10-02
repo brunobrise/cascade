@@ -329,6 +329,38 @@ static void testAccessibilityDiagnostics() {
     printf("  [PASS] Active accessibility probe and diagnostics verified.\n");
 }
 
+static void testActualWindowSizeAndSystemBarClamping(void) {
+    printf("Running testActualWindowSizeAndSystemBarClamping...\n");
+    CGRect usable = CGRectMake(0, 30, 2560, 1410); // Screen with 30px system bar
+
+    // 1. Clamped to right edge when actual width exceeds target
+    CGRect t1 = CGRectMake(2000, 100, 400, 800);
+    CGRect c1 = [CascadeEngine clampedFrameForTargetFrame:t1 actualSize:CGSizeMake(800, 800) usableFrame:usable];
+    assert(c1.origin.x == 2560 - 800 && c1.origin.x + c1.size.width == 2560 && c1.origin.y == 100);
+
+    // 2. Clamped to bottom edge (Dock protection) when actual height exceeds target
+    CGRect t2 = CGRectMake(100, 1000, 800, 400);
+    CGRect c2 = [CascadeEngine clampedFrameForTargetFrame:t2 actualSize:CGSizeMake(800, 600) usableFrame:usable];
+    assert(c2.origin.y == 1440 - 600 && c2.origin.y + c2.size.height == 1440 && c2.origin.x == 100);
+
+    // 3. Clamped to minY (System bar protection: title bar visible below menu bar)
+    CGRect t3 = CGRectMake(100, 10, 800, 600); // 10 < minY (30)
+    CGRect c3 = [CascadeEngine clampedFrameForTargetFrame:t3 actualSize:CGSizeMake(800, 600) usableFrame:usable];
+    assert(c3.origin.y == 30);
+
+    // 4. Window exceeding usable height anchored at minY
+    CGRect t4 = CGRectMake(100, 50, 800, 1500);
+    CGRect c4 = [CascadeEngine clampedFrameForTargetFrame:t4 actualSize:CGSizeMake(800, 1500) usableFrame:usable];
+    assert(c4.origin.y == 30);
+
+    // 5. Window exceeding usable width anchored at minX
+    CGRect t5 = CGRectMake(500, 100, 3000, 800);
+    CGRect c5 = [CascadeEngine clampedFrameForTargetFrame:t5 actualSize:CGSizeMake(3000, 800) usableFrame:usable];
+    assert(c5.origin.x == 0);
+
+    printf("  [PASS] Actual window size and system bar height clamping verified.\n");
+}
+
 int main(int argc, const char * argv[]) {
     (void)argc;
     (void)argv;
@@ -343,6 +375,7 @@ int main(int argc, const char * argv[]) {
         testPreferredAppOrderSorting();
         testPreferencesPersistence();
         testAccessibilityDiagnostics();
+        testActualWindowSizeAndSystemBarClamping();
         printf("\n=== All Tests Passed Successfully! ===\n");
     }
     return 0;

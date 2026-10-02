@@ -1,0 +1,51 @@
+@startuml
+skinparam backgroundColor white
+skinparam roundcorner 10
+skinparam shadowing false
+skinparam defaultFontName -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif
+
+participant "User / Hotkey / Bar" as UI
+participant "ScreenManager" as SM
+participant "WindowEngine" as WE
+participant "macOS Quartz / AX API" as AX
+participant "Target Window" as WIN
+
+UI -> SM: cascadeWindowsOnScreens:restack:
+activate SM
+SM -> SM: expandScreensWithSplits:
+SM -> WE: calculateLayoutForWindows:onUsableFrame:
+activate WE
+WE -> WE: assignFramesToOrderedWindows:onUsableFrame:
+note right of WE
+  Assigns ideal targetFrame and records
+  exact usableFrame on each CascadeWindow
+  (minX, maxX, minY=SystemBar, maxY=Dock)
+end note
+WE --> SM: planned (CascadeWindow[])
+deactivate WE
+
+SM -> WE: applyLayoutToWindows:restackZ:
+activate WE
+loop for each CascadeWindow cw
+    WE -> AX: AXUIElementSetAttributeValue(kAXSizeAttribute, targetSize)
+    AX -> WIN: Request resize to targetSize
+    WIN --> AX: Clamped to min/max size or fixed size
+    
+    WE -> AX: AXUIElementCopyAttributeValue(kAXSizeAttribute)
+    AX --> WE: actualSize (e.g. min width 800px > target 400px)
+    
+    WE -> WE: clampedFrameForTargetFrame:actualSize:usableFrame:
+    note right of WE
+      Clamp Right: if (x + w > maxX) x = maxX - w
+      Clamp Left: if (x < minX) x = minX
+      Clamp Bottom: if (y + h > maxY) y = maxY - h
+      Clamp Top: if (y < minY) y = minY (System Bar Height!)
+    end note
+    
+    WE -> AX: AXUIElementSetAttributeValue(kAXPositionAttribute, finalPos)
+    AX -> WIN: Position window safely within screen & under system bar
+end
+WE --> SM: Layout applied
+deactivate WE
+deactivate SM
+@enduml

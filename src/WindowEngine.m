@@ -162,59 +162,33 @@
 }
 
 + (NSUserDefaults *)userDefaults {
-    static NSUserDefaults *defaults = nil;
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-        defaults = [[NSUserDefaults alloc] initWithSuiteName:@"com.brunobrise.cascade"];
-        if (!defaults) defaults = [NSUserDefaults standardUserDefaults];
-    });
-    return defaults;
+    static NSUserDefaults *d = nil; static dispatch_once_t t;
+    dispatch_once(&t, ^{ d = [[NSUserDefaults alloc] initWithSuiteName:@"com.brunobrise.cascade"] ?: [NSUserDefaults standardUserDefaults]; });
+    return d;
 }
 
-static id getPref(NSString *key, id defVal) {
-    id val = [[CascadeEngine userDefaults] objectForKey:key];
-    if (!val) val = [[NSUserDefaults standardUserDefaults] objectForKey:key];
-    return val ?: defVal;
+static id getPref(NSString *k, id def) {
+    id v = [[CascadeEngine userDefaults] objectForKey:k] ?: [[NSUserDefaults standardUserDefaults] objectForKey:k];
+    return v ?: def;
 }
 
-static void setPref(NSString *key, id val) {
-    if (val) {
-        [[CascadeEngine userDefaults] setObject:val forKey:key];
-        [[NSUserDefaults standardUserDefaults] setObject:val forKey:key];
-    } else {
-        [[CascadeEngine userDefaults] removeObjectForKey:key];
-        [[NSUserDefaults standardUserDefaults] removeObjectForKey:key];
-    }
-    [[CascadeEngine userDefaults] synchronize];
-    [[NSUserDefaults standardUserDefaults] synchronize];
+static void setPref(NSString *k, id v) {
+    NSUserDefaults *u = [CascadeEngine userDefaults], *s = [NSUserDefaults standardUserDefaults];
+    if (v) { [u setObject:v forKey:k]; [s setObject:v forKey:k]; }
+    else { [u removeObjectForKey:k]; [s removeObjectForKey:k]; }
+    [u synchronize]; [s synchronize];
 }
 
-+ (CascadeOrderMode)savedOrderMode {
-    NSNumber *n = getPref(@"orderMode", nil);
-    return n ? (CascadeOrderMode)[n integerValue] : CascadeOrderModeMRU;
-}
-+ (void)saveOrderMode:(CascadeOrderMode)mode { setPref(@"orderMode", @(mode)); }
-
-+ (CGFloat)savedDelta {
-    NSNumber *n = getPref(@"delta", nil);
-    return n ? (CGFloat)[n doubleValue] : 40.0;
-}
-+ (void)saveDelta:(CGFloat)delta { setPref(@"delta", @(delta)); }
-
-+ (BOOL)savedRestackZOrder {
-    NSNumber *n = getPref(@"restackZOrder", nil);
-    return n ? [n boolValue] : YES;
-}
-+ (void)saveRestackZOrder:(BOOL)restack { setPref(@"restackZOrder", @(restack)); }
-
-+ (BOOL)savedAutoRearrange {
-    NSNumber *n = getPref(@"autoRearrange", nil);
-    return n ? [n boolValue] : NO;
-}
-+ (void)saveAutoRearrange:(BOOL)autoRearrange { setPref(@"autoRearrange", @(autoRearrange)); }
-
++ (CascadeOrderMode)savedOrderMode { NSNumber *n = getPref(@"orderMode", nil); return n ? (CascadeOrderMode)[n integerValue] : CascadeOrderModeMRU; }
++ (void)saveOrderMode:(CascadeOrderMode)m { setPref(@"orderMode", @(m)); }
++ (CGFloat)savedDelta { NSNumber *n = getPref(@"delta", nil); return n ? (CGFloat)[n doubleValue] : 40.0; }
++ (void)saveDelta:(CGFloat)d { setPref(@"delta", @(d)); }
++ (BOOL)savedRestackZOrder { NSNumber *n = getPref(@"restackZOrder", nil); return n ? [n boolValue] : YES; }
++ (void)saveRestackZOrder:(BOOL)r { setPref(@"restackZOrder", @(r)); }
++ (BOOL)savedAutoRearrange { NSNumber *n = getPref(@"autoRearrange", nil); return n ? [n boolValue] : NO; }
++ (void)saveAutoRearrange:(BOOL)a { setPref(@"autoRearrange", @(a)); }
 + (NSArray<NSString *> *)preferredAppOrder { return getPref(@"preferredAppOrder", @[]); }
-+ (void)setPreferredAppOrder:(NSArray<NSString *> *)order { setPref(@"preferredAppOrder", order ?: @[]); }
++ (void)setPreferredAppOrder:(NSArray<NSString *> *)o { setPref(@"preferredAppOrder", o ?: @[]); }
 
 + (NSArray<NSDictionary<NSString *, NSString *> *> *)serializeWindows:(NSArray<CascadeWindow *> *)windows {
     NSMutableArray *arr = [NSMutableArray arrayWithCapacity:windows.count];
@@ -295,14 +269,14 @@ static NSInteger rankForApp(NSString *appName, NSArray<NSString *> *preferred) {
     NSMutableArray<CascadeWindow *> *sorted = [windows mutableCopy];
     if (orderMode == CascadeOrderModeMRU) {
         [sorted sortUsingComparator:^NSComparisonResult(CascadeWindow *a, CascadeWindow *b) {
-            if (a.zRank != b.zRank) return a.zRank < b.zRank ? NSOrderedAscending : NSOrderedDescending;
-            return [a.title ?: @"" localizedCaseInsensitiveCompare:b.title ?: @""];
+            return (a.zRank != b.zRank) ? (a.zRank < b.zRank ? NSOrderedAscending : NSOrderedDescending) :
+                   [a.title ?: @"" localizedCaseInsensitiveCompare:b.title ?: @""];
         }];
     } else if (orderMode == CascadeOrderModeSpatial) {
         [sorted sortUsingComparator:^NSComparisonResult(CascadeWindow *a, CascadeWindow *b) {
-            if (a.currentFrame.origin.x != b.currentFrame.origin.x)
-                return a.currentFrame.origin.x < b.currentFrame.origin.x ? NSOrderedAscending : NSOrderedDescending;
-            return [a.title ?: @"" localizedCaseInsensitiveCompare:b.title ?: @""];
+            return (a.currentFrame.origin.x != b.currentFrame.origin.x) ?
+                   (a.currentFrame.origin.x < b.currentFrame.origin.x ? NSOrderedAscending : NSOrderedDescending) :
+                   [a.title ?: @"" localizedCaseInsensitiveCompare:b.title ?: @""];
         }];
     } else if (orderMode == CascadeOrderModeAlphabetical) {
         [sorted sortUsingComparator:^NSComparisonResult(CascadeWindow *a, CascadeWindow *b) {
@@ -313,8 +287,8 @@ static NSInteger rankForApp(NSString *appName, NSArray<NSString *> *preferred) {
         [sorted sortUsingComparator:^NSComparisonResult(CascadeWindow *a, CascadeWindow *b) {
             NSInteger rA = rankForApp(a.appName, preferredOrder), rB = rankForApp(b.appName, preferredOrder);
             if (rA != rB) return rA < rB ? NSOrderedAscending : NSOrderedDescending;
-            if (a.zRank != b.zRank) return a.zRank < b.zRank ? NSOrderedAscending : NSOrderedDescending;
-            return [a.title ?: @"" localizedCaseInsensitiveCompare:b.title ?: @""];
+            return (a.zRank != b.zRank) ? (a.zRank < b.zRank ? NSOrderedAscending : NSOrderedDescending) :
+                   [a.title ?: @"" localizedCaseInsensitiveCompare:b.title ?: @""];
         }];
     }
     [self assignFramesToOrderedWindows:sorted onUsableFrame:usableFrame delta:delta];
@@ -333,6 +307,7 @@ static NSInteger rankForApp(NSString *appName, NSArray<NSString *> *preferred) {
                                delta:(CGFloat)delta {
     NSUInteger count = ordered.count;
     if (count == 0) return;
+    for (CascadeWindow *w in ordered) { w.usableFrame = usable; }
     CGFloat usableW = usable.size.width, usableH = usable.size.height;
     CGFloat originX = usable.origin.x, originY = usable.origin.y;
 
@@ -385,21 +360,50 @@ static NSInteger rankForApp(NSString *appName, NSArray<NSString *> *preferred) {
     return [self calculateLayoutForWindows:windows preservingOrderFrom:previousOrder delta:delta onUsableFrame:[self usableScreenFrameWithTopInset:nil]];
 }
 
++ (CGRect)clampedFrameForTargetFrame:(CGRect)targetFrame
+                          actualSize:(CGSize)actualSize
+                         usableFrame:(CGRect)usableFrame {
+    if (CGRectIsEmpty(usableFrame)) usableFrame = [self usableScreenFrameWithTopInset:nil];
+    CGFloat minX = usableFrame.origin.x, maxX = usableFrame.origin.x + usableFrame.size.width;
+    CGFloat minY = usableFrame.origin.y, maxY = usableFrame.origin.y + usableFrame.size.height;
+    CGFloat w = actualSize.width > 0 ? actualSize.width : targetFrame.size.width;
+    CGFloat h = actualSize.height > 0 ? actualSize.height : targetFrame.size.height;
+    CGFloat x = targetFrame.origin.x, y = targetFrame.origin.y;
+
+    if (w >= usableFrame.size.width) { x = minX; }
+    else { if (x + w > maxX) x = maxX - w; if (x < minX) x = minX; }
+
+    if (h >= usableFrame.size.height) { y = minY; }
+    else { if (y + h > maxY) y = maxY - h; if (y < minY) y = minY; }
+
+    return CGRectMake(x, y, w, h);
+}
+
 + (void)applyLayoutToWindows:(NSArray<CascadeWindow *> *)windows restackZ:(BOOL)restackZ {
     for (CascadeWindow *cw in windows) {
-        CGPoint targetPos = cw.targetFrame.origin;
+        if (!cw.axRef) continue;
         CGSize targetSize = cw.targetFrame.size;
-        AXValueRef posVal = AXValueCreate(kAXValueTypeCGPoint, &targetPos);
-        AXValueRef sizeVal = AXValueCreate(kAXValueTypeCGSize, &targetSize);
-        AXUIElementSetAttributeValue(cw.axRef, kAXPositionAttribute, posVal);
-        AXUIElementSetAttributeValue(cw.axRef, kAXSizeAttribute, sizeVal);
-        AXUIElementSetAttributeValue(cw.axRef, kAXPositionAttribute, posVal);
-        if (posVal) CFRelease(posVal);
-        if (sizeVal) CFRelease(sizeVal);
+        AXValueRef szVal = AXValueCreate(kAXValueTypeCGSize, &targetSize);
+        if (szVal) { AXUIElementSetAttributeValue(cw.axRef, kAXSizeAttribute, szVal); CFRelease(szVal); }
+
+        CGSize actualSize = targetSize;
+        CFTypeRef actualSzRef = NULL;
+        if (AXUIElementCopyAttributeValue(cw.axRef, kAXSizeAttribute, &actualSzRef) == kAXErrorSuccess && actualSzRef) {
+            AXValueGetValue((AXValueRef)actualSzRef, kAXValueTypeCGSize, &actualSize);
+            CFRelease(actualSzRef);
+        }
+
+        CGRect usable = !CGRectIsEmpty(cw.usableFrame) ? cw.usableFrame : [self usableScreenFrameWithTopInset:nil];
+        CGRect finalFrame = [self clampedFrameForTargetFrame:cw.targetFrame actualSize:actualSize usableFrame:usable];
+        CGPoint finalPos = finalFrame.origin;
+        AXValueRef posVal = AXValueCreate(kAXValueTypeCGPoint, &finalPos);
+        if (posVal) { AXUIElementSetAttributeValue(cw.axRef, kAXPositionAttribute, posVal); CFRelease(posVal); }
+        cw.targetFrame = finalFrame;
+        cw.currentFrame = finalFrame;
     }
     if (restackZ) {
         for (NSInteger i = (NSInteger)windows.count - 1; i >= 0; i--) {
-            AXUIElementPerformAction(windows[i].axRef, kAXRaiseAction);
+            if (windows[i].axRef) AXUIElementPerformAction(windows[i].axRef, kAXRaiseAction);
         }
     }
 }

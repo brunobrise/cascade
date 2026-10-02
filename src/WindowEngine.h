@@ -15,6 +15,7 @@ typedef NS_ENUM(NSInteger, CascadeOrderMode) {
 @property (nonatomic, assign) AXUIElementRef axRef;
 @property (nonatomic, assign) CGRect currentFrame;
 @property (nonatomic, assign) CGRect targetFrame;
+@property (nonatomic, assign) CGRect usableFrame;
 @property (nonatomic, assign) NSInteger zRank;
 - (BOOL)matchesWindow:(CascadeWindow *)other;
 @end
@@ -63,6 +64,9 @@ typedef NS_ENUM(NSInteger, CascadeOrderMode) {
                       withSavedDescriptors:(NSArray<NSDictionary<NSString *, NSString *> *> *)saved;
 + (NSArray<NSDictionary<NSString *, NSString *> *> *)savedEstablishedWindowOrder;
 + (void)saveEstablishedWindowOrder:(NSArray<CascadeWindow *> *)windows;
++ (CGRect)clampedFrameForTargetFrame:(CGRect)targetFrame
+                          actualSize:(CGSize)actualSize
+                         usableFrame:(CGRect)usableFrame;
 + (void)applyLayoutToWindows:(NSArray<CascadeWindow *> *)windows
                     restackZ:(BOOL)restackZ;
 
