@@ -1,0 +1,21 @@
+@startuml
+skinparam backgroundColor white
+skinparam handwritten false
+skinparam shadowing false
+skinparam defaultFontName -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif
+skinparam roundCorner 8
+
+title Status Bar Button Vertical Geometry & Clipping Boundary
+
+rectangle "macOS System Status Bar (Total Height: 22 pt)" as Bar #F1F5F9 {
+    rectangle "Top Padding Inset: 3 pt" as TopPad #E2E8F0
+    
+    rectangle "Usable Content Height: 16 pt" as Content #EFF6FF {
+        rectangle "18pt Semibold: 27 x 22 pt (CLIPPED)\n* Height 22 pt >= 22 pt bar\n* Overflows 3pt top + 3pt bottom\n* Borders & dots truncated" as Oversized #FEE2E2
+        rectangle "13pt Medium: 20 x 16 pt (OPTIMAL)\n* Height 16 pt == 16 pt usable\n* Zero clipping, sharp borders\n* Perfectly centered" as Calibrated #DCFCE7
+    }
+    
+    rectangle "Bottom Padding Inset: 3 pt" as BotPad #E2E8F0
+}
+
+@enduml

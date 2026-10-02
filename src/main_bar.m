@@ -68,12 +68,12 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
     if (button) {
         NSImage *icon = [NSImage imageWithSystemSymbolName:@"macwindow.on.rectangle" accessibilityDescription:@"Cascade"];
         if (icon) {
-            NSImageSymbolConfiguration *cfg = [NSImageSymbolConfiguration configurationWithPointSize:18.0 weight:NSFontWeightSemibold];
+            NSImageSymbolConfiguration *cfg = [NSImageSymbolConfiguration configurationWithPointSize:13.0 weight:NSFontWeightMedium];
             button.image = [icon imageWithSymbolConfiguration:cfg] ?: icon;
             [button.image setTemplate:YES];
             button.imagePosition = NSImageOnly; button.title = @"";
         } else {
-            button.title = @"⧉"; button.font = [NSFont boldSystemFontOfSize:18.0];
+            button.title = @"⧉"; button.font = [NSFont boldSystemFontOfSize:15.0];
         }
         button.toolTip = @"Cascade (Click to arrange or configure)";
     }
