@@ -17,7 +17,7 @@ Traditional window tiling partitions the screen into rigid slices, severely rest
 Cascade solves this conflict through an invariant staggered cascade geometry:
 - **Maximum usable size:** Each window occupies between 73% and 98% of the display.
 - **Permanent click targets:** Every window exposes an unoccluded tab (at top-right and bottom-left edges) that no other window can cover, regardless of the active stacking order.
-- **Multi-screen partitioning:** Partition windows across displays with pixel-perfect Cocoa-to-Quartz coordinate inversion, cascading each monitor independently or targeting a specific screen.
+- **Multi-screen partitioning & Ultrawide Splits:** Partition windows across displays or split ultrawide monitors into 1, 2, 3, or 4 virtual columns with independent cascades and automatic window rebalancing.
 - **Multiple ordering strategies:** Order windows by Most Recently Used (front-to-back), Spatial Position (left-to-right), Alphabetical application name, or Preferred Application Order (by prioritized name).
 - **Status Bar Integration:** Lives in the macOS menu bar with configurable hotkey support (`Option + Command + C`).
 
@@ -117,6 +117,7 @@ The menu bar icon appears in the macOS status bar:
 - **Auto-Rearrange Windows:** Quickly toggle continuous automatic cascading on window open, minimize, and close.
 - **Settings... (`Command + ,`):** Open the dedicated native preferences panel to configure:
   - **Target Screen:** Select **All Screens (Independent)** or target a specific monitor.
+  - **Screen Columns:** Split target display into **1 (Full)**, **2 Columns**, **3 Columns**, or **4 Columns** (persisted per monitor).
   - **Window Order:** Switch between **Most Recently Used**, **Spatial Order**, **Alphabetical**, or **Preferred App Order** (configured via interactive priority list).
   - **Tab Size (Delta):** Adjust margin between 30 px, 40 px (Default), 50 px, and 60 px.
   - **Restack Z-Order:** Re-raise windows in order to match spatial cascade sequence.
@@ -128,13 +129,19 @@ The menu bar icon appears in the macOS status bar:
 # Preview layout calculation without moving windows
 cascade --plan
 
-# List all connected displays and usable bounds
+# List all connected displays and active column splits
 cascade --list-screens
 
 # Target a specific screen or all displays
 cascade --screen "all" --apply
 cascade --screen "active" --apply
 cascade --screen "C49RG9x" --apply
+
+# Split target display into 1, 2, 3, or 4 virtual columns (for ultrawides)
+cascade --split 3 --apply
+
+# Set and persist column split for a specific screen or all displays
+cascade --screen "C49RG9x" --set-split 3
 
 # Set and persist default screen target
 cascade --set-screen "all"
@@ -204,6 +211,7 @@ cascade --open-permissions
 - [Pointer-Screen Cascade Story](docs/stories/c5db1b63123a4e2c-pointer-screen-cascade-success.md)
 - [Auto-Cascade Target Screen Story](docs/stories/31d539e4f4de4d6d-auto-cascade-target-screen-success.md)
 - [Minimal Menu & Settings Modal Story](docs/stories/132c794fc802d82a-minimal-menu-and-settings-modal-success.md)
+- [Multi-Column Screen Splits Story](docs/stories/d249d328d4d14b80-wide-screen-splits-success.md)
 - [Order Preservation Story](docs/stories/01a0f7ec7c122619-order-preservation-success.md)
 - [Preferred App Order Story](docs/stories/01a0f7ec7c122619-preferred-app-order-success.md)
 - [User Preferences Persistence Story](docs/stories/01a0f7ec7c122619-user-preferences-persistence-success.md)

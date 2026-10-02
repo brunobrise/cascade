@@ -1,0 +1,64 @@
+@startuml wide-screen-splits
+skinparam backgroundColor white
+skinparam BoxPadding 10
+skinparam ParticipantPadding 10
+skinparam roundcorner 8
+skinparam shadowing false
+skinparam defaultFontName -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif
+
+participant "User / Settings Modal" as UI
+participant "SettingsWindowController" as Settings
+participant "ScreenManager" as ScreenMgr
+participant "CascadeEngine" as Engine
+participant "macOS Displays\n(Quartz / Cocoa)" as Displays
+
+== Screen Split Configuration ==
+UI -> Settings : Select Display ("C49RG9x 49\" Ultrawide")\nSelect Columns: [1 | 2 | 3 | 4] (e.g. 3)
+Settings -> ScreenMgr : saveScreenSplit:3 forScreenName:@"C49RG9x"
+ScreenMgr -> ScreenMgr : Persist to NSUserDefaults\n(key: "screenSplit_name_C49RG9x" = 3)
+Settings -> Settings : Synchronize UI state
+
+== Cascade Execution on Ultrawide Screen ==
+UI -> Engine : Trigger Cascade (Menu, Shortcut ⌥⌘C, or CLI)
+Engine -> ScreenMgr : availableScreens
+ScreenMgr -> Displays : Query NSScreen / CGDirectDisplayID
+Displays --> ScreenMgr : [0] C49RG9x (5120x1440)\n[1] Retina (1800x1169)
+
+Engine -> ScreenMgr : expandScreensWithSplits(screens)
+note over ScreenMgr
+  For each display:
+  - Query screenSplitForScreen:
+  - C49RG9x -> 3 Columns
+  - Slices visible frame (5120x1410):
+    * Col 0: [X: 0, W: 1706]
+    * Col 1: [X: 1706, W: 1706]
+    * Col 2: [X: 3412, W: 1708]
+  - Retina -> 1 Column [X: 2646, W: 1800]
+end note
+ScreenMgr --> Engine : 4 Virtual CascadeScreens
+
+== Window Partitioning & Auto-Rebalancing ==
+Engine -> ScreenMgr : partitionWindows:allWindows intoScreens:expandedScreens
+note over ScreenMgr
+  1. Spatial Attribution:
+     Assign window to column by maximum area overlap.
+  2. Empty Column Protection:
+     If any column is empty and total windows >= columns,
+     automatically balance windows evenly across columns!
+end note
+ScreenMgr --> Engine : Partition Dictionary: {Col0: [W1, W2], Col1: [W3, W4], Col2: [W5, W6]}
+
+== Invariant-Preserving Layout Calculation ==
+loop For each virtual column screen
+  Engine -> Engine : calculateLayoutForWindows:delta:onUsableFrame:
+  note over Engine
+    Within Column Bounds:
+    - Width: 73%..98% of Column Width
+    - Height: Usable Screen Height
+    - Step Offset (Delta: 40px)
+    - Click Tabs Guaranteed Disjoint!
+  end note
+  Engine -> Displays : Apply Window Frames via Accessibility API
+end
+
+@enduml

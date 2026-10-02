@@ -84,8 +84,8 @@ $(BUILD_DIR)/test_watcher: tests/test_watcher.m $(BUILD_DIR)/WindowWatcher.o | $
 $(BUILD_DIR)/test_app_order: tests/test_app_order.m $(BUILD_DIR)/AppOrderWindowController.o $(BUILD_DIR)/WindowEngine.o $(BUILD_DIR)/ScreenManager.o | $(BUILD_DIR)/.dir
 	$(CC) $(CFLAGS) $(LDFLAGS) tests/test_app_order.m $(BUILD_DIR)/AppOrderWindowController.o $(BUILD_DIR)/WindowEngine.o $(BUILD_DIR)/ScreenManager.o -o $@
 
-$(BUILD_DIR)/test_screen_manager: tests/test_screen_manager.m $(BUILD_DIR)/ScreenManager.o | $(BUILD_DIR)/.dir
-	$(CC) $(CFLAGS) $(LDFLAGS) tests/test_screen_manager.m $(BUILD_DIR)/ScreenManager.o -o $@
+$(BUILD_DIR)/test_screen_manager: tests/test_screen_manager.m $(BUILD_DIR)/ScreenManager.o $(BUILD_DIR)/WindowEngine.o | $(BUILD_DIR)/.dir
+	$(CC) $(CFLAGS) $(LDFLAGS) tests/test_screen_manager.m $(BUILD_DIR)/ScreenManager.o $(BUILD_DIR)/WindowEngine.o -o $@
 
 $(BUILD_DIR)/test_settings: tests/test_settings.m $(BUILD_DIR)/SettingsWindowController.o $(BUILD_DIR)/AppOrderWindowController.o $(BUILD_DIR)/WindowEngine.o $(BUILD_DIR)/ScreenManager.o $(BUILD_DIR)/LoginItemManager.o | $(BUILD_DIR)/.dir
 	$(CC) $(CFLAGS) $(LDFLAGS) tests/test_settings.m $(BUILD_DIR)/SettingsWindowController.o $(BUILD_DIR)/AppOrderWindowController.o $(BUILD_DIR)/WindowEngine.o $(BUILD_DIR)/ScreenManager.o $(BUILD_DIR)/LoginItemManager.o -o $@

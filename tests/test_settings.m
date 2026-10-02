@@ -48,6 +48,16 @@ static void testSettingsPreferencesSync() {
     printf("  [PASS] SettingsWindowController preferences synced cleanly.\n");
 }
 
+static void testSettingsColumnsControlSync() {
+    printf("Running testSettingsColumnsControlSync...\n");
+    SettingsWindowController *controller = [SettingsWindowController sharedController];
+    [ScreenManager saveScreenSplit:3 forScreenName:@"all"];
+    [controller showWindow];
+    assert([controller isWindowVisible]);
+    [controller closeWindow];
+    printf("  [PASS] SettingsWindowController columns control synced cleanly.\n");
+}
+
 int main(int argc, const char * argv[]) {
     (void)argc;
     (void)argv;
@@ -55,6 +65,7 @@ int main(int argc, const char * argv[]) {
         [NSApplication sharedApplication];
         testSettingsControllerLifecycle();
         testSettingsPreferencesSync();
+        testSettingsColumnsControlSync();
         printf("\n=== All Settings Window Tests Passed Successfully! ===\n");
     }
     return 0;

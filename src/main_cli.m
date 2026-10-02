@@ -23,20 +23,16 @@
         if (allWindows.count == 0) return;
         NSArray<CascadeScreen *> *allScreens = [ScreenManager availableScreens];
         NSArray<CascadeScreen *> *targetScreens = [ScreenManager screensMatchingTarget:self.targetScreen inScreens:allScreens];
+        NSArray<CascadeScreen *> *expandedScreens = [ScreenManager expandScreensWithSplits:targetScreens];
+        NSArray<CascadeScreen *> *allExpanded = [ScreenManager expandScreensWithSplits:allScreens];
+        NSDictionary *partition = [ScreenManager partitionWindows:allWindows intoScreens:allExpanded];
         NSMutableArray<CascadeWindow *> *allPlanned = [NSMutableArray array];
-        for (CascadeScreen *screen in targetScreens) {
-            NSMutableArray<CascadeWindow *> *screenWins = [NSMutableArray array];
-            for (CascadeWindow *w in allWindows) {
-                CascadeScreen *s = [ScreenManager screenForFrame:w.currentFrame inScreens:allScreens];
-                if (s && ([s isEqual:screen] || s.index == screen.index)) [screenWins addObject:w];
-            }
+        for (CascadeScreen *screen in expandedScreens) {
+            NSArray<CascadeWindow *> *screenWins = partition[screen] ?: @[];
             if (screenWins.count == 0) continue;
-            NSArray<CascadeWindow *> *planned = nil;
-            if (self.establishedOrder.count > 0) {
-                planned = [CascadeEngine calculateLayoutForWindows:screenWins preservingOrderFrom:self.establishedOrder delta:self.delta onUsableFrame:screen.quartzVisibleFrame];
-            } else {
-                planned = [CascadeEngine calculateLayoutForWindows:screenWins orderMode:self.orderMode preferredOrder:self.preferredOrder delta:self.delta onUsableFrame:screen.quartzVisibleFrame];
-            }
+            NSArray<CascadeWindow *> *planned = self.establishedOrder.count > 0 ?
+                [CascadeEngine calculateLayoutForWindows:screenWins preservingOrderFrom:self.establishedOrder delta:self.delta onUsableFrame:screen.quartzVisibleFrame] :
+                [CascadeEngine calculateLayoutForWindows:screenWins orderMode:self.orderMode preferredOrder:self.preferredOrder delta:self.delta onUsableFrame:screen.quartzVisibleFrame];
             [allPlanned addObjectsFromArray:planned];
             [CascadeEngine applyLayoutToWindows:planned restackZ:NO];
         }
@@ -81,11 +77,13 @@ static void printHelp(const char *prog) {
     printf("  --list               List current standard windows and exit\n");
     printf("  --list-screens       List connected screens/monitors and exit\n");
     printf("  --screen <target>    Target screen ('all', 'pointer', 'primary', index, or name)\n");
+    printf("  --split <1..4>       Override screen column split (1, 2, 3, or 4)\n");
     printf("  --order <mode>       Ordering: 'mru', 'spatial', 'alpha', or 'preferred'\n");
     printf("  --delta <pixels>     Offset/tab size in pixels (default: saved or 40)\n");
     printf("  --no-restack         Do not re-raise windows in order\n");
     printf("  --get-preferences    Print all saved user preferences and exit\n");
     printf("  --set-screen <target> Persist default target screen ('all'|name|index)\n");
+    printf("  --set-split <1..4>   Persist default screen columns (1..4) for target screen\n");
     printf("  --set-order <mode>   Persist default order mode ('mru'|'spatial'|'alpha'|'preferred')\n");
     printf("  --set-delta <pixels> Persist default delta in pixels\n");
     printf("  --set-restack <on|off> Persist restack Z-order preference ('enable'|'disable')\n");
@@ -110,6 +108,7 @@ int main(int argc, const char * argv[]) {
         CascadeOrderMode orderMode = [CascadeEngine savedOrderMode];
         NSArray<NSString *> *preferredOrder = [CascadeEngine preferredAppOrder];
         NSString *targetScreen = [ScreenManager savedScreenTarget];
+        NSInteger cliSplit = 0;
         NSArray<NSString *> *onlyApps = nil;
         NSArray<NSString *> *excludeApps = nil;
 
@@ -127,11 +126,13 @@ int main(int argc, const char * argv[]) {
                 NSArray<CascadeScreen *> *screens = [ScreenManager availableScreens];
                 printf("Connected Displays (%lu):\n", (unsigned long)screens.count);
                 for (CascadeScreen *s in screens) {
-                    printf("  [%ld] %-24s | %4.0fx%4.0f at (%5.0f, %5.0f)%s\n",
+                    NSInteger sp = [ScreenManager screenSplitForScreen:s];
+                    printf("  [%ld] %-24s | %4.0fx%4.0f at (%5.0f, %5.0f)%s%s\n",
                            (long)s.index, [s.name UTF8String],
                            s.quartzFrame.size.width, s.quartzFrame.size.height,
                            s.quartzFrame.origin.x, s.quartzFrame.origin.y,
-                           s.isPrimary ? " [Primary]" : "");
+                           s.isPrimary ? " [Primary]" : "",
+                           sp > 1 ? [[NSString stringWithFormat:@" [%ld cols]", (long)sp] UTF8String] : "");
                     printf("       Usable: %4.0fx%4.0f at (%5.0f, %5.0f)\n",
                            s.quartzVisibleFrame.size.width, s.quartzVisibleFrame.size.height,
                            s.quartzVisibleFrame.origin.x, s.quartzVisibleFrame.origin.y);
@@ -139,10 +140,19 @@ int main(int argc, const char * argv[]) {
                 return 0;
             } else if ([arg isEqualToString:@"--screen"] && i + 1 < argc) {
                 targetScreen = [NSString stringWithUTF8String:argv[++i]];
+            } else if ([arg isEqualToString:@"--split"] && i + 1 < argc) {
+                cliSplit = atoi(argv[++i]);
+                if (cliSplit < 1) cliSplit = 1;
+                if (cliSplit > 4) cliSplit = 4;
             } else if ([arg isEqualToString:@"--set-screen"] && i + 1 < argc) {
                 NSString *target = [NSString stringWithUTF8String:argv[++i]];
                 [ScreenManager saveScreenTarget:target];
                 printf("Saved target screen preference: %s\n", target.UTF8String);
+                return 0;
+            } else if ([arg isEqualToString:@"--set-split"] && i + 1 < argc) {
+                NSInteger split = atoi(argv[++i]);
+                [ScreenManager saveScreenSplit:split forScreenName:targetScreen];
+                printf("Saved screen split preference (%ld cols) for '%s'\n", (long)split, targetScreen.UTF8String);
                 return 0;
             } else if ([arg isEqualToString:@"--no-restack"]) {
                 restack = NO;
@@ -155,6 +165,7 @@ int main(int argc, const char * argv[]) {
                 printf("  Restack Z-Order:   %s\n", [CascadeEngine savedRestackZOrder] ? "YES" : "NO");
                 printf("  Auto-Rearrange:    %s\n", [CascadeEngine savedAutoRearrange] ? "YES" : "NO");
                 printf("  Screen Target:     %s\n", [ScreenManager savedScreenTarget].UTF8String);
+                printf("  Screen Split:      %ld cols\n", (long)[ScreenManager savedScreenSplit]);
                 NSArray *apps = [CascadeEngine preferredAppOrder];
                 printf("  Preferred Apps:    %s\n", apps.count > 0 ? [apps componentsJoinedByString:@", "].UTF8String : "(none set)");
                 printf("  Start at Login:    %s\n", [LoginItemManager isStartAtLoginEnabled] ? "YES" : "NO");
@@ -299,8 +310,17 @@ int main(int argc, const char * argv[]) {
 
         NSArray<CascadeScreen *> *allScreens = [ScreenManager availableScreens];
         NSArray<CascadeScreen *> *targetScreens = [ScreenManager screensMatchingTarget:targetScreen inScreens:allScreens];
-        printf("Screen Target: %s (%lu screen(s) selected out of %lu connected)\n\n",
-               targetScreen.UTF8String, (unsigned long)targetScreens.count, (unsigned long)allScreens.count);
+        NSArray<CascadeScreen *> *expandedScreens = nil;
+        if (cliSplit > 0) {
+            NSMutableArray *m = [NSMutableArray array];
+            for (CascadeScreen *s in targetScreens) [m addObjectsFromArray:[ScreenManager subscreensForScreen:s splitCount:cliSplit]];
+            expandedScreens = m;
+        } else {
+            expandedScreens = [ScreenManager expandScreensWithSplits:targetScreens];
+        }
+        NSArray<CascadeScreen *> *allExpanded = [ScreenManager expandScreensWithSplits:allScreens];
+        printf("Screen Target: %s (%lu column(s)/screen(s) selected across %lu display(s))\n\n",
+               targetScreen.UTF8String, (unsigned long)expandedScreens.count, (unsigned long)allScreens.count);
 
         NSArray<CascadeWindow *> *windows = [CascadeEngine collectStandardWindowsWithOnly:onlyApps exclude:excludeApps];
         if (windows.count == 0) {
@@ -322,13 +342,10 @@ int main(int argc, const char * argv[]) {
 
         if (doList) return 0;
 
+        NSDictionary *partition = [ScreenManager partitionWindows:windows intoScreens:allExpanded];
         NSUInteger totalPlanned = 0;
-        for (CascadeScreen *screen in targetScreens) {
-            NSMutableArray<CascadeWindow *> *screenWins = [NSMutableArray array];
-            for (CascadeWindow *w in windows) {
-                CascadeScreen *s = [ScreenManager screenForFrame:w.currentFrame inScreens:allScreens];
-                if (s && ([s isEqual:screen] || s.index == screen.index)) [screenWins addObject:w];
-            }
+        for (CascadeScreen *screen in expandedScreens) {
+            NSArray<CascadeWindow *> *screenWins = partition[screen] ?: @[];
             if (screenWins.count == 0) {
                 printf("=== Screen [%s] === No matching windows to cascade.\n\n", [screen.name UTF8String]);
                 continue;

@@ -1,4 +1,5 @@
 #import "ScreenManager.h"
+#import "WindowEngine.h"
 
 static NSString * const kScreenDomain = @"com.brunobrise.cascade";
 static NSString * const kScreenTargetKey = @"screenTarget";
@@ -16,6 +17,11 @@ static NSString * const kScreenTargetKey = @"screenTarget";
 
 - (NSUInteger)hash {
     return self.displayID.length > 0 ? [self.displayID hash] : (NSUInteger)self.index;
+}
+
+- (id)copyWithZone:(NSZone *)zone {
+    (void)zone;
+    return self;
 }
 @end
 
@@ -197,6 +203,149 @@ static NSUserDefaults *screenDefaults(void) {
 
 + (NSArray<CascadeScreen *> *)screensMatchingTarget:(NSString *)target {
     return [self screensMatchingTarget:target inScreens:[self availableScreens]];
+}
+
++ (NSInteger)savedScreenSplit {
+    NSUserDefaults *defaults = [[NSUserDefaults alloc] initWithSuiteName:kScreenDomain];
+    id val = [defaults objectForKey:@"screenSplit"];
+    NSInteger s = val ? [val integerValue] : 1;
+    return (s >= 1 && s <= 4) ? s : 1;
+}
+
++ (void)saveScreenSplit:(NSInteger)split {
+    if (split < 1) split = 1;
+    if (split > 4) split = 4;
+    NSUserDefaults *defaults = [[NSUserDefaults alloc] initWithSuiteName:kScreenDomain];
+    [defaults setInteger:split forKey:@"screenSplit"];
+}
+
++ (NSInteger)screenSplitForScreen:(CascadeScreen *)screen {
+    if (!screen) return [self savedScreenSplit];
+    NSUserDefaults *defaults = [[NSUserDefaults alloc] initWithSuiteName:kScreenDomain];
+    if (screen.displayID.length > 0) {
+        NSString *kId = [NSString stringWithFormat:@"screenSplit_id_%@", screen.displayID];
+        id val = [defaults objectForKey:kId];
+        if (val) {
+            NSInteger s = [val integerValue];
+            return (s >= 1 && s <= 4) ? s : 1;
+        }
+    }
+    if (screen.name.length > 0) {
+        NSString *kName = [NSString stringWithFormat:@"screenSplit_name_%@", screen.name];
+        id val = [defaults objectForKey:kName];
+        if (val) {
+            NSInteger s = [val integerValue];
+            return (s >= 1 && s <= 4) ? s : 1;
+        }
+    }
+    return [self savedScreenSplit];
+}
+
++ (void)saveScreenSplit:(NSInteger)split forScreenName:(NSString *)name {
+    if (split < 1) split = 1;
+    if (split > 4) split = 4;
+    NSUserDefaults *defaults = [[NSUserDefaults alloc] initWithSuiteName:kScreenDomain];
+    if (!name || [name localizedCaseInsensitiveCompare:@"all"] == NSOrderedSame) {
+        [defaults setInteger:split forKey:@"screenSplit"];
+    } else {
+        NSString *kName = [NSString stringWithFormat:@"screenSplit_name_%@", name];
+        [defaults setInteger:split forKey:kName];
+    }
+}
+
++ (NSArray<CascadeScreen *> *)subscreensForScreen:(CascadeScreen *)screen splitCount:(NSInteger)k {
+    if (k <= 1 || !screen) return screen ? @[screen] : @[];
+    NSMutableArray<CascadeScreen *> *subs = [NSMutableArray arrayWithCapacity:k];
+    CGRect qf = screen.quartzVisibleFrame;
+    CGRect qfTotal = screen.quartzFrame;
+    CGFloat colW = floor(qf.size.width / (CGFloat)k);
+
+    for (NSInteger i = 0; i < k; i++) {
+        CascadeScreen *cs = [[CascadeScreen alloc] init];
+        cs.index = screen.index * 10 + i;
+        cs.columnIndex = i;
+        cs.totalColumns = k;
+        cs.isPrimary = screen.isPrimary && (i == 0);
+        cs.name = [NSString stringWithFormat:@"%@ [Col %ld/%ld]", screen.name, (long)(i + 1), (long)k];
+        cs.displayID = [NSString stringWithFormat:@"%@_col%ld", screen.displayID.length > 0 ? screen.displayID : [@(screen.index) stringValue], (long)i];
+
+        CGFloat x = qf.origin.x + (CGFloat)i * colW;
+        CGFloat w = (i == k - 1) ? (qf.size.width - (CGFloat)(k - 1) * colW) : colW;
+        cs.quartzVisibleFrame = CGRectMake(x, qf.origin.y, w, qf.size.height);
+        cs.quartzFrame = CGRectMake(x, qfTotal.origin.y, w, qfTotal.size.height);
+        cs.cocoaFrame = cs.quartzFrame;
+        cs.cocoaVisibleFrame = cs.quartzVisibleFrame;
+        [subs addObject:cs];
+    }
+    return subs;
+}
+
++ (NSArray<CascadeScreen *> *)expandScreensWithSplits:(NSArray<CascadeScreen *> *)screens {
+    if (screens.count == 0) return @[];
+    NSMutableArray<CascadeScreen *> *result = [NSMutableArray array];
+    for (CascadeScreen *s in screens) {
+        NSInteger k = [self screenSplitForScreen:s];
+        if (k > 1) {
+            [result addObjectsFromArray:[self subscreensForScreen:s splitCount:k]];
+        } else {
+            [result addObject:s];
+        }
+    }
+    return result;
+}
+
++ (NSDictionary<CascadeScreen *, NSArray<CascadeWindow *> *> *)partitionWindows:(NSArray<CascadeWindow *> *)windows intoScreens:(NSArray<CascadeScreen *> *)screens {
+    NSMutableDictionary<CascadeScreen *, NSMutableArray<CascadeWindow *> *> *dict = [NSMutableDictionary dictionary];
+    for (CascadeScreen *s in screens) {
+        dict[s] = [NSMutableArray array];
+    }
+    if (windows.count == 0 || screens.count == 0) return dict;
+
+    for (CascadeWindow *w in windows) {
+        CascadeScreen *best = [self screenForFrame:w.currentFrame inScreens:screens];
+        if (best && dict[best]) {
+            [dict[best] addObject:w];
+        } else {
+            [dict[screens.firstObject] addObject:w];
+        }
+    }
+
+    NSMutableDictionary<NSString *, NSMutableArray<CascadeScreen *> *> *groups = [NSMutableDictionary dictionary];
+    for (CascadeScreen *s in screens) {
+        if (s.totalColumns > 1) {
+            NSString *base = [s.displayID componentsSeparatedByString:@"_col"].firstObject ?: s.name;
+            if (!groups[base]) groups[base] = [NSMutableArray array];
+            [groups[base] addObject:s];
+        }
+    }
+
+    for (NSString *base in groups) {
+        NSArray<CascadeScreen *> *colScreens = groups[base];
+        if (colScreens.count <= 1) continue;
+
+        NSMutableArray<CascadeWindow *> *totalWins = [NSMutableArray array];
+        BOOL hasEmpty = NO;
+        for (CascadeScreen *cs in colScreens) {
+            NSArray *wList = dict[cs];
+            if (wList.count == 0) hasEmpty = YES;
+            [totalWins addObjectsFromArray:wList];
+        }
+
+        if (hasEmpty && totalWins.count >= colScreens.count) {
+            for (CascadeScreen *cs in colScreens) {
+                [dict[cs] removeAllObjects];
+            }
+            NSUInteger total = totalWins.count;
+            NSUInteger numCols = colScreens.count;
+            for (NSUInteger idx = 0; idx < total; idx++) {
+                NSUInteger colIdx = (idx * numCols) / total;
+                CascadeScreen *targetCol = colScreens[colIdx];
+                [dict[targetCol] addObject:totalWins[idx]];
+            }
+        }
+    }
+
+    return dict;
 }
 
 @end

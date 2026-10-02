@@ -248,14 +248,14 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
 
     NSArray<CascadeScreen *> *allScreens = [ScreenManager availableScreens];
     if (targetScreens.count == 0) targetScreens = allScreens;
+
+    NSArray<CascadeScreen *> *expandedScreens = [ScreenManager expandScreensWithSplits:targetScreens];
+    NSArray<CascadeScreen *> *allExpandedScreens = [ScreenManager expandScreensWithSplits:allScreens];
+    NSDictionary<CascadeScreen *, NSArray<CascadeWindow *> *> *partition = [ScreenManager partitionWindows:allWindows intoScreens:allExpandedScreens];
     NSMutableArray<CascadeWindow *> *allPlanned = [NSMutableArray array];
 
-    for (CascadeScreen *screen in targetScreens) {
-        NSMutableArray<CascadeWindow *> *screenWins = [NSMutableArray array];
-        for (CascadeWindow *w in allWindows) {
-            CascadeScreen *owner = [ScreenManager screenForFrame:w.currentFrame inScreens:allScreens];
-            if (owner && ([owner isEqual:screen] || owner.index == screen.index)) [screenWins addObject:w];
-        }
+    for (CascadeScreen *screen in expandedScreens) {
+        NSArray<CascadeWindow *> *screenWins = partition[screen] ?: @[];
         if (screenWins.count == 0) continue;
 
         NSArray<CascadeWindow *> *planned = self.establishedOrder.count > 0 ?

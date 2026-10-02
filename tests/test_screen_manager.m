@@ -1,6 +1,7 @@
 #import <Foundation/Foundation.h>
 #import <assert.h>
 #import "../src/ScreenManager.h"
+#import "../src/WindowEngine.h"
 
 static void testCoordinateConversion() {
     printf("Running testCoordinateConversion...\n");
@@ -238,6 +239,111 @@ static void testScreenEquality() {
     printf("  [PASS] CascadeScreen equality and hashing verified.\n");
 }
 
+static void testScreenSplitsAndSubscreens() {
+    printf("Running testScreenSplitsAndSubscreens...\n");
+    CascadeScreen *s = [[CascadeScreen alloc] init];
+    s.index = 0;
+    s.name = @"Ultrawide";
+    s.displayID = @"1001";
+    s.isPrimary = YES;
+    s.quartzFrame = CGRectMake(0, 0, 5120, 1440);
+    s.quartzVisibleFrame = CGRectMake(0, 30, 5120, 1410);
+
+    NSArray *sub1 = [ScreenManager subscreensForScreen:s splitCount:1];
+    assert(sub1.count == 1 && sub1[0] == s);
+
+    NSArray<CascadeScreen *> *sub2 = [ScreenManager subscreensForScreen:s splitCount:2];
+    assert(sub2.count == 2);
+    assert(sub2[0].quartzVisibleFrame.origin.x == 0 && sub2[0].quartzVisibleFrame.size.width == 2560);
+    assert(sub2[1].quartzVisibleFrame.origin.x == 2560 && sub2[1].quartzVisibleFrame.size.width == 2560);
+    assert(sub2[0].isPrimary && !sub2[1].isPrimary);
+
+    NSArray<CascadeScreen *> *sub3 = [ScreenManager subscreensForScreen:s splitCount:3];
+    assert(sub3.count == 3);
+    CGFloat totalW3 = 0;
+    for (CascadeScreen *cs in sub3) totalW3 += cs.quartzVisibleFrame.size.width;
+    assert(totalW3 == 5120);
+    assert(sub3[0].quartzVisibleFrame.size.width == 1706);
+    assert(sub3[2].quartzVisibleFrame.size.width == 1708);
+
+    NSArray<CascadeScreen *> *sub4 = [ScreenManager subscreensForScreen:s splitCount:4];
+    assert(sub4.count == 4);
+    for (NSInteger i = 0; i < 4; i++) {
+        assert(sub4[i].quartzVisibleFrame.size.width == 1280);
+        assert(sub4[i].quartzVisibleFrame.origin.x == i * 1280);
+    }
+    printf("  [PASS] Screen column partitioning verified across 1, 2, 3, and 4 splits.\n");
+}
+
+static void testWindowPartitioningAcrossColumns() {
+    printf("Running testWindowPartitioningAcrossColumns...\n");
+    CascadeScreen *s = [[CascadeScreen alloc] init];
+    s.index = 0;
+    s.name = @"Ultrawide";
+    s.displayID = @"1001";
+    s.quartzFrame = CGRectMake(0, 0, 5120, 1440);
+    s.quartzVisibleFrame = CGRectMake(0, 30, 5120, 1410);
+
+    NSArray<CascadeScreen *> *cols = [ScreenManager subscreensForScreen:s splitCount:2];
+
+    CascadeWindow *w1 = [[CascadeWindow alloc] init];
+    w1.title = @"Win 1";
+    w1.currentFrame = CGRectMake(200, 200, 800, 600);
+
+    CascadeWindow *w2 = [[CascadeWindow alloc] init];
+    w2.title = @"Win 2";
+    w2.currentFrame = CGRectMake(3000, 200, 800, 600);
+
+    NSDictionary *p1 = [ScreenManager partitionWindows:@[w1, w2] intoScreens:cols];
+    assert([p1[cols[0]] count] == 1 && p1[cols[0]][0] == w1);
+    assert([p1[cols[1]] count] == 1 && p1[cols[1]][0] == w2);
+
+    CascadeWindow *w3 = [[CascadeWindow alloc] init];
+    w3.title = @"Win 3";
+    w3.currentFrame = CGRectMake(10, 10, 500, 500);
+    CascadeWindow *w4 = [[CascadeWindow alloc] init];
+    w4.title = @"Win 4";
+    w4.currentFrame = CGRectMake(20, 20, 500, 500);
+
+    NSDictionary *p2 = [ScreenManager partitionWindows:@[w1, w2, w3, w4] intoScreens:cols];
+    assert([p2[cols[0]] count] == 3);
+    assert([p2[cols[1]] count] == 1);
+
+    w2.currentFrame = CGRectMake(50, 50, 500, 500);
+    NSDictionary *p3 = [ScreenManager partitionWindows:@[w1, w2, w3, w4] intoScreens:cols];
+    assert([p3[cols[0]] count] == 2);
+    assert([p3[cols[1]] count] == 2);
+
+    printf("  [PASS] Window partitioning and column rebalancing verified.\n");
+}
+
+static void testPerScreenSplitPersistence() {
+    printf("Running testPerScreenSplitPersistence...\n");
+    [ScreenManager saveScreenSplit:3 forScreenName:@"C49RG9x"];
+    [ScreenManager saveScreenSplit:2 forScreenName:@"Built-in Retina Display"];
+
+    CascadeScreen *s1 = [[CascadeScreen alloc] init];
+    s1.name = @"C49RG9x";
+    CascadeScreen *s2 = [[CascadeScreen alloc] init];
+    s2.name = @"Built-in Retina Display";
+    CascadeScreen *s3 = [[CascadeScreen alloc] init];
+    s3.name = @"Unknown Monitor";
+
+    assert([ScreenManager screenSplitForScreen:s1] == 3);
+    assert([ScreenManager screenSplitForScreen:s2] == 2);
+    assert([ScreenManager screenSplitForScreen:s3] == [ScreenManager savedScreenSplit]);
+
+    [ScreenManager saveScreenSplit:10 forScreenName:@"C49RG9x"];
+    assert([ScreenManager screenSplitForScreen:s1] == 4);
+
+    [ScreenManager saveScreenSplit:-5 forScreenName:@"C49RG9x"];
+    assert([ScreenManager screenSplitForScreen:s1] == 1);
+
+    [ScreenManager saveScreenSplit:1 forScreenName:@"C49RG9x"];
+    [ScreenManager saveScreenSplit:1 forScreenName:@"Built-in Retina Display"];
+    printf("  [PASS] Per-screen split persistence and clamping verified.\n");
+}
+
 int main(int argc, const char * argv[]) {
     (void)argc;
     (void)argv;
@@ -249,6 +355,9 @@ int main(int argc, const char * argv[]) {
         testPointerScreenDetection();
         testScreenEquality();
         testPreferencesRoundTrip();
+        testScreenSplitsAndSubscreens();
+        testWindowPartitioningAcrossColumns();
+        testPerScreenSplitPersistence();
         printf("\n=== All ScreenManager Tests Passed Successfully! ===\n");
     }
     return 0;
