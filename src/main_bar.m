@@ -17,13 +17,6 @@
 @property (nonatomic, strong) WindowWatcher *watcher;
 @property (nonatomic, strong) NSArray<CascadeWindow *> *establishedOrder;
 - (void)performCascade:(id)sender;
-- (void)rearrangePreservingOrder;
-- (void)openAccessibilitySettings:(id)sender;
-- (void)showAbout:(id)sender;
-- (void)setOrderCustom:(id)sender;
-- (void)configureAppOrder:(id)sender;
-- (void)checkPermissionsChange;
-- (NSImage *)cascadeAppIcon;
 @end
 
 static OSStatus HotKeyHandler(EventHandlerCallRef nextHandler, EventRef theEvent, void *userData) {
@@ -186,7 +179,9 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
     }
     [menu addItem:aboutItem];
     [menu addItem:[NSMenuItem separatorItem]];
-    [menu addItem:makeItem(@"Quit Cascade", self, @selector(terminate:), NSControlStateValueOff)];
+    NSMenuItem *quitItem = makeItem(@"Quit Cascade", self, @selector(quitCascade:), NSControlStateValueOff);
+    quitItem.keyEquivalent = @"q";
+    [menu addItem:quitItem];
 
     self.statusMenu = menu;
     self.statusItem.menu = menu;
@@ -278,6 +273,10 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
     if (appIcon) options[NSAboutPanelOptionApplicationIcon] = appIcon;
     [NSApp orderFrontStandardAboutPanelWithOptions:options];
 }
+
+- (void)quitCascade:(id)s { (void)s; [NSApp terminate:nil]; }
+- (void)terminate:(id)s { [self quitCascade:s]; }
+- (BOOL)validateMenuItem:(NSMenuItem *)item { (void)item; return YES; }
 
 - (void)checkPermissionsChange {
     static BOOL lastTrusted = NO;

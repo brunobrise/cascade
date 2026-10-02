@@ -1,0 +1,52 @@
+@startuml
+skinparam backgroundColor white
+skinparam handwritten false
+skinparam shadowing false
+skinparam defaultFontName -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif
+skinparam roundCorner 8
+
+skinparam sequence {
+    ArrowColor #2563EB
+    ActorBorderColor #2563EB
+    LifeLineBorderColor #94A3B8
+    LifeLineBackgroundColor #F8FAFC
+    ParticipantBorderColor #2563EB
+    ParticipantBackgroundColor #EFF6FF
+    ParticipantFontColor #1E293B
+    BoxBorderColor #CBD5E1
+    BoxBackgroundColor #F8FAFC
+}
+
+title NSMenu Item Validation & Quit Flow
+
+actor User as U
+participant "Status Bar Item" as S
+participant "NSMenu" as M
+participant "NSMenuItem\n('Quit Cascade')" as MI
+participant "CascadeBarApp\n(self)" as App
+participant "NSApplication\n(NSApp)" as NSApp
+
+== Menu Opening & Validation ==
+U -> S: Click menu bar icon
+S -> M: Display statusMenu
+M -> MI: Validate item state
+alt Before Fix
+    MI -> App: [target respondsToSelector:@selector(terminate:)]
+    App --> MI: NO (selector unimplemented on self)
+    MI -> MI: setEnabled:NO (Greyed out / disabled)
+else After Fix
+    MI -> App: [target respondsToSelector:@selector(quitCascade:)]
+    App --> MI: YES (responds to selector)
+    M -> App: [target validateMenuItem:item]
+    App --> M: YES (explicitly allowed)
+    MI -> MI: setEnabled:YES (Clickable, Cmd+Q active)
+end
+
+== User Invocation ==
+U -> MI: Click "Quit Cascade" (or Cmd+Q)
+MI -> App: [target performSelector:@selector(quitCascade:)]
+App -> NSApp: [NSApp terminate:nil]
+NSApp -> App: applicationWillTerminate:
+NSApp -> NSApp: Clean process termination (exit 0)
+
+@enduml

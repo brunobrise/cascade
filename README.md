@@ -196,6 +196,7 @@ cascade --open-permissions
 - [Persistent Code Signing Story](docs/stories/01a0fc7ed70771c2-persistent-code-signing-success.md)
 - [Window Order Persistence Story](docs/stories/f449f0cfe05f4db0-window-order-persistence-success.md)
 - [Multi-Screen Support Story](docs/stories/ab844179246d4c2d-multi-screen-support-success.md)
+- [Quit Menu Item Enabled Story](docs/stories/f352ca5cf26a4345-quit-menu-item-enabled-success.md)
 - [Order Preservation Story](docs/stories/01a0f7ec7c122619-order-preservation-success.md)
 - [Preferred App Order Story](docs/stories/01a0f7ec7c122619-preferred-app-order-success.md)
 - [User Preferences Persistence Story](docs/stories/01a0f7ec7c122619-user-preferences-persistence-success.md)
