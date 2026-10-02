@@ -239,6 +239,14 @@ static void testPreferredAppOrderSorting() {
 static void testPreferencesPersistence() {
     printf("Running testPreferencesPersistence...\n");
 
+    // 0. Backup original user preferences to avoid clobbering during make test / install
+    CascadeOrderMode origMode = [CascadeEngine savedOrderMode];
+    CGFloat origDelta = [CascadeEngine savedDelta];
+    BOOL origRestack = [CascadeEngine savedRestackZOrder];
+    BOOL origAuto = [CascadeEngine savedAutoRearrange];
+    NSArray<NSString *> *origApps = [CascadeEngine preferredAppOrder];
+    NSArray<NSDictionary<NSString *, NSString *> *> *origOrder = [CascadeEngine savedEstablishedWindowOrder];
+
     // 1. Order mode
     [CascadeEngine saveOrderMode:CascadeOrderModeCustom];
     assert([CascadeEngine savedOrderMode] == CascadeOrderModeCustom);
@@ -272,7 +280,37 @@ static void testPreferencesPersistence() {
     assert([retrieved[1] isEqualToString:@"Terminal"]);
     assert([retrieved[2] isEqualToString:@"Chrome"]);
 
-    printf("  [PASS] All user preferences round-trip and persist via shared storage.\n");
+    // 6. Established Window Order persistence and matching
+    CascadeWindow *mw1 = makeMockWindow(@"Editor", 0, 0, 800, 600, 1);
+    CascadeWindow *mw2 = makeMockWindow(@"Browser", 0, 0, 800, 600, 2);
+    [CascadeEngine saveEstablishedWindowOrder:@[mw1, mw2]];
+    NSArray *savedW = [CascadeEngine savedEstablishedWindowOrder];
+    assert(savedW.count == 2);
+    assert([savedW[0][@"appName"] isEqualToString:@"Editor"]);
+    assert([savedW[1][@"appName"] isEqualToString:@"Browser"]);
+
+    CascadeWindow *cur1 = makeMockWindow(@"Browser", 100, 100, 800, 600, 5);
+    CascadeWindow *cur2 = makeMockWindow(@"Editor", 200, 200, 800, 600, 6);
+    NSArray<CascadeWindow *> *matched = [CascadeEngine matchWindows:@[cur1, cur2] withSavedDescriptors:savedW];
+    assert(matched.count == 2);
+    assert([matched[0].appName isEqualToString:@"Editor"]);
+    assert([matched[1].appName isEqualToString:@"Browser"]);
+
+    // 7. Restore original user preferences cleanly
+    [CascadeEngine saveOrderMode:origMode];
+    [CascadeEngine saveDelta:origDelta];
+    [CascadeEngine saveRestackZOrder:origRestack];
+    [CascadeEngine saveAutoRearrange:origAuto];
+    [CascadeEngine setPreferredAppOrder:origApps];
+    NSUserDefaults *defs = [CascadeEngine userDefaults];
+    if (origOrder && origOrder.count > 0) {
+        [defs setObject:origOrder forKey:@"establishedWindowOrder"];
+    } else {
+        [defs removeObjectForKey:@"establishedWindowOrder"];
+    }
+    [defs synchronize];
+
+    printf("  [PASS] All user preferences round-trip and persist without clobbering live settings.\n");
 }
 
 static void testAccessibilityDiagnostics() {

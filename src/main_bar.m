@@ -109,6 +109,12 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
     hotKeyID.signature = 'CSCD';
     hotKeyID.id = 1;
     RegisterEventHotKey(0x08, cmdKey | optionKey, hotKeyID, GetApplicationEventTarget(), 0, &_hotKeyRef);
+
+    NSArray *savedOrder = [CascadeEngine savedEstablishedWindowOrder];
+    if (savedOrder.count > 0 && [CascadeEngine isAccessibilityTrustedWithPrompt:NO]) {
+        NSArray<CascadeWindow *> *wins = [CascadeEngine collectStandardWindowsWithOnly:nil exclude:nil];
+        if (wins.count > 0) self.establishedOrder = [CascadeEngine matchWindows:wins withSavedDescriptors:savedOrder];
+    }
 }
 
 - (void)rebuildMenu {
@@ -171,16 +177,12 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
 
     [menu addItem:[NSMenuItem separatorItem]];
 
-    NSMenuItem *aboutItem = [[NSMenuItem alloc] initWithTitle:@"About Cascade"
-                                                       action:@selector(showAbout:)
-                                                keyEquivalent:@""];
-    aboutItem.target = self;
+    NSMenuItem *aboutItem = makeItem(@"About Cascade", self, @selector(showAbout:), NSControlStateValueOff);
     NSImage *menuIcon = [NSImage imageWithSystemSymbolName:@"macwindow.on.rectangle" accessibilityDescription:@"Cascade"];
     if (menuIcon) {
         NSImageSymbolConfiguration *config = [NSImageSymbolConfiguration configurationWithPointSize:14.0 weight:NSFontWeightMedium];
-        menuIcon = [menuIcon imageWithSymbolConfiguration:config];
-        [menuIcon setTemplate:YES];
-        aboutItem.image = menuIcon;
+        aboutItem.image = [menuIcon imageWithSymbolConfiguration:config];
+        [aboutItem.image setTemplate:YES];
     } else {
         NSImage *appIcon = [self cascadeAppIcon];
         if (appIcon) {
@@ -190,13 +192,8 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
         }
     }
     [menu addItem:aboutItem];
-
     [menu addItem:[NSMenuItem separatorItem]];
-
-    NSMenuItem *quitItem = [[NSMenuItem alloc] initWithTitle:@"Quit Cascade"
-                                                      action:@selector(terminate:)
-                                               keyEquivalent:@"q"];
-    [menu addItem:quitItem];
+    [menu addItem:makeItem(@"Quit Cascade", self, @selector(terminate:), NSControlStateValueOff)];
 
     self.statusMenu = menu;
     self.statusItem.menu = menu;
@@ -231,6 +228,8 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
 - (void)setOrderModeValue:(CascadeOrderMode)mode {
     self.orderMode = mode;
     [CascadeEngine saveOrderMode:mode];
+    self.establishedOrder = nil;
+    [CascadeEngine saveEstablishedWindowOrder:@[]];
     [self rebuildMenu];
     [self performCascade:nil];
 }
@@ -252,10 +251,10 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
     [[AppOrderWindowController sharedController] showWindowWithCompletion:^(BOOL applied) {
         self.orderMode = CascadeOrderModeCustom;
         [CascadeEngine saveOrderMode:self.orderMode];
+        self.establishedOrder = nil;
+        [CascadeEngine saveEstablishedWindowOrder:@[]];
         [self rebuildMenu];
-        if (applied) {
-            [self performCascade:nil];
-        }
+        if (applied) [self performCascade:nil];
     }];
 }
 
@@ -281,13 +280,9 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
 - (void)showAbout:(id)sender {
     (void)sender;
     [NSApp activateIgnoringOtherApps:YES];
-    NSMutableDictionary *options = [NSMutableDictionary dictionary];
-    options[NSAboutPanelOptionApplicationName] = @"Cascade";
-    options[NSAboutPanelOptionVersion] = @"1.0";
+    NSMutableDictionary *options = [@{ NSAboutPanelOptionApplicationName: @"Cascade", NSAboutPanelOptionVersion: @"1.0" } mutableCopy];
     NSImage *appIcon = [self cascadeAppIcon];
-    if (appIcon) {
-        options[NSAboutPanelOptionApplicationIcon] = appIcon;
-    }
+    if (appIcon) options[NSAboutPanelOptionApplicationIcon] = appIcon;
     [NSApp orderFrontStandardAboutPanelWithOptions:options];
 }
 
@@ -300,6 +295,13 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
             [self.watcher refreshObservers];
             if ([CascadeEngine savedAutoRearrange] && !self.watcher.isWatching) {
                 [self.watcher startWatching];
+            }
+            if (self.establishedOrder.count == 0) {
+                NSArray *saved = [CascadeEngine savedEstablishedWindowOrder];
+                if (saved.count > 0) {
+                    NSArray<CascadeWindow *> *wins = [CascadeEngine collectStandardWindowsWithOnly:nil exclude:nil];
+                    if (wins.count > 0) self.establishedOrder = [CascadeEngine matchWindows:wins withSavedDescriptors:saved];
+                }
             }
         }
         [self rebuildMenu];
@@ -318,6 +320,11 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
         NSArray<CascadeWindow *> *windows = [CascadeEngine collectStandardWindowsWithOnly:nil exclude:nil];
         if (windows.count == 0) return;
 
+        if (self.establishedOrder.count == 0) {
+            NSArray *saved = [CascadeEngine savedEstablishedWindowOrder];
+            if (saved.count > 0) self.establishedOrder = [CascadeEngine matchWindows:windows withSavedDescriptors:saved];
+        }
+
         NSArray<CascadeWindow *> *planned = nil;
         if (self.establishedOrder.count > 0) {
             planned = [CascadeEngine calculateLayoutForWindows:windows
@@ -329,6 +336,7 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
                                                          delta:self.delta];
         }
         self.establishedOrder = planned;
+        [CascadeEngine saveEstablishedWindowOrder:planned];
         // Event-driven rearrange does NOT restack Z, keeping current focus untouched
         [CascadeEngine applyLayoutToWindows:planned restackZ:NO];
     }];
@@ -348,9 +356,7 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
             if (appIcon) alert.icon = appIcon;
             [alert addButtonWithTitle:@"Open System Settings"];
             [alert addButtonWithTitle:@"Cancel"];
-            if ([alert runModal] == NSAlertFirstButtonReturn) {
-                [CascadeEngine openAccessibilitySettings];
-            }
+            if ([alert runModal] == NSAlertFirstButtonReturn) [CascadeEngine openAccessibilitySettings];
             return;
         }
     }
@@ -361,10 +367,23 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
         NSArray<CascadeWindow *> *windows = [CascadeEngine collectStandardWindowsWithOnly:nil exclude:nil];
         if (windows.count == 0) return;
 
-        NSArray<CascadeWindow *> *planned = [CascadeEngine calculateLayoutForWindows:windows
-                                                                           orderMode:self.orderMode
-                                                                               delta:self.delta];
+        if (self.establishedOrder.count == 0) {
+            NSArray *saved = [CascadeEngine savedEstablishedWindowOrder];
+            if (saved.count > 0) self.establishedOrder = [CascadeEngine matchWindows:windows withSavedDescriptors:saved];
+        }
+
+        NSArray<CascadeWindow *> *planned = nil;
+        if (self.establishedOrder.count > 0) {
+            planned = [CascadeEngine calculateLayoutForWindows:windows
+                                           preservingOrderFrom:self.establishedOrder
+                                                         delta:self.delta];
+        } else {
+            planned = [CascadeEngine calculateLayoutForWindows:windows
+                                                     orderMode:self.orderMode
+                                                         delta:self.delta];
+        }
         self.establishedOrder = planned;
+        [CascadeEngine saveEstablishedWindowOrder:planned];
         [CascadeEngine applyLayoutToWindows:planned restackZ:self.restackZOrder];
     }];
 }

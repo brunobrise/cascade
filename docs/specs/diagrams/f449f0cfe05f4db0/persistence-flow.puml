@@ -1,0 +1,37 @@
+@startuml
+skinparam backgroundColor white
+skinparam handwritten false
+skinparam monochrome false
+skinparam shadowing false
+skinparam defaultFontName -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif
+skinparam roundCorner 8
+
+participant "CascadeBarApp\n(Runtime)" as App #F8FAFC
+participant "WindowEngine\n(Engine)" as Engine #F1F5F9
+participant "Preferences\n(com.brunobrise.cascade)" as Prefs #FEF3C7
+participant "macOS Desktop\n(Active Windows)" as Desktop #EFF6FF
+
+== 1. Establishing & Persisting Window Order ==
+App -> Desktop: Collect active on-screen windows
+Desktop --> App: Windows: [Chrome #1, Slack #1, Cursor #1]
+App -> Engine: Calculate layout (Preferred/MRU/Spatial)
+Engine --> App: Planned layout with slots [0, 1, 2]
+App -> Prefs: saveEstablishedWindowOrder([Chrome, Slack, Cursor])
+note over Prefs: Serializes [{app:"Chrome", title:...}, ...] to disk
+
+== 2. App Exit or Rebuild (Lifecycle Event) ==
+note over App #FEE2E2: User quits app, or 'make install' restarts Cascade.\nRAM is cleared. In-memory pointers destroyed.
+
+== 3. Relaunch & Order Restoration ==
+App -> Prefs: savedEstablishedWindowOrder()
+Prefs --> App: Saved descriptors: [Chrome, Slack, Cursor]
+App -> Desktop: Collect current active windows
+Desktop --> App: Live windows: [Slack #1, Chrome #1, Cursor #1] (random OS order)
+App -> Engine: calculateLayoutForWindows:preservingOrderFrom:savedDescriptors
+note over Engine #E0F2FE: Matches live windows against saved order.\nSlot 0: Chrome, Slot 1: Slack, Slot 2: Cursor
+Engine --> App: Order restored identically to pre-exit state!
+App -> Desktop: Apply geometry without reshuffling!
+
+== 4. Test Suite Preference Protection ==
+note over Prefs #DCFCE7: 'make test' runs in isolated sandbox\nor saves & restores original preferences,\npreventing test data from clobbering user settings.
+@enduml

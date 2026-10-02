@@ -34,10 +34,8 @@
 }
 
 + (NSDictionary<NSString *, id> *)accessibilityDiagnostics {
-    BOOL apiTrusted = AXIsProcessTrusted();
-    BOOL functional = YES;
+    BOOL apiTrusted = AXIsProcessTrusted(), functional = YES;
     NSInteger errorCode = 0;
-
     AXUIElementRef sysWide = AXUIElementCreateSystemWide();
     if (sysWide) {
         CFTypeRef focusedApp = NULL;
@@ -46,21 +44,12 @@
         if (focusedApp) CFRelease(focusedApp);
         errorCode = (NSInteger)err;
         if (err == kAXErrorAPIDisabled) functional = NO;
-    } else {
-        functional = NO;
-    }
-
-    NSString *parentApp = @"Unknown";
+    } else { functional = NO; }
     NSRunningApplication *parent = [[NSWorkspace sharedWorkspace] frontmostApplication];
-    if (parent) parentApp = parent.localizedName ?: @"Unknown";
-
-    return @{
-        @"apiTrusted": @(apiTrusted),
-        @"functional": @(functional),
-        @"errorCode": @(errorCode),
-        @"trusted": @(apiTrusted && functional),
-        @"hostApp": parentApp
-    };
+    NSString *parentApp = parent.localizedName ?: @"Unknown";
+    return @{ @"apiTrusted": @(apiTrusted), @"functional": @(functional),
+              @"errorCode": @(errorCode), @"trusted": @(apiTrusted && functional),
+              @"hostApp": parentApp };
 }
 
 + (BOOL)isAccessibilityTrustedWithPrompt:(BOOL)prompt {
@@ -68,15 +57,12 @@
         NSDictionary *options = @{(__bridge id)kAXTrustedCheckOptionPrompt: @YES};
         AXIsProcessTrustedWithOptions((__bridge CFDictionaryRef)options);
     }
-    NSDictionary *diag = [self accessibilityDiagnostics];
-    return [diag[@"trusted"] boolValue];
+    return [[self accessibilityDiagnostics][@"trusted"] boolValue];
 }
 
 + (void)openAccessibilitySettings {
-    NSArray *urls = @[
-        @"x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility",
-        @"x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_Accessibility"
-    ];
+    NSArray *urls = @[@"x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility",
+                      @"x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_Accessibility"];
     for (NSString *str in urls) {
         if ([[NSWorkspace sharedWorkspace] openURL:[NSURL URLWithString:str]]) return;
     }
@@ -110,19 +96,14 @@
         if (onlyApps) {
             BOOL match = NO;
             for (NSString *allowed in onlyApps) {
-                if ([appName localizedCaseInsensitiveContainsString:allowed]) {
-                    match = YES; break;
-                }
+                if ([appName localizedCaseInsensitiveContainsString:allowed]) { match = YES; break; }
             }
             if (!match) continue;
         }
-
         if (excludeApps) {
             BOOL excluded = NO;
             for (NSString *ex in excludeApps) {
-                if ([appName localizedCaseInsensitiveContainsString:ex]) {
-                    excluded = YES; break;
-                }
+                if ([appName localizedCaseInsensitiveContainsString:ex]) { excluded = YES; break; }
             }
             if (excluded) continue;
         }
@@ -134,6 +115,7 @@
         CFTypeRef winsRef = NULL;
         if (AXUIElementCopyAttributeValue(appRef, kAXWindowsAttribute, &winsRef) == kAXErrorSuccess && winsRef) {
             NSArray *appWins = (NSArray *)CFBridgingRelease(winsRef);
+            NSUInteger winIdx = 0;
             for (id winObj in appWins) {
                 AXUIElementRef win = (__bridge AXUIElementRef)winObj;
 
@@ -164,7 +146,8 @@
                     cw.pid = pid;
                     cw.axRef = (AXUIElementRef)CFRetain(win);
                     cw.currentFrame = CGRectMake(curPos.x, curPos.y, curSize.width, curSize.height);
-                    cw.zRank = [pidToZRank[@(pid)] integerValue] ?: 999;
+                    NSInteger baseRank = [pidToZRank[@(pid)] integerValue] ?: 999;
+                    cw.zRank = baseRank * 1000 + (winIdx++);
                     [result addObject:cw];
                 }
             }
@@ -207,55 +190,75 @@ static void setPref(NSString *key, id val) {
     NSNumber *n = getPref(@"orderMode", nil);
     return n ? (CascadeOrderMode)[n integerValue] : CascadeOrderModeMRU;
 }
-
-+ (void)saveOrderMode:(CascadeOrderMode)mode {
-    setPref(@"orderMode", @(mode));
-}
++ (void)saveOrderMode:(CascadeOrderMode)mode { setPref(@"orderMode", @(mode)); }
 
 + (CGFloat)savedDelta {
     NSNumber *n = getPref(@"delta", nil);
     return n ? (CGFloat)[n doubleValue] : 40.0;
 }
-
-+ (void)saveDelta:(CGFloat)delta {
-    setPref(@"delta", @(delta));
-}
++ (void)saveDelta:(CGFloat)delta { setPref(@"delta", @(delta)); }
 
 + (BOOL)savedRestackZOrder {
     NSNumber *n = getPref(@"restackZOrder", nil);
     return n ? [n boolValue] : YES;
 }
-
-+ (void)saveRestackZOrder:(BOOL)restack {
-    setPref(@"restackZOrder", @(restack));
-}
++ (void)saveRestackZOrder:(BOOL)restack { setPref(@"restackZOrder", @(restack)); }
 
 + (BOOL)savedAutoRearrange {
     NSNumber *n = getPref(@"autoRearrange", nil);
     return n ? [n boolValue] : NO;
 }
++ (void)saveAutoRearrange:(BOOL)autoRearrange { setPref(@"autoRearrange", @(autoRearrange)); }
 
-+ (void)saveAutoRearrange:(BOOL)autoRearrange {
-    setPref(@"autoRearrange", @(autoRearrange));
++ (NSArray<NSString *> *)preferredAppOrder { return getPref(@"preferredAppOrder", @[]); }
++ (void)setPreferredAppOrder:(NSArray<NSString *> *)order { setPref(@"preferredAppOrder", order ?: @[]); }
+
++ (NSArray<NSDictionary<NSString *, NSString *> *> *)serializeWindows:(NSArray<CascadeWindow *> *)windows {
+    NSMutableArray *arr = [NSMutableArray arrayWithCapacity:windows.count];
+    for (CascadeWindow *w in windows) {
+        [arr addObject:@{@"appName": w.appName ?: @"", @"title": w.title ?: @""}];
+    }
+    return arr;
 }
 
-+ (NSArray<NSString *> *)preferredAppOrder {
-    return getPref(@"preferredAppOrder", @[]);
++ (NSArray<CascadeWindow *> *)matchWindows:(NSArray<CascadeWindow *> *)currentWindows
+                      withSavedDescriptors:(NSArray<NSDictionary<NSString *, NSString *> *> *)saved {
+    if (saved.count == 0 || currentWindows.count == 0) return currentWindows;
+    NSMutableArray<CascadeWindow *> *remaining = [currentWindows mutableCopy];
+    NSMutableArray<CascadeWindow *> *ordered = [NSMutableArray array];
+    for (NSDictionary *desc in saved) {
+        NSString *sApp = desc[@"appName"] ?: @"", *sTitle = desc[@"title"] ?: @"";
+        CascadeWindow *matched = nil;
+        for (CascadeWindow *cur in remaining) {
+            if ([cur.appName isEqualToString:sApp] && [cur.title isEqualToString:sTitle]) {
+                matched = cur; break;
+            }
+        }
+        if (!matched && sApp.length > 0) {
+            for (CascadeWindow *cur in remaining) {
+                if ([cur.appName isEqualToString:sApp]) { matched = cur; break; }
+            }
+        }
+        if (matched) { [ordered addObject:matched]; [remaining removeObject:matched]; }
+    }
+    if (remaining.count > 0) [ordered addObjectsFromArray:remaining];
+    return ordered;
 }
 
-+ (void)setPreferredAppOrder:(NSArray<NSString *> *)order {
-    setPref(@"preferredAppOrder", order ?: @[]);
++ (NSArray<NSDictionary<NSString *, NSString *> *> *)savedEstablishedWindowOrder {
+    return getPref(@"establishedWindowOrder", @[]);
+}
+
++ (void)saveEstablishedWindowOrder:(NSArray<CascadeWindow *> *)windows {
+    setPref(@"establishedWindowOrder", [self serializeWindows:windows]);
 }
 
 + (NSArray<NSString *> *)parseAppOrderString:(NSString *)string {
     if (!string || string.length == 0) return @[];
-    NSArray *parts = [string componentsSeparatedByString:@","];
     NSMutableArray *result = [NSMutableArray array];
-    for (NSString *p in parts) {
+    for (NSString *p in [string componentsSeparatedByString:@","]) {
         NSString *trimmed = [p stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
-        if (trimmed.length > 0) {
-            [result addObject:trimmed];
-        }
+        if (trimmed.length > 0) [result addObject:trimmed];
     }
     return result;
 }
@@ -263,14 +266,10 @@ static void setPref(NSString *key, id val) {
 static NSInteger rankForApp(NSString *appName, NSArray<NSString *> *preferred) {
     if (!appName || preferred.count == 0) return 999999;
     for (NSUInteger i = 0; i < preferred.count; i++) {
-        if ([appName localizedCaseInsensitiveCompare:preferred[i]] == NSOrderedSame) {
-            return (NSInteger)i;
-        }
+        if ([appName localizedCaseInsensitiveCompare:preferred[i]] == NSOrderedSame) return (NSInteger)i;
     }
     for (NSUInteger i = 0; i < preferred.count; i++) {
-        if ([appName localizedCaseInsensitiveContainsString:preferred[i]]) {
-            return (NSInteger)i;
-        }
+        if ([appName localizedCaseInsensitiveContainsString:preferred[i]]) return (NSInteger)i;
     }
     return 999999;
 }
@@ -294,22 +293,26 @@ static NSInteger rankForApp(NSString *appName, NSArray<NSString *> *preferred) {
     NSMutableArray<CascadeWindow *> *sorted = [windows mutableCopy];
     if (orderMode == CascadeOrderModeMRU) {
         [sorted sortUsingComparator:^NSComparisonResult(CascadeWindow *a, CascadeWindow *b) {
-            return a.zRank < b.zRank ? NSOrderedAscending : (a.zRank > b.zRank ? NSOrderedDescending : NSOrderedSame);
+            if (a.zRank != b.zRank) return a.zRank < b.zRank ? NSOrderedAscending : NSOrderedDescending;
+            return [a.title ?: @"" localizedCaseInsensitiveCompare:b.title ?: @""];
         }];
     } else if (orderMode == CascadeOrderModeSpatial) {
         [sorted sortUsingComparator:^NSComparisonResult(CascadeWindow *a, CascadeWindow *b) {
-            return a.currentFrame.origin.x < b.currentFrame.origin.x ? NSOrderedAscending : (a.currentFrame.origin.x > b.currentFrame.origin.x ? NSOrderedDescending : NSOrderedSame);
+            if (a.currentFrame.origin.x != b.currentFrame.origin.x)
+                return a.currentFrame.origin.x < b.currentFrame.origin.x ? NSOrderedAscending : NSOrderedDescending;
+            return [a.title ?: @"" localizedCaseInsensitiveCompare:b.title ?: @""];
         }];
     } else if (orderMode == CascadeOrderModeAlphabetical) {
         [sorted sortUsingComparator:^NSComparisonResult(CascadeWindow *a, CascadeWindow *b) {
-            return [a.appName localizedCaseInsensitiveCompare:b.appName];
+            NSComparisonResult r = [a.appName ?: @"" localizedCaseInsensitiveCompare:b.appName ?: @""];
+            return (r != NSOrderedSame) ? r : [a.title ?: @"" localizedCaseInsensitiveCompare:b.title ?: @""];
         }];
     } else if (orderMode == CascadeOrderModeCustom) {
         [sorted sortUsingComparator:^NSComparisonResult(CascadeWindow *a, CascadeWindow *b) {
             NSInteger rA = rankForApp(a.appName, preferredOrder), rB = rankForApp(b.appName, preferredOrder);
             if (rA != rB) return rA < rB ? NSOrderedAscending : NSOrderedDescending;
             if (a.zRank != b.zRank) return a.zRank < b.zRank ? NSOrderedAscending : NSOrderedDescending;
-            return [a.appName localizedCaseInsensitiveCompare:b.appName];
+            return [a.title ?: @"" localizedCaseInsensitiveCompare:b.title ?: @""];
         }];
     }
 

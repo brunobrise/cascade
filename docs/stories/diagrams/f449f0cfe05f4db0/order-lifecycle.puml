@@ -1,0 +1,46 @@
+@startuml
+skinparam backgroundColor white
+skinparam handwritten false
+skinparam monochrome false
+skinparam shadowing false
+skinparam roundcorner 8
+skinparam defaultFontName -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif
+
+participant "User Desktop\n(Windows)" as Desk
+participant "CascadeBarApp\n(Runtime)" as App
+database "UserDefaults\n(com.brunobrise.cascade)" as Prefs
+participant "Test Runner\n(make test)" as Tests
+
+== Phase 1: Test Runner Preference Isolation ==
+Tests -> Prefs: Read original preferences (orderMode, preferredApps, establishedOrder)
+activate Tests
+Tests -> Prefs: Run assertion checks with temporary settings
+Tests -> Prefs: Restore original user preferences verbatim!
+deactivate Tests
+note over Prefs: Live user preferences remain\n100% UNTOUCHED during install/test
+
+== Phase 2: User Cascade & Order Serialization ==
+Desk -> App: Trigger Cascade (Option+Cmd+C or auto-rearrange)
+activate App
+App -> Desk: Query visible windows & compute deterministic zRank
+App -> App: Layout windows (MRU / Spatial / Alphabetical / Custom)
+App -> Prefs: saveEstablishedWindowOrder: [ {appName, title}, ... ]
+App -> Desk: Apply repositioning (restackZ = restackZOrder)
+deactivate App
+
+== Phase 3: Application Exit & Persistence ==
+App -> App: Process Terminates (make install, quit, reboot)
+note over App: In-memory arrays deallocated\nDefaults persist on disk in com.brunobrise.cascade
+
+== Phase 4: Seamless Startup Restoration ==
+Desk -> App: Cascade Launches (applicationDidFinishLaunching)
+activate App
+App -> Prefs: savedEstablishedWindowOrder
+Prefs --> App: [ {appName, title}, ... ]
+App -> Desk: collectStandardWindowsWithOnly:exclude:
+App -> App: matchWindows:withSavedDescriptors:
+note over App: Established slots 0..N restored!\nWindow slots identical to previous session
+App -> Desk: Rearrange preserving slot sequence!
+deactivate App
+
+@enduml
