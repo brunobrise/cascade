@@ -1,0 +1,78 @@
+@startuml minimal-menu-settings-modal
+skinparam backgroundColor white
+skinparam handwritten false
+skinparam monochrome false
+skinparam shadowing false
+skinparam defaultFontName -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif
+
+participant "User" as User
+box "Menu Bar UI" #EBF3FB
+    participant "Cascade Status Item" as StatusItem
+    participant "Minimal NSMenu" as Menu
+end box
+box "Application Core" #F8F9FA
+    participant "CascadeBarApp" as App
+    participant "WindowWatcher" as Watcher
+end box
+box "Settings Modal" #FFF8E7
+    participant "SettingsWindowController" as SettingsModal
+    participant "AppOrderWindowController" as AppOrderModal
+end box
+database "macOS NSUserDefaults" as Defaults
+
+== 1. Minimal Menu Bar Interaction ==
+User -> StatusItem: Click menu bar icon
+StatusItem -> Menu: Open minimal menu
+note right of Menu
+  - Cascade Windows (⌥⌘C)
+  - Cascade All Screens (if multi-display)
+  ---
+  - Auto-Rearrange Windows (✓ Toggle)
+  ---
+  - Settings... (⌘,)
+  - About Cascade
+  ---
+  - Quit Cascade (⌘Q)
+end note
+User -> Menu: Click "Settings..." (or press ⌘,)
+Menu -> App: openSettings:
+activate App
+App -> SettingsModal: showWindow
+activate SettingsModal
+SettingsModal -> Defaults: Read current saved preferences
+SettingsModal -> SettingsModal: Populate displays, order, tab size, toggles
+SettingsModal -> User: Present centered native Preferences panel
+deactivate SettingsModal
+deactivate App
+
+== 2. Preference Adjustment in Modal ==
+User -> SettingsModal: Change Target Screen / Order Mode / Delta
+activate SettingsModal
+SettingsModal -> Defaults: Persist updated preferences
+SettingsModal -> App: delegate.settingsDidChange()
+activate App
+App -> Watcher: Sync live watcher state
+App -> Menu: rebuildMenu() with updated state
+deactivate App
+
+opt User clicks "Configure Apps..."
+    SettingsModal -> AppOrderModal: showWindowWithCompletion:
+    activate AppOrderModal
+    User -> AppOrderModal: Drag-and-drop prioritized apps
+    AppOrderModal --> SettingsModal: Preferences saved
+    deactivate AppOrderModal
+end
+
+opt User clicks "Cascade Windows Now"
+    User -> SettingsModal: Click "Cascade Windows Now"
+    SettingsModal -> App: delegate.settingsRequestsCascade()
+    activate App
+    App -> App: cascadeWindowsOnTargetScreensWithRestack()
+    deactivate App
+end
+
+User -> SettingsModal: Click "Done" (or press Esc/Return)
+SettingsModal -> SettingsModal: closeWindow()
+deactivate SettingsModal
+
+@enduml

@@ -5,8 +5,9 @@
 #import "LoginItemManager.h"
 #import "WindowWatcher.h"
 #import "AppOrderWindowController.h"
+#import "SettingsWindowController.h"
 
-@interface CascadeBarApp : NSObject <NSApplicationDelegate, WindowWatcherDelegate, NSMenuDelegate>
+@interface CascadeBarApp : NSObject <NSApplicationDelegate, WindowWatcherDelegate, NSMenuDelegate, SettingsWindowDelegate>
 @property (nonatomic, strong) NSStatusItem *statusItem;
 @property (nonatomic, strong) NSMenu *statusMenu;
 @property (nonatomic, assign) CascadeOrderMode orderMode;
@@ -18,6 +19,7 @@
 @property (nonatomic, strong) NSArray<CascadeWindow *> *establishedOrder;
 - (void)performCascade:(id)sender;
 - (void)cascadeWindowsOnTargetScreensWithRestack:(BOOL)restack;
+- (void)openSettings:(id)sender;
 @end
 
 static OSStatus HotKeyHandler(EventHandlerCallRef nextHandler, EventRef theEvent, void *userData) {
@@ -87,6 +89,7 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
     RegisterEventHotKey(0x08, cmdKey | optionKey, hotKeyID, GetApplicationEventTarget(), 0, &_hotKeyRef);
 
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(screensDidChange:) name:NSApplicationDidChangeScreenParametersNotification object:nil];
+    [SettingsWindowController sharedController].delegate = self;
 
     NSArray *savedOrder = [CascadeEngine savedEstablishedWindowOrder];
     if (savedOrder.count > 0 && [CascadeEngine isAccessibilityTrustedWithPrompt:NO]) {
@@ -111,60 +114,13 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
     }
     [menu addItem:[NSMenuItem separatorItem]];
 
-    // Window Order Submenu
-    NSMenuItem *orderSubmenuItem = [[NSMenuItem alloc] initWithTitle:@"Window Order" action:nil keyEquivalent:@""];
-    NSMenu *orderMenu = [[NSMenu alloc] initWithTitle:@"Window Order"];
-
-    [orderMenu addItem:makeItem(@"Most Recently Used (Front-to-Back)", self, @selector(setOrderMRU:), (self.orderMode == CascadeOrderModeMRU) ? NSControlStateValueOn : NSControlStateValueOff)];
-    [orderMenu addItem:makeItem(@"Spatial Order (Left-to-Right)", self, @selector(setOrderSpatial:), (self.orderMode == CascadeOrderModeSpatial) ? NSControlStateValueOn : NSControlStateValueOff)];
-    [orderMenu addItem:makeItem(@"Alphabetical (App Name)", self, @selector(setOrderAlpha:), (self.orderMode == CascadeOrderModeAlphabetical) ? NSControlStateValueOn : NSControlStateValueOff)];
-    [orderMenu addItem:makeItem(@"Preferred App Order", self, @selector(setOrderCustom:), (self.orderMode == CascadeOrderModeCustom) ? NSControlStateValueOn : NSControlStateValueOff)];
-    [orderMenu addItem:[NSMenuItem separatorItem]];
-    [orderMenu addItem:makeItem(@"Configure App Order...", self, @selector(configureAppOrder:), NSControlStateValueOff)];
-
-    orderSubmenuItem.submenu = orderMenu;
-    [menu addItem:orderSubmenuItem];
-
-    // Delta Submenu
-    NSMenuItem *deltaSubmenuItem = [[NSMenuItem alloc] initWithTitle:@"Tab Size (Delta)" action:nil keyEquivalent:@""];
-    NSMenu *deltaMenu = [[NSMenu alloc] initWithTitle:@"Tab Size"];
-
-    NSArray *deltas = @[@(30), @(40), @(50), @(60)];
-    for (NSNumber *d in deltas) {
-        NSString *title = [NSString stringWithFormat:@"%d px%@", [d intValue], [d intValue] == 40 ? @" (Default)" : @""];
-        NSMenuItem *dItem = [[NSMenuItem alloc] initWithTitle:title action:@selector(setDeltaValue:) keyEquivalent:@""];
-        dItem.representedObject = d;
-        dItem.target = self;
-        dItem.state = (fabs(self.delta - [d doubleValue]) < 0.1) ? NSControlStateValueOn : NSControlStateValueOff;
-        [deltaMenu addItem:dItem];
-    }
-    deltaSubmenuItem.submenu = deltaMenu;
-    [menu addItem:deltaSubmenuItem];
-
-    // Target Screen Submenu
-    NSMenuItem *screenSubmenuItem = [[NSMenuItem alloc] initWithTitle:@"Target Screen" action:nil keyEquivalent:@""];
-    NSMenu *screenMenu = [[NSMenu alloc] initWithTitle:@"Target Screen"];
-    NSString *currTarget = self.targetScreen ?: [ScreenManager savedScreenTarget];
-    BOOL isAll = [currTarget localizedCaseInsensitiveCompare:@"all"] == NSOrderedSame;
-    [screenMenu addItem:makeItem(@"All Screens (Independent)", self, @selector(setScreenTargetAll:), isAll ? NSControlStateValueOn : NSControlStateValueOff)];
-    [screenMenu addItem:[NSMenuItem separatorItem]];
-
-    for (CascadeScreen *s in [ScreenManager availableScreens]) {
-        NSString *title = [NSString stringWithFormat:@"%@ (%dx%d)%@", s.name, (int)s.quartzFrame.size.width, (int)s.quartzFrame.size.height, s.isPrimary ? @" [Primary]" : @""];
-        BOOL selected = (!isAll && ([s.name localizedCaseInsensitiveCompare:currTarget] == NSOrderedSame || [s.name localizedCaseInsensitiveContainsString:currTarget] || (s.displayID.length > 0 && [s.displayID isEqualToString:currTarget]) || [currTarget isEqualToString:[@(s.index) stringValue]]));
-        NSMenuItem *sItem = makeItem(title, self, @selector(setScreenTargetSpecific:), selected ? NSControlStateValueOn : NSControlStateValueOff);
-        sItem.representedObject = s.name;
-        [screenMenu addItem:sItem];
-    }
-    screenSubmenuItem.submenu = screenMenu;
-    [menu addItem:screenSubmenuItem];
-
-    // Toggles
-    [menu addItem:makeItem(@"Restack Z-Order with Cascade", self, @selector(toggleRestack:), self.restackZOrder ? NSControlStateValueOn : NSControlStateValueOff)];
-    [menu addItem:makeItem(@"Auto-Rearrange on Open / Minimize / Close", self, @selector(toggleAutoRearrange:), self.watcher.isWatching ? NSControlStateValueOn : NSControlStateValueOff)];
-    [menu addItem:makeItem(@"Start at Login", self, @selector(toggleStartAtLogin:), [LoginItemManager isStartAtLoginEnabled] ? NSControlStateValueOn : NSControlStateValueOff)];
-
+    [menu addItem:makeItem(@"Auto-Rearrange Windows", self, @selector(toggleAutoRearrange:), self.watcher.isWatching ? NSControlStateValueOn : NSControlStateValueOff)];
     [menu addItem:[NSMenuItem separatorItem]];
+
+    NSMenuItem *settingsItem = makeItem(@"Settings...", self, @selector(openSettings:), NSControlStateValueOff);
+    settingsItem.keyEquivalent = @",";
+    settingsItem.keyEquivalentModifierMask = NSEventModifierFlagCommand;
+    [menu addItem:settingsItem];
 
     NSMenuItem *aboutItem = makeItem(@"About Cascade", self, @selector(showAbout:), NSControlStateValueOff);
     NSImage *menuIcon = [NSImage imageWithSystemSymbolName:@"macwindow.on.rectangle" accessibilityDescription:@"Cascade"];
@@ -190,6 +146,29 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
     self.statusItem.menu = menu;
 }
 
+- (void)openSettings:(id)sender {
+    (void)sender;
+    [SettingsWindowController sharedController].delegate = self;
+    [[SettingsWindowController sharedController] showWindow];
+}
+
+- (void)settingsDidChange {
+    self.orderMode = [CascadeEngine savedOrderMode];
+    self.delta = [CascadeEngine savedDelta];
+    self.targetScreen = [ScreenManager savedScreenTarget];
+    self.restackZOrder = [CascadeEngine savedRestackZOrder];
+    if ([CascadeEngine savedAutoRearrange] && !self.watcher.isWatching) {
+        [self.watcher startWatching];
+    } else if (![CascadeEngine savedAutoRearrange] && self.watcher.isWatching) {
+        [self.watcher stopWatching];
+    }
+    [self rebuildMenu];
+}
+
+- (void)settingsRequestsCascade {
+    [self cascadeWindowsOnTargetScreensWithRestack:self.restackZOrder];
+}
+
 - (void)toggleAutoRearrange:(id)sender {
     (void)sender;
     if (self.watcher.isWatching) {
@@ -206,61 +185,6 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
 - (void)windowWatcherDidDetectChange:(WindowWatcher *)watcher {
     (void)watcher;
     [self rearrangePreservingOrder];
-}
-
-- (void)toggleStartAtLogin:(id)sender {
-    (void)sender;
-    BOOL current = [LoginItemManager isStartAtLoginEnabled];
-    NSError *err = nil;
-    [LoginItemManager setStartAtLoginEnabled:!current error:&err];
-    [self rebuildMenu];
-}
-
-- (void)setOrderModeValue:(CascadeOrderMode)mode {
-    self.orderMode = mode;
-    [CascadeEngine saveOrderMode:mode];
-    self.establishedOrder = nil;
-    [CascadeEngine saveEstablishedWindowOrder:@[]];
-    [self rebuildMenu];
-    [self cascadeWindowsOnTargetScreensWithRestack:self.restackZOrder];
-}
-
-- (void)setOrderMRU:(id)s { (void)s; [self setOrderModeValue:CascadeOrderModeMRU]; }
-- (void)setOrderSpatial:(id)s { (void)s; [self setOrderModeValue:CascadeOrderModeSpatial]; }
-- (void)setOrderAlpha:(id)s { (void)s; [self setOrderModeValue:CascadeOrderModeAlphabetical]; }
-
-- (void)setOrderCustom:(id)sender {
-    if ([CascadeEngine preferredAppOrder].count == 0) {
-        [self configureAppOrder:sender];
-        return;
-    }
-    [self setOrderModeValue:CascadeOrderModeCustom];
-}
-
-- (void)configureAppOrder:(id)sender {
-    (void)sender;
-    [[AppOrderWindowController sharedController] showWindowWithCompletion:^(BOOL applied) {
-        self.orderMode = CascadeOrderModeCustom;
-        [CascadeEngine saveOrderMode:self.orderMode];
-        self.establishedOrder = nil;
-        [CascadeEngine saveEstablishedWindowOrder:@[]];
-        [self rebuildMenu];
-        if (applied) [self cascadeWindowsOnTargetScreensWithRestack:self.restackZOrder];
-    }];
-}
-
-- (void)setDeltaValue:(NSMenuItem *)sender {
-    self.delta = [sender.representedObject doubleValue];
-    [CascadeEngine saveDelta:self.delta];
-    [self rebuildMenu];
-    [self cascadeWindowsOnTargetScreensWithRestack:self.restackZOrder];
-}
-
-- (void)toggleRestack:(id)sender {
-    (void)sender;
-    self.restackZOrder = !self.restackZOrder;
-    [CascadeEngine saveRestackZOrder:self.restackZOrder];
-    [self rebuildMenu];
 }
 
 - (void)openAccessibilitySettings:(id)s { (void)s; [CascadeEngine openAccessibilitySettings]; }
@@ -311,8 +235,6 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
     [self rebuildMenu];
     [self cascadeWindowsOnTargetScreensWithRestack:self.restackZOrder];
 }
-- (void)setScreenTargetAll:(id)s { (void)s; [self setScreenTargetValue:@"all"]; }
-- (void)setScreenTargetSpecific:(NSMenuItem *)s { [self setScreenTargetValue:s.representedObject]; }
 - (void)screensDidChange:(NSNotification *)n { (void)n; self.targetScreen = [ScreenManager savedScreenTarget]; [self rebuildMenu]; }
 
 - (void)cascadeWindowsOnScreens:(NSArray<CascadeScreen *> *)targetScreens restack:(BOOL)restack {

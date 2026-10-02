@@ -112,13 +112,15 @@ open -a ~/Applications/Cascade.app
 ```
 
 The menu bar icon appears in the macOS status bar:
-- **Trigger Cascade:** Press `Option + Command + C` or click **Cascade Windows**.
-- **Target Screen:** Select **All Screens (Independent)** to cascade every monitor on its own, **Active Screen (Follows Focus)** to target only where you are working, or target a specific display (e.g. `C49RG9x` or built-in display).
-- **Window Order:** Switch between **Most Recently Used**, **Spatial Order**, **Alphabetical**, or **Preferred App Order** (configured via interactive panel with running app picker, drag-and-drop, and window order capture via **Configure App Order...**).
-- **Tab Size (Delta):** Adjust margin between 30 px, 40 px, 50 px, and 60 px.
-- **Restack Z-Order:** Re-raise windows in order to match spatial layout.
-- **Auto-Rearrange on Open / Minimize / Close:** Automatically re-cascade windows whenever a window opens, closes, or is minimized.
-- **Start at Login:** Toggle whether Cascade launches automatically on login.
+- **Trigger Cascade:** Press `Option + Command + C` or click **Cascade Windows** to cascade the display under the pointer.
+- **Cascade All Screens:** Cascade each connected monitor independently with a single click.
+- **Auto-Rearrange Windows:** Quickly toggle continuous automatic cascading on window open, minimize, and close.
+- **Settings... (`Command + ,`):** Open the dedicated native preferences panel to configure:
+  - **Target Screen:** Select **All Screens (Independent)** or target a specific monitor.
+  - **Window Order:** Switch between **Most Recently Used**, **Spatial Order**, **Alphabetical**, or **Preferred App Order** (configured via interactive priority list).
+  - **Tab Size (Delta):** Adjust margin between 30 px, 40 px (Default), 50 px, and 60 px.
+  - **Restack Z-Order:** Re-raise windows in order to match spatial cascade sequence.
+  - **Start at Login:** Toggle whether Cascade launches automatically on login.
 
 ### Command-Line Interface
 
@@ -201,6 +203,7 @@ cascade --open-permissions
 - [Screen Configuration Persistence Story](docs/stories/ccc46c535e764e3d-screen-config-persistence-success.md)
 - [Pointer-Screen Cascade Story](docs/stories/c5db1b63123a4e2c-pointer-screen-cascade-success.md)
 - [Auto-Cascade Target Screen Story](docs/stories/31d539e4f4de4d6d-auto-cascade-target-screen-success.md)
+- [Minimal Menu & Settings Modal Story](docs/stories/132c794fc802d82a-minimal-menu-and-settings-modal-success.md)
 - [Order Preservation Story](docs/stories/01a0f7ec7c122619-order-preservation-success.md)
 - [Preferred App Order Story](docs/stories/01a0f7ec7c122619-preferred-app-order-success.md)
 - [User Preferences Persistence Story](docs/stories/01a0f7ec7c122619-user-preferences-persistence-success.md)
