@@ -5,10 +5,19 @@ static NSString * const kScreenDomain = @"com.brunobrise.cascade";
 static NSString * const kScreenTargetKey = @"screenTarget";
 
 @implementation CascadeScreen
+- (NSString *)uniqueID {
+    if (self.screenUUID.length > 0) return self.screenUUID;
+    if (self.displayID.length > 0) return self.displayID;
+    return self.name ?: [NSString stringWithFormat:@"screen_%ld", (long)self.index];
+}
+
 - (BOOL)isEqual:(id)object {
     if (self == object) return YES;
     if (![object isKindOfClass:[CascadeScreen class]]) return NO;
     CascadeScreen *other = (CascadeScreen *)object;
+    if (self.screenUUID.length > 0 && other.screenUUID.length > 0) {
+        return [self.screenUUID isEqualToString:other.screenUUID];
+    }
     if (self.displayID.length > 0 || other.displayID.length > 0) {
         return [self.displayID isEqualToString:other.displayID];
     }
@@ -16,6 +25,7 @@ static NSString * const kScreenTargetKey = @"screenTarget";
 }
 
 - (NSUInteger)hash {
+    if (self.screenUUID.length > 0) return [self.screenUUID hash];
     return self.displayID.length > 0 ? [self.displayID hash] : (NSUInteger)self.index;
 }
 
@@ -48,6 +58,14 @@ static NSString * const kScreenTargetKey = @"screenTarget";
         cs.name = s.localizedName ?: [NSString stringWithFormat:@"Display %lu", (unsigned long)i];
         NSNumber *dNum = s.deviceDescription[@"NSScreenNumber"];
         cs.displayID = dNum ? [dNum stringValue] : @"";
+        if (dNum) {
+            CFUUIDRef uRef = CGDisplayCreateUUIDFromDisplayID((CGDirectDisplayID)[dNum unsignedIntValue]);
+            if (uRef) {
+                CFStringRef sRef = CFUUIDCreateString(kCFAllocatorDefault, uRef);
+                cs.screenUUID = (__bridge_transfer NSString *)sRef;
+                CFRelease(uRef);
+            }
+        }
         cs.isPrimary = (i == 0);
         cs.cocoaFrame = s.frame;
         cs.cocoaVisibleFrame = s.visibleFrame;
@@ -175,6 +193,13 @@ static NSUserDefaults *screenDefaults(void) {
         return ptr ? @[ptr] : screens;
     }
 
+    // Match by screenUUID
+    for (CascadeScreen *s in screens) {
+        if (s.screenUUID.length > 0 && [s.screenUUID isEqualToString:target]) {
+            return @[s];
+        }
+    }
+
     // Match by displayID
     for (CascadeScreen *s in screens) {
         if (s.displayID.length > 0 && [s.displayID isEqualToString:target]) {
@@ -222,17 +247,14 @@ static NSUserDefaults *screenDefaults(void) {
 + (NSInteger)screenSplitForScreen:(CascadeScreen *)screen {
     if (!screen) return [self savedScreenSplit];
     NSUserDefaults *defaults = [[NSUserDefaults alloc] initWithSuiteName:kScreenDomain];
-    if (screen.displayID.length > 0) {
-        NSString *kId = [NSString stringWithFormat:@"screenSplit_id_%@", screen.displayID];
-        id val = [defaults objectForKey:kId];
-        if (val) {
-            NSInteger s = [val integerValue];
-            return (s >= 1 && s <= 4) ? s : 1;
-        }
-    }
-    if (screen.name.length > 0) {
-        NSString *kName = [NSString stringWithFormat:@"screenSplit_name_%@", screen.name];
-        id val = [defaults objectForKey:kName];
+    NSArray<NSString *> *keys = @[
+        screen.screenUUID.length > 0 ? [@"screenSplit_uuid_" stringByAppendingString:screen.screenUUID] : @"",
+        screen.displayID.length > 0 ? [@"screenSplit_id_" stringByAppendingString:screen.displayID] : @"",
+        screen.name.length > 0 ? [@"screenSplit_name_" stringByAppendingString:screen.name] : @""
+    ];
+    for (NSString *k in keys) {
+        if (k.length == 0) continue;
+        id val = [defaults objectForKey:k];
         if (val) {
             NSInteger s = [val integerValue];
             return (s >= 1 && s <= 4) ? s : 1;
@@ -241,16 +263,46 @@ static NSUserDefaults *screenDefaults(void) {
     return [self savedScreenSplit];
 }
 
++ (void)saveScreenSplit:(NSInteger)split forScreen:(CascadeScreen *)screen {
+    if (split < 1) split = 1;
+    if (split > 4) split = 4;
+    if (!screen) { [self saveScreenSplit:split]; return; }
+    NSUserDefaults *defaults = [[NSUserDefaults alloc] initWithSuiteName:kScreenDomain];
+    if (screen.screenUUID.length > 0)
+        [defaults setInteger:split forKey:[@"screenSplit_uuid_" stringByAppendingString:screen.screenUUID]];
+    if (screen.displayID.length > 0)
+        [defaults setInteger:split forKey:[@"screenSplit_id_" stringByAppendingString:screen.displayID]];
+    if (screen.name.length > 0)
+        [defaults setInteger:split forKey:[@"screenSplit_name_" stringByAppendingString:screen.name]];
+}
+
++ (void)saveScreenSplit:(NSInteger)split forScreenUUID:(NSString *)uuid {
+    if (split < 1) split = 1;
+    if (split > 4) split = 4;
+    if (!uuid || uuid.length == 0 || [uuid localizedCaseInsensitiveCompare:@"all"] == NSOrderedSame) {
+        [self saveScreenSplit:split];
+        return;
+    }
+    [[[NSUserDefaults alloc] initWithSuiteName:kScreenDomain] setInteger:split forKey:[@"screenSplit_uuid_" stringByAppendingString:uuid]];
+}
+
 + (void)saveScreenSplit:(NSInteger)split forScreenName:(NSString *)name {
     if (split < 1) split = 1;
     if (split > 4) split = 4;
-    NSUserDefaults *defaults = [[NSUserDefaults alloc] initWithSuiteName:kScreenDomain];
     if (!name || [name localizedCaseInsensitiveCompare:@"all"] == NSOrderedSame) {
-        [defaults setInteger:split forKey:@"screenSplit"];
-    } else {
-        NSString *kName = [NSString stringWithFormat:@"screenSplit_name_%@", name];
-        [defaults setInteger:split forKey:kName];
+        [self saveScreenSplit:split];
+        return;
     }
+    for (CascadeScreen *s in [self availableScreens]) {
+        if ([s.name localizedCaseInsensitiveCompare:name] == NSOrderedSame ||
+            (s.screenUUID.length > 0 && [s.screenUUID isEqualToString:name]) ||
+            (s.displayID.length > 0 && [s.displayID isEqualToString:name])) {
+            [self saveScreenSplit:split forScreen:s];
+            return;
+        }
+    }
+    NSUserDefaults *defaults = [[NSUserDefaults alloc] initWithSuiteName:kScreenDomain];
+    [defaults setInteger:split forKey:[NSString stringWithFormat:@"screenSplit_name_%@", name]];
 }
 
 + (NSArray<CascadeScreen *> *)subscreensForScreen:(CascadeScreen *)screen splitCount:(NSInteger)k {
@@ -268,6 +320,7 @@ static NSUserDefaults *screenDefaults(void) {
         cs.isPrimary = screen.isPrimary && (i == 0);
         cs.name = [NSString stringWithFormat:@"%@ [Col %ld/%ld]", screen.name, (long)(i + 1), (long)k];
         cs.displayID = [NSString stringWithFormat:@"%@_col%ld", screen.displayID.length > 0 ? screen.displayID : [@(screen.index) stringValue], (long)i];
+        cs.screenUUID = screen.screenUUID.length > 0 ? [NSString stringWithFormat:@"%@_col%ld", screen.screenUUID, (long)i] : nil;
 
         CGFloat x = qf.origin.x + (CGFloat)i * colW;
         CGFloat w = (i == k - 1) ? (qf.size.width - (CGFloat)(k - 1) * colW) : colW;

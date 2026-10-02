@@ -1,0 +1,63 @@
+@startuml per-screen-id-splits
+skinparam backgroundColor white
+skinparam BoxPadding 10
+skinparam ParticipantPadding 10
+skinparam roundcorner 8
+skinparam shadowing false
+skinparam defaultFontName -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif
+
+participant "User / Preferences UI" as UI
+participant "SettingsWindowController" as Settings
+participant "ScreenManager" as ScreenMgr
+participant "macOS CoreGraphics\n(CGDisplay)" as CG
+participant "NSUserDefaults" as Defaults
+participant "CascadeEngine" as Engine
+
+== Display Hardware UUID Discovery ==
+Settings -> ScreenMgr : availableScreens
+loop For each connected NSScreen
+  ScreenMgr -> CG : CGDisplayCreateUUIDFromDisplayID(displayID)
+  CG --> ScreenMgr : CFUUIDRef (Hardware EDID/Serial derived)
+  ScreenMgr -> ScreenMgr : Format permanent screenUUID string\n(e.g. "237D47DD-5A73-444C-BED3-44D0B1AD8D9F")
+  ScreenMgr -> ScreenMgr : Create CascadeScreen(uuid, displayID, name, frames)
+end
+ScreenMgr --> Settings : List of CascadeScreens with hardware UUIDs
+
+== Decoupled UI & Per-Screen Split Persistence ==
+Settings -> Settings : Populate targetScreenPopup ("All Screens" + physical screens)\nPopulate displayColumnsPopup (physical screens only)
+UI -> Settings : Select displayColumnsPopup ("C49RG9x (5120x1440)")\nSelect Column Splits [3 Columns]
+Settings -> ScreenMgr : saveScreenSplit:3 forScreen:c49Screen
+note over ScreenMgr
+  Hierarchy-Preserving Persistence:
+  1. Primary: "screenSplit_uuid_" + screenUUID -> 3
+  2. Session:  "screenSplit_id_" + displayID -> 3
+  3. Name:     "screenSplit_name_" + name -> 3
+end note
+ScreenMgr -> Defaults : setInteger:3 forKey:"screenSplit_uuid_237D47DD..."
+ScreenMgr -> Defaults : setInteger:3 forKey:"screenSplit_id_2"
+ScreenMgr -> Defaults : setInteger:3 forKey:"screenSplit_name_C49RG9x"
+
+== Independent Multi-Screen Cascade Execution ==
+UI -> Engine : Trigger Cascade (e.g. All Screens)
+Engine -> ScreenMgr : expandScreensWithSplits(screens)
+loop For each screen in screens
+  ScreenMgr -> ScreenMgr : screenSplitForScreen(screen)
+  ScreenMgr -> Defaults : Lookup "screenSplit_uuid_" + screenUUID
+  Defaults --> ScreenMgr : Stored split count (3 for C49RG9x, 1 for Retina)
+  alt split > 1
+    ScreenMgr -> ScreenMgr : Slice quartzVisibleFrame into 3 virtual subscreen columns\nAssign subscreen UUID: uuid + "_col0", "_col1", "_col2"
+  else split == 1
+    ScreenMgr -> ScreenMgr : Keep original full screen bounds
+  end
+end
+ScreenMgr --> Engine : 4 Virtual CascadeScreens (3 on Ultrawide + 1 on Laptop)
+
+== Layout Calculation & Partitioning ==
+Engine -> ScreenMgr : partitionWindows:allWindows intoScreens:expandedScreens
+ScreenMgr --> Engine : Partitioned window groups
+loop For each virtual column
+  Engine -> Engine : calculateLayoutForWindows:delta:onUsableFrame:
+  Engine -> Engine : Apply cascade with disjoint click tabs
+end
+
+@enduml

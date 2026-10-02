@@ -28,6 +28,7 @@ static NSButton *makeCheckbox(NSString *title, id target, SEL action, NSRect f) 
 @interface SettingsWindowController () <NSWindowDelegate>
 @property (nonatomic, strong) NSPanel *panel;
 @property (nonatomic, strong) NSPopUpButton *targetScreenPopup;
+@property (nonatomic, strong) NSPopUpButton *displayColumnsPopup;
 @property (nonatomic, strong) NSSegmentedControl *columnsControl;
 @property (nonatomic, strong) NSPopUpButton *orderModePopup;
 @property (nonatomic, strong) NSButton *configureAppsButton;
@@ -48,7 +49,7 @@ static NSButton *makeCheckbox(NSString *title, id target, SEL action, NSRect f) 
 
 - (void)buildWindowIfNeeded {
     if (self.panel) return;
-    NSRect frame = NSMakeRect(0, 0, 480, 490);
+    NSRect frame = NSMakeRect(0, 0, 480, 525);
     NSPanel *p = [[NSPanel alloc] initWithContentRect:frame
                                             styleMask:NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | NSWindowStyleMaskUtilityWindow
                                               backing:NSBackingStoreBuffered defer:NO];
@@ -59,35 +60,41 @@ static NSButton *makeCheckbox(NSString *title, id target, SEL action, NSRect f) 
     NSView *c = p.contentView;
 
     // Header Area
-    NSImageView *iconView = [[NSImageView alloc] initWithFrame:NSMakeRect(24, 430, 36, 36)];
+    NSImageView *iconView = [[NSImageView alloc] initWithFrame:NSMakeRect(24, 465, 36, 36)];
     NSImage *appIcon = [NSImage imageNamed:@"AppIcon"] ?: [[NSImage alloc] initWithContentsOfFile:[[NSBundle mainBundle] pathForResource:@"AppIcon" ofType:@"icns"]];
     if (appIcon) iconView.image = appIcon;
     [c addSubview:iconView];
 
-    [c addSubview:makeLabel(NSMakeRect(70, 442, 380, 22), @"Cascade Preferences", [NSFont boldSystemFontOfSize:15], [NSColor labelColor])];
-    [c addSubview:makeLabel(NSMakeRect(70, 426, 380, 16), @"Configure layout geometry, target displays, and automation", [NSFont systemFontOfSize:11], [NSColor secondaryLabelColor])];
-    [c addSubview:makeSeparator(NSMakeRect(20, 410, 440, 1))];
+    [c addSubview:makeLabel(NSMakeRect(70, 477, 380, 22), @"Cascade Preferences", [NSFont boldSystemFontOfSize:15], [NSColor labelColor])];
+    [c addSubview:makeLabel(NSMakeRect(70, 461, 380, 16), @"Configure layout geometry, target displays, and automation", [NSFont systemFontOfSize:11], [NSColor secondaryLabelColor])];
+    [c addSubview:makeSeparator(NSMakeRect(20, 447, 440, 1))];
 
     // Section 1: Layout & Geometry
-    [c addSubview:makeLabel(NSMakeRect(24, 385, 430, 18), @"Layout & Geometry", [NSFont boldSystemFontOfSize:12], [NSColor secondaryLabelColor])];
+    [c addSubview:makeLabel(NSMakeRect(24, 422, 430, 18), @"Layout & Geometry", [NSFont boldSystemFontOfSize:12], [NSColor secondaryLabelColor])];
 
-    [c addSubview:makeLabel(NSMakeRect(34, 355, 110, 18), @"Target Screen:", [NSFont systemFontOfSize:12], nil)];
-    self.targetScreenPopup = [[NSPopUpButton alloc] initWithFrame:NSMakeRect(148, 352, 298, 26) pullsDown:NO];
+    [c addSubview:makeLabel(NSMakeRect(34, 392, 110, 18), @"Target Screen:", [NSFont systemFontOfSize:12], nil)];
+    self.targetScreenPopup = [[NSPopUpButton alloc] initWithFrame:NSMakeRect(148, 389, 298, 26) pullsDown:NO];
     self.targetScreenPopup.target = self;
     self.targetScreenPopup.action = @selector(targetScreenChanged:);
     [c addSubview:self.targetScreenPopup];
 
-    [c addSubview:makeLabel(NSMakeRect(34, 320, 110, 18), @"Screen Columns:", [NSFont systemFontOfSize:12], nil)];
+    [c addSubview:makeLabel(NSMakeRect(34, 357, 110, 18), @"Display Columns:", [NSFont systemFontOfSize:12], nil)];
+    self.displayColumnsPopup = [[NSPopUpButton alloc] initWithFrame:NSMakeRect(148, 354, 298, 26) pullsDown:NO];
+    self.displayColumnsPopup.target = self;
+    self.displayColumnsPopup.action = @selector(displayColumnsChanged:);
+    [c addSubview:self.displayColumnsPopup];
+
+    [c addSubview:makeLabel(NSMakeRect(34, 324, 110, 18), @"Column Splits:", [NSFont systemFontOfSize:12], nil)];
     self.columnsControl = [NSSegmentedControl segmentedControlWithLabels:@[@"1 (Full)", @"2 Columns", @"3 Columns", @"4 Columns"]
                                                             trackingMode:NSSegmentSwitchTrackingSelectOne
                                                                   target:self
                                                                   action:@selector(columnsChanged:)];
-    self.columnsControl.frame = NSMakeRect(148, 317, 298, 25);
+    self.columnsControl.frame = NSMakeRect(148, 321, 298, 25);
     self.columnsControl.font = [NSFont systemFontOfSize:11];
     [c addSubview:self.columnsControl];
 
-    [c addSubview:makeLabel(NSMakeRect(34, 285, 110, 18), @"Window Order:", [NSFont systemFontOfSize:12], nil)];
-    self.orderModePopup = [[NSPopUpButton alloc] initWithFrame:NSMakeRect(148, 282, 185, 26) pullsDown:NO];
+    [c addSubview:makeLabel(NSMakeRect(34, 289, 110, 18), @"Window Order:", [NSFont systemFontOfSize:12], nil)];
+    self.orderModePopup = [[NSPopUpButton alloc] initWithFrame:NSMakeRect(148, 286, 185, 26) pullsDown:NO];
     [self.orderModePopup addItemWithTitle:@"Most Recently Used"];
     self.orderModePopup.lastItem.tag = CascadeOrderModeMRU;
     [self.orderModePopup addItemWithTitle:@"Spatial (Left-to-Right)"];
@@ -101,13 +108,13 @@ static NSButton *makeCheckbox(NSString *title, id target, SEL action, NSRect f) 
     [c addSubview:self.orderModePopup];
 
     self.configureAppsButton = [NSButton buttonWithTitle:@"Configure..." target:self action:@selector(configureAppsClicked:)];
-    self.configureAppsButton.frame = NSMakeRect(337, 282, 109, 26);
+    self.configureAppsButton.frame = NSMakeRect(337, 286, 109, 26);
     self.configureAppsButton.bezelStyle = NSBezelStyleRounded;
     self.configureAppsButton.font = [NSFont systemFontOfSize:12];
     [c addSubview:self.configureAppsButton];
 
-    [c addSubview:makeLabel(NSMakeRect(34, 250, 110, 18), @"Tab Size (Delta):", [NSFont systemFontOfSize:12], nil)];
-    self.deltaPopup = [[NSPopUpButton alloc] initWithFrame:NSMakeRect(148, 247, 298, 26) pullsDown:NO];
+    [c addSubview:makeLabel(NSMakeRect(34, 254, 110, 18), @"Tab Size (Delta):", [NSFont systemFontOfSize:12], nil)];
+    self.deltaPopup = [[NSPopUpButton alloc] initWithFrame:NSMakeRect(148, 251, 298, 26) pullsDown:NO];
     NSArray *deltas = @[@(30), @(40), @(50), @(60)];
     for (NSNumber *d in deltas) {
         NSString *title = [NSString stringWithFormat:@"%d px%@", [d intValue], [d intValue] == 40 ? @" (Standard)" : @""];
@@ -118,23 +125,23 @@ static NSButton *makeCheckbox(NSString *title, id target, SEL action, NSRect f) 
     self.deltaPopup.action = @selector(deltaChanged:);
     [c addSubview:self.deltaPopup];
 
-    [c addSubview:makeSeparator(NSMakeRect(20, 232, 440, 1))];
+    [c addSubview:makeSeparator(NSMakeRect(20, 236, 440, 1))];
 
     // Section 2: Automation & Behavior
-    [c addSubview:makeLabel(NSMakeRect(24, 208, 430, 18), @"Automation & Behavior", [NSFont boldSystemFontOfSize:12], [NSColor secondaryLabelColor])];
+    [c addSubview:makeLabel(NSMakeRect(24, 212, 430, 18), @"Automation & Behavior", [NSFont boldSystemFontOfSize:12], [NSColor secondaryLabelColor])];
 
-    self.autoRearrangeCheckbox = makeCheckbox(@"Auto-Rearrange on Open / Minimize / Close", self, @selector(autoRearrangeToggled:), NSMakeRect(34, 180, 410, 20));
+    self.autoRearrangeCheckbox = makeCheckbox(@"Auto-Rearrange on Open / Minimize / Close", self, @selector(autoRearrangeToggled:), NSMakeRect(34, 184, 410, 20));
     [c addSubview:self.autoRearrangeCheckbox];
-    [c addSubview:makeLabel(NSMakeRect(54, 164, 390, 14), @"Keeps windows organized continuously as windows are created or closed", [NSFont systemFontOfSize:11], [NSColor secondaryLabelColor])];
+    [c addSubview:makeLabel(NSMakeRect(54, 168, 390, 14), @"Keeps windows organized continuously as windows are created or closed", [NSFont systemFontOfSize:11], [NSColor secondaryLabelColor])];
 
-    self.restackCheckbox = makeCheckbox(@"Restack window Z-order during cascade", self, @selector(restackToggled:), NSMakeRect(34, 136, 410, 20));
+    self.restackCheckbox = makeCheckbox(@"Restack window Z-order during cascade", self, @selector(restackToggled:), NSMakeRect(34, 140, 410, 20));
     [c addSubview:self.restackCheckbox];
-    [c addSubview:makeLabel(NSMakeRect(54, 120, 390, 14), @"Brings cascaded windows forward to match front-to-back sequence", [NSFont systemFontOfSize:11], [NSColor secondaryLabelColor])];
+    [c addSubview:makeLabel(NSMakeRect(54, 124, 390, 14), @"Brings cascaded windows forward to match front-to-back sequence", [NSFont systemFontOfSize:11], [NSColor secondaryLabelColor])];
 
-    self.startAtLoginCheckbox = makeCheckbox(@"Launch Cascade automatically at login", self, @selector(startAtLoginToggled:), NSMakeRect(34, 92, 410, 20));
+    self.startAtLoginCheckbox = makeCheckbox(@"Launch Cascade automatically at login", self, @selector(startAtLoginToggled:), NSMakeRect(34, 96, 410, 20));
     [c addSubview:self.startAtLoginCheckbox];
 
-    [c addSubview:makeSeparator(NSMakeRect(20, 70, 440, 1))];
+    [c addSubview:makeSeparator(NSMakeRect(20, 74, 440, 1))];
 
     // Bottom Bar
     NSButton *cascadeBtn = [NSButton buttonWithTitle:@"Cascade Windows" target:self action:@selector(cascadeNowClicked:)];
@@ -153,6 +160,7 @@ static NSButton *makeCheckbox(NSString *title, id target, SEL action, NSRect f) 
 
 - (void)populateScreenTargets {
     [self.targetScreenPopup removeAllItems];
+    [self.displayColumnsPopup removeAllItems];
     NSString *curr = [ScreenManager savedScreenTarget];
     BOOL isAll = [curr localizedCaseInsensitiveCompare:@"all"] == NSOrderedSame;
 
@@ -160,12 +168,22 @@ static NSButton *makeCheckbox(NSString *title, id target, SEL action, NSRect f) 
     self.targetScreenPopup.lastItem.representedObject = @"all";
     if (isAll) [self.targetScreenPopup selectItem:self.targetScreenPopup.lastItem];
 
-    for (CascadeScreen *s in [ScreenManager availableScreens]) {
+    NSArray<CascadeScreen *> *screens = [ScreenManager availableScreens];
+    for (CascadeScreen *s in screens) {
         NSString *title = [NSString stringWithFormat:@"%@ (%dx%d)%@", s.name, (int)s.quartzFrame.size.width, (int)s.quartzFrame.size.height, s.isPrimary ? @" [Primary]" : @""];
         [self.targetScreenPopup addItemWithTitle:title];
-        self.targetScreenPopup.lastItem.representedObject = s.name;
-        BOOL sel = (!isAll && ([s.name localizedCaseInsensitiveCompare:curr] == NSOrderedSame || [s.name localizedCaseInsensitiveContainsString:curr] || (s.displayID.length > 0 && [s.displayID isEqualToString:curr])));
+        self.targetScreenPopup.lastItem.representedObject = [s uniqueID];
+        BOOL sel = (!isAll && ([s.name localizedCaseInsensitiveCompare:curr] == NSOrderedSame ||
+                               [s.name localizedCaseInsensitiveContainsString:curr] ||
+                               (s.screenUUID.length > 0 && [s.screenUUID isEqualToString:curr]) ||
+                               (s.displayID.length > 0 && [s.displayID isEqualToString:curr])));
         if (sel) [self.targetScreenPopup selectItem:self.targetScreenPopup.lastItem];
+
+        [self.displayColumnsPopup addItemWithTitle:title];
+        self.displayColumnsPopup.lastItem.representedObject = s;
+    }
+    if (self.displayColumnsPopup.numberOfItems > 0 && !self.displayColumnsPopup.selectedItem) {
+        [self.displayColumnsPopup selectItemAtIndex:0];
     }
 }
 
@@ -186,29 +204,35 @@ static NSButton *makeCheckbox(NSString *title, id target, SEL action, NSRect f) 
     self.autoRearrangeCheckbox.state = [CascadeEngine savedAutoRearrange] ? NSControlStateValueOn : NSControlStateValueOff;
     self.restackCheckbox.state = [CascadeEngine savedRestackZOrder] ? NSControlStateValueOn : NSControlStateValueOff;
     self.startAtLoginCheckbox.state = [LoginItemManager isStartAtLoginEnabled] ? NSControlStateValueOn : NSControlStateValueOff;
-    [self updateColumnsControlForScreen];
+    [self updateColumnsControlForSelectedDisplay];
 }
 
-- (CascadeScreen *)currentSelectedScreen {
-    NSString *curr = self.targetScreenPopup.selectedItem.representedObject ?: [ScreenManager savedScreenTarget];
-    if ([curr localizedCaseInsensitiveCompare:@"all"] == NSOrderedSame) return [ScreenManager primaryScreen];
-    NSArray<CascadeScreen *> *matches = [ScreenManager screensMatchingTarget:curr];
-    return matches.firstObject ?: [ScreenManager primaryScreen];
+- (CascadeScreen *)selectedDisplayForColumns {
+    NSMenuItem *item = self.displayColumnsPopup.selectedItem;
+    if (item && [item.representedObject isKindOfClass:[CascadeScreen class]]) {
+        return (CascadeScreen *)item.representedObject;
+    }
+    return [ScreenManager primaryScreen];
 }
 
-- (void)updateColumnsControlForScreen {
-    CascadeScreen *s = [self currentSelectedScreen];
+- (void)updateColumnsControlForSelectedDisplay {
+    CascadeScreen *s = [self selectedDisplayForColumns];
     NSInteger split = [ScreenManager screenSplitForScreen:s];
     if (split < 1) split = 1;
     if (split > 4) split = 4;
     self.columnsControl.selectedSegment = split - 1;
 }
 
+- (void)displayColumnsChanged:(id)sender {
+    (void)sender;
+    [self updateColumnsControlForSelectedDisplay];
+}
+
 - (void)columnsChanged:(id)sender {
     (void)sender;
     NSInteger split = self.columnsControl.selectedSegment + 1;
-    NSString *val = self.targetScreenPopup.selectedItem.representedObject ?: @"all";
-    [ScreenManager saveScreenSplit:split forScreenName:val];
+    CascadeScreen *s = [self selectedDisplayForColumns];
+    [ScreenManager saveScreenSplit:split forScreen:s];
     [self.delegate settingsDidChange];
 }
 
@@ -231,7 +255,17 @@ static NSButton *makeCheckbox(NSString *title, id target, SEL action, NSRect f) 
     (void)sender;
     NSString *val = self.targetScreenPopup.selectedItem.representedObject ?: @"all";
     [ScreenManager saveScreenTarget:val];
-    [self updateColumnsControlForScreen];
+    if (![val isEqualToString:@"all"]) {
+        for (NSMenuItem *item in self.displayColumnsPopup.itemArray) {
+            CascadeScreen *cs = item.representedObject;
+            if ([cs isKindOfClass:[CascadeScreen class]] &&
+                ([[cs uniqueID] isEqualToString:val] || [cs.name isEqualToString:val])) {
+                [self.displayColumnsPopup selectItem:item];
+                break;
+            }
+        }
+    }
+    [self updateColumnsControlForSelectedDisplay];
     [self.delegate settingsDidChange];
 }
 

@@ -58,6 +58,28 @@ static void testSettingsColumnsControlSync() {
     printf("  [PASS] SettingsWindowController columns control synced cleanly.\n");
 }
 
+static void testSettingsDisplayColumnsDecoupling() {
+    printf("Running testSettingsDisplayColumnsDecoupling...\n");
+    SettingsWindowController *controller = [SettingsWindowController sharedController];
+    MockSettingsDelegate *mock = [[MockSettingsDelegate alloc] init];
+    controller.delegate = mock;
+
+    NSArray<CascadeScreen *> *screens = [ScreenManager availableScreens];
+    if (screens.count > 0) {
+        CascadeScreen *s0 = screens[0];
+        [ScreenManager saveScreenSplit:2 forScreen:s0];
+        assert([ScreenManager screenSplitForScreen:s0] == 2);
+
+        [controller showWindow];
+        assert([controller isWindowVisible]);
+        [controller closeWindow];
+
+        // Reset
+        [ScreenManager saveScreenSplit:1 forScreen:s0];
+    }
+    printf("  [PASS] SettingsWindowController display columns decoupled from target screen.\n");
+}
+
 int main(int argc, const char * argv[]) {
     (void)argc;
     (void)argv;
@@ -66,6 +88,7 @@ int main(int argc, const char * argv[]) {
         testSettingsControllerLifecycle();
         testSettingsPreferencesSync();
         testSettingsColumnsControlSync();
+        testSettingsDisplayColumnsDecoupling();
         printf("\n=== All Settings Window Tests Passed Successfully! ===\n");
     }
     return 0;

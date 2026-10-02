@@ -319,28 +319,35 @@ static void testWindowPartitioningAcrossColumns() {
 
 static void testPerScreenSplitPersistence() {
     printf("Running testPerScreenSplitPersistence...\n");
-    [ScreenManager saveScreenSplit:3 forScreenName:@"C49RG9x"];
-    [ScreenManager saveScreenSplit:2 forScreenName:@"Built-in Retina Display"];
+    NSString *u1 = @"237D47DD-5A73-444C-BED3-44D0B1AD8D9F";
+    NSString *u2 = @"37D8832A-2D66-02CA-B9F7-8F30A301B230";
 
     CascadeScreen *s1 = [[CascadeScreen alloc] init];
-    s1.name = @"C49RG9x";
+    s1.name = @"C49RG9x"; s1.displayID = @"2"; s1.screenUUID = u1;
     CascadeScreen *s2 = [[CascadeScreen alloc] init];
-    s2.name = @"Built-in Retina Display";
+    s2.name = @"Built-in Retina Display"; s2.displayID = @"1"; s2.screenUUID = u2;
     CascadeScreen *s3 = [[CascadeScreen alloc] init];
     s3.name = @"Unknown Monitor";
 
-    assert([ScreenManager screenSplitForScreen:s1] == 3);
+    assert([[s1 uniqueID] isEqualToString:u1]);
+    assert([[s3 uniqueID] isEqualToString:@"Unknown Monitor"]);
+
+    [ScreenManager saveScreenSplit:4 forScreen:s1];
+    [ScreenManager saveScreenSplit:2 forScreen:s2];
+    assert([ScreenManager screenSplitForScreen:s1] == 4);
     assert([ScreenManager screenSplitForScreen:s2] == 2);
     assert([ScreenManager screenSplitForScreen:s3] == [ScreenManager savedScreenSplit]);
 
-    [ScreenManager saveScreenSplit:10 forScreenName:@"C49RG9x"];
-    assert([ScreenManager screenSplitForScreen:s1] == 4);
+    [ScreenManager saveScreenSplit:3 forScreenUUID:u1];
+    assert([ScreenManager screenSplitForScreen:s1] == 3);
 
-    [ScreenManager saveScreenSplit:-5 forScreenName:@"C49RG9x"];
+    [ScreenManager saveScreenSplit:99 forScreen:s1];
+    assert([ScreenManager screenSplitForScreen:s1] == 4);
+    [ScreenManager saveScreenSplit:-5 forScreen:s1];
     assert([ScreenManager screenSplitForScreen:s1] == 1);
 
-    [ScreenManager saveScreenSplit:1 forScreenName:@"C49RG9x"];
-    [ScreenManager saveScreenSplit:1 forScreenName:@"Built-in Retina Display"];
+    [ScreenManager saveScreenSplit:1 forScreen:s1];
+    [ScreenManager saveScreenSplit:1 forScreen:s2];
     printf("  [PASS] Per-screen split persistence and clamping verified.\n");
 }
 

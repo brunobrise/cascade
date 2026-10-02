@@ -6,6 +6,7 @@
 @property (nonatomic, assign) NSInteger index;
 @property (nonatomic, copy) NSString *name;
 @property (nonatomic, copy) NSString *displayID;
+@property (nonatomic, copy) NSString *screenUUID;
 @property (nonatomic, assign) BOOL isPrimary;
 @property (nonatomic, assign) CGRect cocoaFrame;
 @property (nonatomic, assign) CGRect cocoaVisibleFrame;
@@ -13,6 +14,8 @@
 @property (nonatomic, assign) CGRect quartzVisibleFrame;
 @property (nonatomic, assign) NSInteger columnIndex;
 @property (nonatomic, assign) NSInteger totalColumns;
+
+- (NSString *)uniqueID;
 @end
 
 @interface ScreenManager : NSObject
@@ -34,7 +37,9 @@
 + (NSInteger)savedScreenSplit;
 + (void)saveScreenSplit:(NSInteger)split;
 + (NSInteger)screenSplitForScreen:(CascadeScreen *)screen;
++ (void)saveScreenSplit:(NSInteger)split forScreen:(CascadeScreen *)screen;
 + (void)saveScreenSplit:(NSInteger)split forScreenName:(NSString *)name;
++ (void)saveScreenSplit:(NSInteger)split forScreenUUID:(NSString *)uuid;
 + (NSArray<CascadeScreen *> *)subscreensForScreen:(CascadeScreen *)screen splitCount:(NSInteger)k;
 + (NSArray<CascadeScreen *> *)expandScreensWithSplits:(NSArray<CascadeScreen *> *)screens;
 + (NSDictionary<CascadeScreen *, NSArray<CascadeWindow *> *> *)partitionWindows:(NSArray<CascadeWindow *> *)windows intoScreens:(NSArray<CascadeScreen *> *)screens;

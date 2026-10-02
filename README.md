@@ -120,7 +120,7 @@ The menu bar icon appears in the macOS status bar:
 - **Auto-Rearrange Windows:** Quickly toggle continuous automatic cascading on window open, minimize, and close.
 - **Settings... (`Command + ,`):** Open the dedicated native preferences panel to configure:
   - **Target Screen:** Select **All Screens (Independent)** or target a specific monitor.
-  - **Screen Columns:** Split target display into **1 (Full)**, **2 Columns**, **3 Columns**, or **4 Columns** (persisted per monitor).
+  - **Display Columns & Splits:** Decoupled per-display configuration. Choose any connected display and split it into **1 (Full)**, **2 Columns**, **3 Columns**, or **4 Columns**. Settings are persisted per display based on its permanent hardware UUID (`CGDisplayCreateUUIDFromDisplayID`).
   - **Window Order:** Switch between **Most Recently Used**, **Spatial Order**, **Alphabetical**, or **Preferred App Order** (configured via interactive priority list).
   - **Tab Size (Delta):** Adjust margin between 30 px, 40 px (Default), 50 px, and 60 px.
   - **Restack Z-Order:** Re-raise windows in order to match spatial cascade sequence.
