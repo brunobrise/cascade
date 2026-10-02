@@ -105,6 +105,9 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
     cascadeItem.keyEquivalent = @"c";
     cascadeItem.keyEquivalentModifierMask = NSEventModifierFlagOption | NSEventModifierFlagCommand;
     [menu addItem:cascadeItem];
+    if ([ScreenManager availableScreens].count > 1) {
+        [menu addItem:makeItem(@"Cascade All Screens", self, @selector(performCascadeAllScreens:), NSControlStateValueOff)];
+    }
     [menu addItem:[NSMenuItem separatorItem]];
 
     // Window Order Submenu
@@ -142,14 +145,12 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
     NSMenu *screenMenu = [[NSMenu alloc] initWithTitle:@"Target Screen"];
     NSString *currTarget = self.targetScreen ?: [ScreenManager savedScreenTarget];
     BOOL isAll = [currTarget localizedCaseInsensitiveCompare:@"all"] == NSOrderedSame;
-    BOOL isActive = [currTarget localizedCaseInsensitiveCompare:@"active"] == NSOrderedSame;
     [screenMenu addItem:makeItem(@"All Screens (Independent)", self, @selector(setScreenTargetAll:), isAll ? NSControlStateValueOn : NSControlStateValueOff)];
-    [screenMenu addItem:makeItem(@"Active Screen (Follows Focus)", self, @selector(setScreenTargetActive:), isActive ? NSControlStateValueOn : NSControlStateValueOff)];
     [screenMenu addItem:[NSMenuItem separatorItem]];
 
     for (CascadeScreen *s in [ScreenManager availableScreens]) {
         NSString *title = [NSString stringWithFormat:@"%@ (%dx%d)%@", s.name, (int)s.quartzFrame.size.width, (int)s.quartzFrame.size.height, s.isPrimary ? @" [Primary]" : @""];
-        BOOL selected = (!isAll && !isActive && ([s.name localizedCaseInsensitiveCompare:currTarget] == NSOrderedSame || [s.name localizedCaseInsensitiveContainsString:currTarget] || (s.displayID.length > 0 && [s.displayID isEqualToString:currTarget]) || [currTarget isEqualToString:[@(s.index) stringValue]]));
+        BOOL selected = (!isAll && ([s.name localizedCaseInsensitiveCompare:currTarget] == NSOrderedSame || [s.name localizedCaseInsensitiveContainsString:currTarget] || (s.displayID.length > 0 && [s.displayID isEqualToString:currTarget]) || [currTarget isEqualToString:[@(s.index) stringValue]]));
         NSMenuItem *sItem = makeItem(title, self, @selector(setScreenTargetSpecific:), selected ? NSControlStateValueOn : NSControlStateValueOff);
         sItem.representedObject = s.name;
         [screenMenu addItem:sItem];
@@ -310,11 +311,10 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
     [self performCascade:nil];
 }
 - (void)setScreenTargetAll:(id)s { (void)s; [self setScreenTargetValue:@"all"]; }
-- (void)setScreenTargetActive:(id)s { (void)s; [self setScreenTargetValue:@"active"]; }
 - (void)setScreenTargetSpecific:(NSMenuItem *)s { [self setScreenTargetValue:s.representedObject]; }
 - (void)screensDidChange:(NSNotification *)n { (void)n; self.targetScreen = [ScreenManager savedScreenTarget]; [self rebuildMenu]; }
 
-- (void)cascadeWindowsOnTargetScreensWithRestack:(BOOL)restack {
+- (void)cascadeWindowsOnScreens:(NSArray<CascadeScreen *> *)targetScreens restack:(BOOL)restack {
     NSArray<CascadeWindow *> *allWindows = [CascadeEngine collectStandardWindowsWithOnly:nil exclude:nil];
     if (allWindows.count == 0) return;
 
@@ -324,7 +324,7 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
     }
 
     NSArray<CascadeScreen *> *allScreens = [ScreenManager availableScreens];
-    NSArray<CascadeScreen *> *targetScreens = [ScreenManager screensMatchingTarget:self.targetScreen inScreens:allScreens];
+    if (targetScreens.count == 0) targetScreens = allScreens;
     NSMutableArray<CascadeWindow *> *allPlanned = [NSMutableArray array];
 
     for (CascadeScreen *screen in targetScreens) {
@@ -336,19 +336,10 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
         }
         if (screenWins.count == 0) continue;
 
-        NSArray<CascadeWindow *> *planned = nil;
-        if (self.establishedOrder.count > 0) {
-            planned = [CascadeEngine calculateLayoutForWindows:screenWins
-                                           preservingOrderFrom:self.establishedOrder
-                                                         delta:self.delta
-                                                 onUsableFrame:screen.quartzVisibleFrame];
-        } else {
-            planned = [CascadeEngine calculateLayoutForWindows:screenWins
-                                                     orderMode:self.orderMode
-                                                preferredOrder:[CascadeEngine preferredAppOrder]
-                                                         delta:self.delta
-                                                 onUsableFrame:screen.quartzVisibleFrame];
-        }
+        NSArray<CascadeWindow *> *planned = self.establishedOrder.count > 0 ?
+            [CascadeEngine calculateLayoutForWindows:screenWins preservingOrderFrom:self.establishedOrder delta:self.delta onUsableFrame:screen.quartzVisibleFrame] :
+            [CascadeEngine calculateLayoutForWindows:screenWins orderMode:self.orderMode preferredOrder:[CascadeEngine preferredAppOrder] delta:self.delta onUsableFrame:screen.quartzVisibleFrame];
+
         [allPlanned addObjectsFromArray:planned];
         [CascadeEngine applyLayoutToWindows:planned restackZ:restack];
     }
@@ -367,32 +358,43 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
 - (void)rearrangePreservingOrder {
     if (![CascadeEngine isAccessibilityTrustedWithPrompt:NO]) return;
     [self.watcher performWithoutTriggering:^{
-        [self cascadeWindowsOnTargetScreensWithRestack:NO];
+        NSArray<CascadeScreen *> *all = [ScreenManager availableScreens];
+        [self cascadeWindowsOnScreens:[ScreenManager screensMatchingTarget:self.targetScreen inScreens:all] restack:NO];
     }];
+}
+
+- (BOOL)ensureAccessibility {
+    if ([CascadeEngine isAccessibilityTrustedWithPrompt:NO]) return YES;
+    if ([CascadeEngine isAccessibilityTrustedWithPrompt:YES]) { [self checkPermissionsChange]; return YES; }
+    [self rebuildMenu];
+    NSAlert *alert = [[NSAlert alloc] init];
+    alert.messageText = @"Accessibility Permission Required";
+    alert.informativeText = @"Cascade needs Accessibility permission to move and resize windows.\n\nPlease enable Cascade in System Settings > Privacy & Security > Accessibility.";
+    NSImage *appIcon = [self cascadeAppIcon];
+    if (appIcon) alert.icon = appIcon;
+    [alert addButtonWithTitle:@"Open System Settings"];
+    [alert addButtonWithTitle:@"Cancel"];
+    if ([alert runModal] == NSAlertFirstButtonReturn) [CascadeEngine openAccessibilitySettings];
+    return NO;
 }
 
 - (void)performCascade:(id)sender {
     (void)sender;
-    if (![CascadeEngine isAccessibilityTrustedWithPrompt:NO]) {
-        if ([CascadeEngine isAccessibilityTrustedWithPrompt:YES]) {
-            [self checkPermissionsChange];
-        } else {
-            [self rebuildMenu];
-            NSAlert *alert = [[NSAlert alloc] init];
-            alert.messageText = @"Accessibility Permission Required";
-            alert.informativeText = @"Cascade needs Accessibility permission to move and resize windows.\n\nPlease enable Cascade in System Settings > Privacy & Security > Accessibility.";
-            NSImage *appIcon = [self cascadeAppIcon];
-            if (appIcon) alert.icon = appIcon;
-            [alert addButtonWithTitle:@"Open System Settings"];
-            [alert addButtonWithTitle:@"Cancel"];
-            if ([alert runModal] == NSAlertFirstButtonReturn) [CascadeEngine openAccessibilitySettings];
-            return;
-        }
-    }
-
+    if (![self ensureAccessibility]) return;
+    CascadeScreen *ptr = [ScreenManager screenForPointer];
+    NSArray *targets = ptr ? @[ptr] : [ScreenManager availableScreens];
     [self.watcher refreshObservers];
     [self.watcher performWithoutTriggering:^{
-        [self cascadeWindowsOnTargetScreensWithRestack:self.restackZOrder];
+        [self cascadeWindowsOnScreens:targets restack:self.restackZOrder];
+    }];
+}
+
+- (void)performCascadeAllScreens:(id)sender {
+    (void)sender;
+    if (![self ensureAccessibility]) return;
+    [self.watcher refreshObservers];
+    [self.watcher performWithoutTriggering:^{
+        [self cascadeWindowsOnScreens:[ScreenManager availableScreens] restack:self.restackZOrder];
     }];
 }
 

@@ -44,19 +44,32 @@ static NSString * const kScreenTargetKey = @"screenTarget";
 }
 
 + (CascadeScreen *)activeScreen {
-    NSArray<CascadeScreen *> *screens = [self availableScreens];
-    if (screens.count <= 1) return screens.firstObject;
+    return [self screenForPointer];
+}
 
-    NSScreen *main = [NSScreen mainScreen];
-    if (main) {
-        for (CascadeScreen *cs in screens) {
-            if (cs.index == (NSInteger)[screens indexOfObject:cs] &&
-                NSEqualRects(cs.cocoaFrame, main.frame)) {
-                return cs;
-            }
-        }
++ (CascadeScreen *)screenForCocoaPoint:(NSPoint)cocoaPoint inScreens:(NSArray<CascadeScreen *> *)screens {
+    if (screens.count == 0) return nil;
+    if (screens.count == 1) return screens.firstObject;
+
+    for (CascadeScreen *s in screens) {
+        if (NSPointInRect(cocoaPoint, s.cocoaFrame)) return s;
     }
-    return screens.firstObject;
+    CascadeScreen *best = screens.firstObject;
+    CGFloat minDist = CGFLOAT_MAX;
+    for (CascadeScreen *s in screens) {
+        CGPoint center = CGPointMake(CGRectGetMidX(s.cocoaFrame), CGRectGetMidY(s.cocoaFrame));
+        CGFloat dist = hypot(cocoaPoint.x - center.x, cocoaPoint.y - center.y);
+        if (dist < minDist) { minDist = dist; best = s; }
+    }
+    return best;
+}
+
++ (CascadeScreen *)screenForPointerInScreens:(NSArray<CascadeScreen *> *)screens {
+    return [self screenForCocoaPoint:[NSEvent mouseLocation] inScreens:screens];
+}
+
++ (CascadeScreen *)screenForPointer {
+    return [self screenForPointerInScreens:[self availableScreens]];
 }
 
 + (CascadeScreen *)screenForFrame:(CGRect)quartzFrame inScreens:(NSArray<CascadeScreen *> *)screens {
@@ -129,16 +142,18 @@ static NSUserDefaults *screenDefaults(void) {
 
 + (NSArray<CascadeScreen *> *)screensMatchingTarget:(NSString *)target inScreens:(NSArray<CascadeScreen *> *)screens {
     if (screens.count == 0) return @[];
-    if (!target || target.length == 0 || [target localizedCaseInsensitiveCompare:@"all"] == NSOrderedSame) {
+    if (!target || target.length == 0 || [target localizedCaseInsensitiveCompare:@"all"] == NSOrderedSame ||
+        [target localizedCaseInsensitiveCompare:@"active"] == NSOrderedSame) {
         return screens;
-    }
-    if ([target localizedCaseInsensitiveCompare:@"active"] == NSOrderedSame) {
-        CascadeScreen *act = [self activeScreen];
-        return act ? @[act] : @[screens.firstObject];
     }
     if ([target localizedCaseInsensitiveCompare:@"primary"] == NSOrderedSame ||
         [target localizedCaseInsensitiveCompare:@"main"] == NSOrderedSame) {
         return @[screens.firstObject];
+    }
+    if ([target localizedCaseInsensitiveCompare:@"pointer"] == NSOrderedSame ||
+        [target localizedCaseInsensitiveCompare:@"current"] == NSOrderedSame) {
+        CascadeScreen *ptr = [self screenForPointerInScreens:screens];
+        return ptr ? @[ptr] : screens;
     }
 
     // Match by displayID

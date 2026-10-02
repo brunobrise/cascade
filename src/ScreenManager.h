@@ -16,6 +16,9 @@
 + (NSArray<CascadeScreen *> *)availableScreens;
 + (CascadeScreen *)primaryScreen;
 + (CascadeScreen *)activeScreen;
++ (CascadeScreen *)screenForPointer;
++ (CascadeScreen *)screenForPointerInScreens:(NSArray<CascadeScreen *> *)screens;
++ (CascadeScreen *)screenForCocoaPoint:(NSPoint)cocoaPoint inScreens:(NSArray<CascadeScreen *> *)screens;
 + (CascadeScreen *)screenForFrame:(CGRect)quartzFrame;
 + (CascadeScreen *)screenForFrame:(CGRect)quartzFrame inScreens:(NSArray<CascadeScreen *> *)screens;
 + (CGRect)convertCocoaFrameToQuartz:(CGRect)cocoaFrame primaryScreenHeight:(CGFloat)h0;

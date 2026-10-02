@@ -130,12 +130,57 @@ static void testTargetMatching() {
     NSArray *matchInvalid = [ScreenManager screensMatchingTarget:@"Nonexistent Display" inScreens:screens];
     assert(matchInvalid.count == 1 && matchInvalid[0] == s0);
 
+    // Legacy "active" target gracefully falls back to all screens
+    NSArray *matchActive = [ScreenManager screensMatchingTarget:@"active" inScreens:screens];
+    assert(matchActive.count == 2);
+
     // Display ID matching
     s0.displayID = @"69734123";
     NSArray *matchID = [ScreenManager screensMatchingTarget:@"69734123" inScreens:screens];
     assert(matchID.count == 1 && matchID[0] == s0);
 
     printf("  [PASS] Screen target selection and fallback resolution verified.\n");
+}
+
+static void testPointerScreenDetection() {
+    printf("Running testPointerScreenDetection...\n");
+
+    CascadeScreen *s0 = [[CascadeScreen alloc] init];
+    s0.index = 0;
+    s0.name = @"Ultrawide";
+    s0.isPrimary = YES;
+    s0.cocoaFrame = CGRectMake(0, 0, 5120, 1440);
+    s0.quartzFrame = CGRectMake(0, 0, 5120, 1440);
+
+    CascadeScreen *s1 = [[CascadeScreen alloc] init];
+    s1.index = 1;
+    s1.name = @"Retina";
+    s1.isPrimary = NO;
+    s1.cocoaFrame = CGRectMake(2646, -1169, 1800, 1169);
+    s1.quartzFrame = CGRectMake(2646, 1440, 1800, 1169);
+
+    NSArray<CascadeScreen *> *screens = @[s0, s1];
+
+    // 1. Point on Ultrawide screen
+    NSPoint p0 = NSMakePoint(500, 500);
+    CascadeScreen *match0 = [ScreenManager screenForCocoaPoint:p0 inScreens:screens];
+    assert(match0 == s0);
+
+    // 2. Point on Retina screen
+    NSPoint p1 = NSMakePoint(3000, -500);
+    CascadeScreen *match1 = [ScreenManager screenForCocoaPoint:p1 inScreens:screens];
+    assert(match1 == s1);
+
+    // 3. Fallback on outside coordinate: closest screen center
+    NSPoint pOutside = NSMakePoint(3000, -2000); // Closest to s1
+    CascadeScreen *matchOutside = [ScreenManager screenForCocoaPoint:pOutside inScreens:screens];
+    assert(matchOutside == s1);
+
+    // 4. Live pointer screen query returns a valid screen
+    CascadeScreen *livePtr = [ScreenManager screenForPointer];
+    assert(livePtr != nil);
+
+    printf("  [PASS] Screen for pointer detection verified across multi-display coordinates.\n");
 }
 
 static void testPreferencesRoundTrip() {
@@ -149,9 +194,9 @@ static void testPreferencesRoundTrip() {
     assert([[ScreenManager savedScreenTarget] isEqualToString:@"C49RG9x"]);
     assert([[suiteDefaults stringForKey:@"screenTarget"] isEqualToString:@"C49RG9x"]);
 
-    [ScreenManager saveScreenTarget:@"active"];
-    assert([[ScreenManager savedScreenTarget] isEqualToString:@"active"]);
-    assert([[suiteDefaults stringForKey:@"screenTarget"] isEqualToString:@"active"]);
+    [ScreenManager saveScreenTarget:@"Built-in Retina Display"];
+    assert([[ScreenManager savedScreenTarget] isEqualToString:@"Built-in Retina Display"]);
+    assert([[suiteDefaults stringForKey:@"screenTarget"] isEqualToString:@"Built-in Retina Display"]);
 
     [ScreenManager saveScreenTarget:@"all"];
     assert([[ScreenManager savedScreenTarget] isEqualToString:@"all"]);
@@ -177,6 +222,7 @@ int main(int argc, const char * argv[]) {
         testCoordinateConversion();
         testWindowToScreenAssignment();
         testTargetMatching();
+        testPointerScreenDetection();
         testPreferencesRoundTrip();
         printf("\n=== All ScreenManager Tests Passed Successfully! ===\n");
     }

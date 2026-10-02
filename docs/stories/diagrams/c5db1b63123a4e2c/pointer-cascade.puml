@@ -1,0 +1,46 @@
+@startuml
+skinparam backgroundColor white
+skinparam handwritten false
+skinparam shadowing false
+skinparam defaultFontName -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif
+skinparam roundCorner 8
+
+title Pointer-Screen Cascade & Active Screen Elimination Flow
+
+actor User as u
+participant "macOS Cursor\n(NSEvent mouseLocation)" as mouse
+participant "Global Hotkey\n(Opt+Cmd+C)" as hotkey
+participant "CascadeBarApp\n(main_bar.m)" as bar
+participant "ScreenManager" as sm
+collections "Connected Monitors\n(C49RG9x & Retina)" as screens
+collections "Active Windows" as wins
+
+== 1. Pointer-Driven Shortkey Invocation ==
+u -> mouse : Move cursor to desired monitor (e.g. Display 1)
+u -> hotkey : Press Option + Command + C
+hotkey -> bar : HotKeyHandler -> performCascade:
+bar -> sm : +screenForPointer
+sm -> mouse : [NSEvent mouseLocation]
+mouse --> sm : Cocoa Point (x, y)
+sm -> screens : Match point against screen.cocoaFrame
+screens --> sm : Display 1 (Pointer Screen)
+sm --> bar : return Display 1
+
+== 2. Isolated Monitor Cascade Execution ==
+bar -> wins : Filter windows located on Display 1
+bar -> bar : Calculate invariant cascade frames on Display 1
+bar -> wins : Apply target frames & restack Z on Display 1 only
+note right of wins
+  Windows on Display 0 remain 100% untouched!
+  Zero focus-click required to switch target display.
+end note
+
+== 3. Simplified Menu Structure ==
+note over bar
+  "Active Screen (Follows Focus)" REMOVED:
+  - Eliminates fragile key-window tracking
+  - Shortkey intuitively cascades pointer screen
+  - "Cascade All Screens" available for full arrangement
+  - Target Screen submenu dedicates solely to Auto-Rearrange
+end note
+@enduml

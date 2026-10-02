@@ -79,12 +79,12 @@ static void printHelp(const char *prog) {
     printf("  --plan               Display layout calculation without applying (default)\n");
     printf("  --list               List current standard windows and exit\n");
     printf("  --list-screens       List connected screens/monitors and exit\n");
-    printf("  --screen <target>    Target screen ('all', 'active', 'primary', index, or name)\n");
+    printf("  --screen <target>    Target screen ('all', 'pointer', 'primary', index, or name)\n");
     printf("  --order <mode>       Ordering: 'mru', 'spatial', 'alpha', or 'preferred'\n");
     printf("  --delta <pixels>     Offset/tab size in pixels (default: saved or 40)\n");
     printf("  --no-restack         Do not re-raise windows in order\n");
     printf("  --get-preferences    Print all saved user preferences and exit\n");
-    printf("  --set-screen <target> Persist default target screen ('all'|'active'|name|index)\n");
+    printf("  --set-screen <target> Persist default target screen ('all'|name|index)\n");
     printf("  --set-order <mode>   Persist default order mode ('mru'|'spatial'|'alpha'|'preferred')\n");
     printf("  --set-delta <pixels> Persist default delta in pixels\n");
     printf("  --set-restack <on|off> Persist restack Z-order preference ('enable'|'disable')\n");
