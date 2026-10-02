@@ -175,11 +175,19 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
                                                        action:@selector(showAbout:)
                                                 keyEquivalent:@""];
     aboutItem.target = self;
-    NSImage *appIcon = [self cascadeAppIcon];
-    if (appIcon) {
-        NSImage *menuIcon = [appIcon copy];
-        menuIcon.size = NSMakeSize(16, 16);
+    NSImage *menuIcon = [NSImage imageWithSystemSymbolName:@"macwindow.on.rectangle" accessibilityDescription:@"Cascade"];
+    if (menuIcon) {
+        NSImageSymbolConfiguration *config = [NSImageSymbolConfiguration configurationWithPointSize:14.0 weight:NSFontWeightMedium];
+        menuIcon = [menuIcon imageWithSymbolConfiguration:config];
+        [menuIcon setTemplate:YES];
         aboutItem.image = menuIcon;
+    } else {
+        NSImage *appIcon = [self cascadeAppIcon];
+        if (appIcon) {
+            NSImage *fallbackIcon = [appIcon copy];
+            fallbackIcon.size = NSMakeSize(16, 16);
+            aboutItem.image = fallbackIcon;
+        }
     }
     [menu addItem:aboutItem];
 
