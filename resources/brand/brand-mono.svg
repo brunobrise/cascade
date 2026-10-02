@@ -1,43 +1,29 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%" role="img" aria-labelledby="cascadeMonoTitle cascadeMonoDesc">
   <title id="cascadeMonoTitle">Cascade App Icon - Monochrome</title>
-  <desc id="cascadeMonoDesc">Single-color vector icon for Cascade using currentColor with negative space knockout channels.</desc>
+  <desc id="cascadeMonoDesc">Single-color vector icon for Cascade matching the system status bar symbol using currentColor.</desc>
   <defs>
-    <!-- Mask 1: Window 3 cuts out Window 2 with negative-space margin (6px) -->
-    <mask id="cutoutWin3">
+    <!-- Knockout mask: Front window cuts out rear window lines with 12px margin -->
+    <mask id="cutoutFrontWin">
       <rect width="512" height="512" fill="#FFFFFF"/>
-      <rect x="190" y="206" width="232" height="166" rx="20" fill="#000000"/>
-    </mask>
-
-    <!-- Mask 2: Window 2 cuts out Window 1 with negative-space margin (6px) -->
-    <mask id="cutoutWin2">
-      <rect width="512" height="512" fill="#FFFFFF"/>
-      <rect x="140" y="156" width="232" height="166" rx="20" fill="#000000"/>
+      <rect x="158" y="180" width="254" height="204" rx="42" fill="#000000"/>
     </mask>
   </defs>
 
   <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-    <!-- Outer Container (Optional Minimal Frame) -->
+    <!-- Outer Container (macOS Squircle Frame) -->
     <rect x="52" y="52" width="408" height="408" rx="88" stroke-width="14"/>
 
-    <!-- Window 1 (Back) with knockout mask -->
-    <g mask="url(#cutoutWin2)">
-      <rect x="96" y="112" width="220" height="154" rx="14" stroke-width="12"/>
-      <!-- Top-right click tab 1 -->
-      <path d="M 282 112 L 302 112 A 14 14 0 0 1 316 126 L 316 146 L 282 146 Z" fill="currentColor"/>
+    <!-- Rear Window Frame (Masked by Front Window) -->
+    <g mask="url(#cutoutFrontWin)">
+      <rect x="118" y="142" width="206" height="152" rx="28" stroke-width="26"/>
     </g>
 
-    <!-- Window 2 (Middle) with knockout mask -->
-    <g mask="url(#cutoutWin3)">
-      <rect x="146" y="162" width="220" height="154" rx="14" stroke-width="12"/>
-      <!-- Top-right click tab 2 -->
-      <path d="M 332 162 L 352 162 A 14 14 0 0 1 366 176 L 366 196 L 332 196 Z" fill="currentColor"/>
-    </g>
+    <!-- Front Active Window Frame -->
+    <rect x="174" y="196" width="222" height="172" rx="34" stroke-width="28"/>
 
-    <!-- Window 3 (Front) -->
-    <rect x="196" y="212" width="220" height="154" rx="14" stroke-width="12"/>
-    <!-- Top-right click tab 3 -->
-    <path d="M 382 212 L 402 212 A 14 14 0 0 1 416 226 L 416 246 L 382 246 Z" fill="currentColor"/>
-    <!-- Clean Minimalist Header Bar Line -->
-    <line x1="202" y1="242" x2="410" y2="242" stroke-width="6"/>
+    <!-- Three Header Dots -->
+    <circle cx="226" cy="242" r="10.5" fill="currentColor" stroke="none"/>
+    <circle cx="258" cy="242" r="10.5" fill="currentColor" stroke="none"/>
+    <circle cx="290" cy="242" r="10.5" fill="currentColor" stroke="none"/>
   </g>
 </svg>
