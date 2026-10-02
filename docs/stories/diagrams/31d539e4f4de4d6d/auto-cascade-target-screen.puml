@@ -1,0 +1,79 @@
+@startuml auto-cascade-target-screen
+skinparam backgroundColor white
+skinparam handwritten false
+skinparam monochrome false
+skinparam shadowing false
+skinparam defaultFontName -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif
+
+participant "Trigger Source" as Trigger
+box "Cascade Application" #F8F9FA
+    participant "CascadeBarApp" as App
+    participant "WindowWatcher" as Watcher
+    participant "ScreenManager" as ScreenMgr
+    participant "CascadeScreen\n(Value Object)" as CS
+    participant "CascadeEngine" as Engine
+end box
+database "macOS Window Server" as WindowServer
+
+== 1. Manual Invocation (Pointer Screen) ==
+Trigger -> App: Option + Command + C (or Menu Item)
+activate App
+App -> ScreenMgr: screenForPointer()
+activate ScreenMgr
+ScreenMgr -> ScreenMgr: screenForCocoaPoint(NSEvent.mouseLocation)
+ScreenMgr --> App: pointerScreen
+deactivate ScreenMgr
+App -> App: cascadeWindowsOnScreens([pointerScreen], restack:YES)
+App -> Engine: calculateLayout & apply
+activate Engine
+Engine -> WindowServer: Reposition Windows on Pointer Monitor
+Engine --> App: done
+deactivate Engine
+deactivate App
+
+== 2. Auto-Cascade Invocation (Target Screen) ==
+WindowServer -> Watcher: Window Created / Destroyed / Minimized
+activate Watcher
+Watcher -> App: windowWatcherDidDetectChange:
+activate App
+App -> App: rearrangePreservingOrder()
+App -> App: cascadeWindowsOnTargetScreensWithRestack(NO)
+App -> ScreenMgr: availableScreens()
+activate ScreenMgr
+ScreenMgr --> App: allScreens
+deactivate ScreenMgr
+App -> ScreenMgr: screensMatchingTarget(targetScreen, inScreens:allScreens)
+activate ScreenMgr
+ScreenMgr --> App: targetScreens
+deactivate ScreenMgr
+
+loop For each screen in targetScreens
+    loop For each window in allWindows
+        App -> ScreenMgr: screenForFrame(w.currentFrame, inScreens:allScreens)
+        activate ScreenMgr
+        ScreenMgr --> App: ownerScreen
+        deactivate ScreenMgr
+        App -> CS: [owner isEqual:screen] (DisplayID equality)
+        activate CS
+        CS --> App: YES (Matches regardless of pointer identity)
+        deactivate CS
+        App -> App: Add window to screenWins
+    end
+    App -> Engine: calculateLayoutForWindows(screenWins, usableFrame)
+    activate Engine
+    App -> Engine: applyLayoutToWindows(planned, restackZ:NO)
+    Engine -> WindowServer: Smooth size & position adjustment
+    Engine --> App: done
+    deactivate Engine
+end
+deactivate App
+deactivate Watcher
+
+== 3. Preference Change Trigger ==
+Trigger -> App: setScreenTargetValue: / toggleAutoRearrange:
+activate App
+App -> App: cascadeWindowsOnTargetScreensWithRestack(self.restackZOrder)
+App -> WindowServer: Immediately cascade designated target monitor(s)
+deactivate App
+
+@enduml

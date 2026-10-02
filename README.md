@@ -200,6 +200,7 @@ cascade --open-permissions
 - [Status Bar Icon Geometry Fix Story](docs/stories/fd10f6ae52d04fd8-status-bar-icon-metrics-success.md)
 - [Screen Configuration Persistence Story](docs/stories/ccc46c535e764e3d-screen-config-persistence-success.md)
 - [Pointer-Screen Cascade Story](docs/stories/c5db1b63123a4e2c-pointer-screen-cascade-success.md)
+- [Auto-Cascade Target Screen Story](docs/stories/31d539e4f4de4d6d-auto-cascade-target-screen-success.md)
 - [Order Preservation Story](docs/stories/01a0f7ec7c122619-order-preservation-success.md)
 - [Preferred App Order Story](docs/stories/01a0f7ec7c122619-preferred-app-order-success.md)
 - [User Preferences Persistence Story](docs/stories/01a0f7ec7c122619-user-preferences-persistence-success.md)

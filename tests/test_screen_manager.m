@@ -214,6 +214,30 @@ static void testPreferencesRoundTrip() {
     printf("  [PASS] Screen target preference saved and restored cleanly across suite defaults.\n");
 }
 
+static void testScreenEquality() {
+    printf("Running testScreenEquality...\n");
+    CascadeScreen *s1 = [[CascadeScreen alloc] init];
+    s1.index = 0;
+    s1.name = @"Display A";
+    s1.displayID = @"12345";
+
+    CascadeScreen *s2 = [[CascadeScreen alloc] init];
+    s2.index = 0;
+    s2.name = @"Display A (Duplicate)";
+    s2.displayID = @"12345";
+
+    CascadeScreen *s3 = [[CascadeScreen alloc] init];
+    s3.index = 1;
+    s3.name = @"Display B";
+    s3.displayID = @"67890";
+
+    assert([s1 isEqual:s2]);
+    assert(![s1 isEqual:s3]);
+    assert([s1 hash] == [s2 hash]);
+
+    printf("  [PASS] CascadeScreen equality and hashing verified.\n");
+}
+
 int main(int argc, const char * argv[]) {
     (void)argc;
     (void)argv;
@@ -223,6 +247,7 @@ int main(int argc, const char * argv[]) {
         testWindowToScreenAssignment();
         testTargetMatching();
         testPointerScreenDetection();
+        testScreenEquality();
         testPreferencesRoundTrip();
         printf("\n=== All ScreenManager Tests Passed Successfully! ===\n");
     }

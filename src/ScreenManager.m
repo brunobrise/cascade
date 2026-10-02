@@ -4,6 +4,19 @@ static NSString * const kScreenDomain = @"com.brunobrise.cascade";
 static NSString * const kScreenTargetKey = @"screenTarget";
 
 @implementation CascadeScreen
+- (BOOL)isEqual:(id)object {
+    if (self == object) return YES;
+    if (![object isKindOfClass:[CascadeScreen class]]) return NO;
+    CascadeScreen *other = (CascadeScreen *)object;
+    if (self.displayID.length > 0 || other.displayID.length > 0) {
+        return [self.displayID isEqualToString:other.displayID];
+    }
+    return self.index == other.index;
+}
+
+- (NSUInteger)hash {
+    return self.displayID.length > 0 ? [self.displayID hash] : (NSUInteger)self.index;
+}
 @end
 
 @implementation ScreenManager

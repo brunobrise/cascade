@@ -17,6 +17,7 @@
 @property (nonatomic, strong) WindowWatcher *watcher;
 @property (nonatomic, strong) NSArray<CascadeWindow *> *establishedOrder;
 - (void)performCascade:(id)sender;
+- (void)cascadeWindowsOnTargetScreensWithRestack:(BOOL)restack;
 @end
 
 static OSStatus HotKeyHandler(EventHandlerCallRef nextHandler, EventRef theEvent, void *userData) {
@@ -197,7 +198,7 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
     } else {
         [self.watcher startWatching];
         [CascadeEngine saveAutoRearrange:YES];
-        [self performCascade:nil];
+        [self cascadeWindowsOnTargetScreensWithRestack:self.restackZOrder];
     }
     [self rebuildMenu];
 }
@@ -221,7 +222,7 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
     self.establishedOrder = nil;
     [CascadeEngine saveEstablishedWindowOrder:@[]];
     [self rebuildMenu];
-    [self performCascade:nil];
+    [self cascadeWindowsOnTargetScreensWithRestack:self.restackZOrder];
 }
 
 - (void)setOrderMRU:(id)s { (void)s; [self setOrderModeValue:CascadeOrderModeMRU]; }
@@ -244,7 +245,7 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
         self.establishedOrder = nil;
         [CascadeEngine saveEstablishedWindowOrder:@[]];
         [self rebuildMenu];
-        if (applied) [self performCascade:nil];
+        if (applied) [self cascadeWindowsOnTargetScreensWithRestack:self.restackZOrder];
     }];
 }
 
@@ -252,7 +253,7 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
     self.delta = [sender.representedObject doubleValue];
     [CascadeEngine saveDelta:self.delta];
     [self rebuildMenu];
-    [self performCascade:nil];
+    [self cascadeWindowsOnTargetScreensWithRestack:self.restackZOrder];
 }
 
 - (void)toggleRestack:(id)sender {
@@ -308,7 +309,7 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
     self.targetScreen = target;
     [ScreenManager saveScreenTarget:target];
     [self rebuildMenu];
-    [self performCascade:nil];
+    [self cascadeWindowsOnTargetScreensWithRestack:self.restackZOrder];
 }
 - (void)setScreenTargetAll:(id)s { (void)s; [self setScreenTargetValue:@"all"]; }
 - (void)setScreenTargetSpecific:(NSMenuItem *)s { [self setScreenTargetValue:s.representedObject]; }
@@ -330,9 +331,8 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
     for (CascadeScreen *screen in targetScreens) {
         NSMutableArray<CascadeWindow *> *screenWins = [NSMutableArray array];
         for (CascadeWindow *w in allWindows) {
-            if ([ScreenManager screenForFrame:w.currentFrame inScreens:allScreens] == screen) {
-                [screenWins addObject:w];
-            }
+            CascadeScreen *owner = [ScreenManager screenForFrame:w.currentFrame inScreens:allScreens];
+            if (owner && ([owner isEqual:screen] || owner.index == screen.index)) [screenWins addObject:w];
         }
         if (screenWins.count == 0) continue;
 
@@ -355,13 +355,15 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
     }
 }
 
-- (void)rearrangePreservingOrder {
+- (void)cascadeWindowsOnTargetScreensWithRestack:(BOOL)restack {
     if (![CascadeEngine isAccessibilityTrustedWithPrompt:NO]) return;
     [self.watcher performWithoutTriggering:^{
         NSArray<CascadeScreen *> *all = [ScreenManager availableScreens];
-        [self cascadeWindowsOnScreens:[ScreenManager screensMatchingTarget:self.targetScreen inScreens:all] restack:NO];
+        NSString *tgt = self.targetScreen ?: [ScreenManager savedScreenTarget];
+        [self cascadeWindowsOnScreens:[ScreenManager screensMatchingTarget:tgt inScreens:all] restack:restack];
     }];
 }
+- (void)rearrangePreservingOrder { [self cascadeWindowsOnTargetScreensWithRestack:NO]; }
 
 - (BOOL)ensureAccessibility {
     if ([CascadeEngine isAccessibilityTrustedWithPrompt:NO]) return YES;

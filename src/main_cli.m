@@ -27,7 +27,8 @@
         for (CascadeScreen *screen in targetScreens) {
             NSMutableArray<CascadeWindow *> *screenWins = [NSMutableArray array];
             for (CascadeWindow *w in allWindows) {
-                if ([ScreenManager screenForFrame:w.currentFrame inScreens:allScreens] == screen) [screenWins addObject:w];
+                CascadeScreen *s = [ScreenManager screenForFrame:w.currentFrame inScreens:allScreens];
+                if (s && ([s isEqual:screen] || s.index == screen.index)) [screenWins addObject:w];
             }
             if (screenWins.count == 0) continue;
             NSArray<CascadeWindow *> *planned = nil;
@@ -325,9 +326,8 @@ int main(int argc, const char * argv[]) {
         for (CascadeScreen *screen in targetScreens) {
             NSMutableArray<CascadeWindow *> *screenWins = [NSMutableArray array];
             for (CascadeWindow *w in windows) {
-                if ([ScreenManager screenForFrame:w.currentFrame inScreens:allScreens] == screen) {
-                    [screenWins addObject:w];
-                }
+                CascadeScreen *s = [ScreenManager screenForFrame:w.currentFrame inScreens:allScreens];
+                if (s && ([s isEqual:screen] || s.index == screen.index)) [screenWins addObject:w];
             }
             if (screenWins.count == 0) {
                 printf("=== Screen [%s] === No matching windows to cascade.\n\n", [screen.name UTF8String]);
