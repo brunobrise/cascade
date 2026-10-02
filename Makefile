@@ -49,6 +49,9 @@ $(BUILD_DIR)/LoginItemManager.o: src/LoginItemManager.m src/LoginItemManager.h |
 $(BUILD_DIR)/WindowWatcher.o: src/WindowWatcher.m src/WindowWatcher.h | $(BUILD_DIR)/.dir
 	$(CC) $(CFLAGS) -c src/WindowWatcher.m -o $@
 
+$(BUILD_DIR)/AppOrderWindowController.o: src/AppOrderWindowController.m src/AppOrderWindowController.h src/WindowEngine.h | $(BUILD_DIR)/.dir
+	$(CC) $(CFLAGS) -c src/AppOrderWindowController.m -o $@
+
 # CLI binary
 $(BUILD_DIR)/cascade: src/main_cli.m $(BUILD_DIR)/WindowEngine.o $(BUILD_DIR)/LoginItemManager.o $(BUILD_DIR)/WindowWatcher.o | $(BUILD_DIR)/.dir
 	$(CC) $(CFLAGS) $(LDFLAGS) src/main_cli.m $(BUILD_DIR)/WindowEngine.o $(BUILD_DIR)/LoginItemManager.o $(BUILD_DIR)/WindowWatcher.o -o $@
@@ -64,10 +67,14 @@ $(BUILD_DIR)/test_login: tests/test_login.m $(BUILD_DIR)/LoginItemManager.o | $(
 $(BUILD_DIR)/test_watcher: tests/test_watcher.m $(BUILD_DIR)/WindowWatcher.o | $(BUILD_DIR)/.dir
 	$(CC) $(CFLAGS) $(LDFLAGS) tests/test_watcher.m $(BUILD_DIR)/WindowWatcher.o -o $@
 
-test: $(BUILD_DIR)/test_engine $(BUILD_DIR)/test_login $(BUILD_DIR)/test_watcher
+$(BUILD_DIR)/test_app_order: tests/test_app_order.m $(BUILD_DIR)/AppOrderWindowController.o $(BUILD_DIR)/WindowEngine.o | $(BUILD_DIR)/.dir
+	$(CC) $(CFLAGS) $(LDFLAGS) tests/test_app_order.m $(BUILD_DIR)/AppOrderWindowController.o $(BUILD_DIR)/WindowEngine.o -o $@
+
+test: $(BUILD_DIR)/test_engine $(BUILD_DIR)/test_login $(BUILD_DIR)/test_watcher $(BUILD_DIR)/test_app_order
 	./$(BUILD_DIR)/test_engine
 	./$(BUILD_DIR)/test_login
 	./$(BUILD_DIR)/test_watcher
+	./$(BUILD_DIR)/test_app_order
 
 # App Icon
 resources/AppIcon.icns: tools/generate_icon.m
@@ -78,10 +85,10 @@ resources/AppIcon.icns: tools/generate_icon.m
 icon: resources/AppIcon.icns
 
 # Status Bar App Bundle
-$(BUILD_DIR)/Cascade.app: src/main_bar.m $(BUILD_DIR)/WindowEngine.o $(BUILD_DIR)/LoginItemManager.o $(BUILD_DIR)/WindowWatcher.o resources/Info.plist resources/AppIcon.icns | $(BUILD_DIR)/.dir
+$(BUILD_DIR)/Cascade.app: src/main_bar.m $(BUILD_DIR)/WindowEngine.o $(BUILD_DIR)/LoginItemManager.o $(BUILD_DIR)/WindowWatcher.o $(BUILD_DIR)/AppOrderWindowController.o resources/Info.plist resources/AppIcon.icns | $(BUILD_DIR)/.dir
 	mkdir -p $(BUILD_DIR)/Cascade.app/Contents/MacOS
 	mkdir -p $(BUILD_DIR)/Cascade.app/Contents/Resources
-	$(CC) $(CFLAGS) $(LDFLAGS) src/main_bar.m $(BUILD_DIR)/WindowEngine.o $(BUILD_DIR)/LoginItemManager.o $(BUILD_DIR)/WindowWatcher.o -o $(BUILD_DIR)/Cascade.app/Contents/MacOS/Cascade
+	$(CC) $(CFLAGS) $(LDFLAGS) src/main_bar.m $(BUILD_DIR)/WindowEngine.o $(BUILD_DIR)/LoginItemManager.o $(BUILD_DIR)/WindowWatcher.o $(BUILD_DIR)/AppOrderWindowController.o -o $(BUILD_DIR)/Cascade.app/Contents/MacOS/Cascade
 	cp resources/Info.plist $(BUILD_DIR)/Cascade.app/Contents/Info.plist
 	cp resources/AppIcon.icns $(BUILD_DIR)/Cascade.app/Contents/Resources/AppIcon.icns
 	codesign --force --deep -s - $@

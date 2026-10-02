@@ -3,6 +3,7 @@
 #import "WindowEngine.h"
 #import "LoginItemManager.h"
 #import "WindowWatcher.h"
+#import "AppOrderWindowController.h"
 
 @interface CascadeBarApp : NSObject <NSApplicationDelegate, WindowWatcherDelegate, NSMenuDelegate>
 @property (nonatomic, strong) NSStatusItem *statusItem;
@@ -240,26 +241,14 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
 
 - (void)configureAppOrder:(id)sender {
     (void)sender;
-    [NSApp activateIgnoringOtherApps:YES];
-    NSAlert *alert = [[NSAlert alloc] init];
-    alert.messageText = @"Preferred Application Order";
-    alert.informativeText = @"Enter comma-separated application names in order of priority (frontmost first):\nExample: Cursor, Google Chrome, Terminal, Slack";
-
-    NSTextField *input = [[NSTextField alloc] initWithFrame:NSMakeRect(0, 0, 320, 24)];
-    input.stringValue = [[CascadeEngine preferredAppOrder] componentsJoinedByString:@", "];
-    alert.accessoryView = input;
-    NSImage *appIcon = [self cascadeAppIcon];
-    if (appIcon) alert.icon = appIcon;
-
-    [alert addButtonWithTitle:@"Save"];
-    [alert addButtonWithTitle:@"Cancel"];
-    [alert.window setInitialFirstResponder:input];
-
-    if ([alert runModal] == NSAlertFirstButtonReturn) {
-        NSArray<NSString *> *parsed = [CascadeEngine parseAppOrderString:input.stringValue];
-        [CascadeEngine setPreferredAppOrder:parsed];
-        [self setOrderModeValue:CascadeOrderModeCustom];
-    }
+    [[AppOrderWindowController sharedController] showWindowWithCompletion:^(BOOL applied) {
+        self.orderMode = CascadeOrderModeCustom;
+        [CascadeEngine saveOrderMode:self.orderMode];
+        [self rebuildMenu];
+        if (applied) {
+            [self performCascade:nil];
+        }
+    }];
 }
 
 - (void)setDeltaValue:(NSMenuItem *)sender {

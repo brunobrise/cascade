@@ -81,7 +81,7 @@ open -a ~/Applications/Cascade.app
 
 The menu bar icon appears in the macOS status bar:
 - **Trigger Cascade:** Press `Option + Command + C` or click **Cascade Windows**.
-- **Window Order:** Switch between **Most Recently Used**, **Spatial Order**, **Alphabetical**, or **Preferred App Order** (configured via **Configure App Order...**).
+- **Window Order:** Switch between **Most Recently Used**, **Spatial Order**, **Alphabetical**, or **Preferred App Order** (configured via interactive panel with running app picker, drag-and-drop, and window order capture via **Configure App Order...**).
 - **Tab Size (Delta):** Adjust margin between 30 px, 40 px, 50 px, and 60 px.
 - **Restack Z-Order:** Re-raise windows in order to match spatial layout.
 - **Auto-Rearrange on Open / Minimize / Close:** Automatically re-cascade windows whenever a window opens, closes, or is minimized.
@@ -148,6 +148,7 @@ cascade --open-permissions
 - [Preferred App Order Story](docs/stories/01a0f7ec7c122619-preferred-app-order-success.md)
 - [User Preferences Persistence Story](docs/stories/01a0f7ec7c122619-user-preferences-persistence-success.md)
 - [Resilient Permissions Story](docs/stories/01a0f7ec7c122619-resilient-permissions-check-success.md)
+- [Windows Order Redesign Story](docs/stories/01a0f7ec7c122619-windows-order-modal-redesign-success.md)
 - [Accessibility & Code Signing Postmortem](docs/stories/01a0f7ec7c122619-accessibility-code-signing-postmortem.md)
 
 ## License

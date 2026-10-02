@@ -13,4 +13,5 @@ title: Documentation Index
 | [Preferred App Order Success Story](./stories/01a0f7ec7c122619-preferred-app-order-success.md) | Story (success) | Details user-configurable application priority ordering by name across GUI and CLI interfaces. |
 | [User Preferences Persistence Success Story](./stories/01a0f7ec7c122619-user-preferences-persistence-success.md) | Story (success) | Unified preferences persistence across App and CLI using shared suite domain. |
 | [Resilient Permissions Success Story](./stories/01a0f7ec7c122619-resilient-permissions-check-success.md) | Story (success) | Resilient two-layer accessibility probe, multi-URL settings opener, and self-healing menu bar recovery. |
+| [Windows Order Modal Redesign Success Story](./stories/01a0f7ec7c122619-windows-order-modal-redesign-success.md) | Story (success) | Non-modal reorderable panel with running app discovery, drag-and-drop, and window order capture. |
 | [Accessibility & Code Signing Postmortem](./stories/01a0f7ec7c122619-accessibility-code-signing-postmortem.md) | Story (failure) | Postmortem of TCC accessibility revocation, process conflicts, and the self-healing resolution. |
