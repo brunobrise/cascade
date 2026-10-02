@@ -5,7 +5,13 @@ BUILD_DIR = build
 INSTALL_BIN = $(HOME)/.local/bin
 INSTALL_APP = $(HOME)/Applications
 
-.PHONY: all build clean test run run-cli apply watch stop restart status install uninstall login-enable login-disable login-status check-permissions open-permissions help
+# Persistent code signing identity detection (Cascade Code Signing or Apple Development)
+SIGNING_IDENTITY ?= $(shell security find-identity -v -p codesigning 2>/dev/null | grep -E "Cascade Code Signing|Apple Development" | head -1 | sed -E 's/.*"([^"]+)".*/\1/')
+ifeq ($(SIGNING_IDENTITY),)
+    SIGNING_IDENTITY := -
+endif
+
+.PHONY: all build clean test run run-cli apply watch stop restart status install uninstall login-enable login-disable login-status check-permissions open-permissions cert reset-permissions help
 
 all: build
 
@@ -15,6 +21,8 @@ help:
 	@echo "Available commands:"
 	@echo "  make build             Build CLI binary and Status Bar application bundle"
 	@echo "  make icon              Generate multi-resolution macOS AppIcon.icns"
+	@echo "  make cert              Setup local persistent code-signing certificate (preserves TCC)"
+	@echo "  make reset-permissions Reset macOS Accessibility TCC record for Cascade"
 	@echo "  make test              Compile and run all test suites"
 	@echo "  make install           Install CLI to $(INSTALL_BIN) and App to $(INSTALL_APP)"
 	@echo "  make uninstall         Remove installed binaries and app bundle"
@@ -55,7 +63,7 @@ $(BUILD_DIR)/AppOrderWindowController.o: src/AppOrderWindowController.m src/AppO
 # CLI binary
 $(BUILD_DIR)/cascade: src/main_cli.m $(BUILD_DIR)/WindowEngine.o $(BUILD_DIR)/LoginItemManager.o $(BUILD_DIR)/WindowWatcher.o | $(BUILD_DIR)/.dir
 	$(CC) $(CFLAGS) $(LDFLAGS) src/main_cli.m $(BUILD_DIR)/WindowEngine.o $(BUILD_DIR)/LoginItemManager.o $(BUILD_DIR)/WindowWatcher.o -o $@
-	codesign --force -s - $@
+	codesign --force -s "$(SIGNING_IDENTITY)" $@
 
 # Test binaries
 $(BUILD_DIR)/test_engine: tests/test_engine.m $(BUILD_DIR)/WindowEngine.o | $(BUILD_DIR)/.dir
@@ -73,12 +81,16 @@ $(BUILD_DIR)/test_app_order: tests/test_app_order.m $(BUILD_DIR)/AppOrderWindowC
 $(BUILD_DIR)/test_icon_generator: tests/test_icon_generator.m | $(BUILD_DIR)/.dir
 	$(CC) $(CFLAGS) $(LDFLAGS) tests/test_icon_generator.m -o $@
 
-test: $(BUILD_DIR)/test_engine $(BUILD_DIR)/test_login $(BUILD_DIR)/test_watcher $(BUILD_DIR)/test_app_order $(BUILD_DIR)/test_icon_generator
+$(BUILD_DIR)/test_signing: tests/test_signing.m | $(BUILD_DIR)/.dir
+	$(CC) $(CFLAGS) $(LDFLAGS) tests/test_signing.m -o $@
+
+test: $(BUILD_DIR)/test_engine $(BUILD_DIR)/test_login $(BUILD_DIR)/test_watcher $(BUILD_DIR)/test_app_order $(BUILD_DIR)/test_icon_generator $(BUILD_DIR)/test_signing
 	./$(BUILD_DIR)/test_engine
 	./$(BUILD_DIR)/test_login
 	./$(BUILD_DIR)/test_watcher
 	./$(BUILD_DIR)/test_app_order
 	./$(BUILD_DIR)/test_icon_generator
+	./$(BUILD_DIR)/test_signing
 
 # App Icon
 resources/AppIcon.icns: tools/generate_icon.m
@@ -88,6 +100,14 @@ resources/AppIcon.icns: tools/generate_icon.m
 
 icon: resources/AppIcon.icns
 
+# Code Signing Certificate Helper
+cert:
+	@./tools/setup_signing_cert.sh
+
+reset-permissions:
+	tccutil reset Accessibility com.brunobrise.cascade
+	@echo "Reset Accessibility permissions for com.brunobrise.cascade in TCC database."
+
 # Status Bar App Bundle
 $(BUILD_DIR)/Cascade.app: src/main_bar.m $(BUILD_DIR)/WindowEngine.o $(BUILD_DIR)/LoginItemManager.o $(BUILD_DIR)/WindowWatcher.o $(BUILD_DIR)/AppOrderWindowController.o resources/Info.plist resources/AppIcon.icns | $(BUILD_DIR)/.dir
 	mkdir -p $(BUILD_DIR)/Cascade.app/Contents/MacOS
@@ -95,17 +115,21 @@ $(BUILD_DIR)/Cascade.app: src/main_bar.m $(BUILD_DIR)/WindowEngine.o $(BUILD_DIR
 	$(CC) $(CFLAGS) $(LDFLAGS) src/main_bar.m $(BUILD_DIR)/WindowEngine.o $(BUILD_DIR)/LoginItemManager.o $(BUILD_DIR)/WindowWatcher.o $(BUILD_DIR)/AppOrderWindowController.o -o $(BUILD_DIR)/Cascade.app/Contents/MacOS/Cascade
 	cp resources/Info.plist $(BUILD_DIR)/Cascade.app/Contents/Info.plist
 	cp resources/AppIcon.icns $(BUILD_DIR)/Cascade.app/Contents/Resources/AppIcon.icns
-	codesign --force --deep -s - $@
+	codesign --force --deep -s "$(SIGNING_IDENTITY)" $@
 
 install: build
 	mkdir -p $(INSTALL_BIN)
 	cp $(BUILD_DIR)/cascade $(INSTALL_BIN)/cascade
+	codesign --force -s "$(SIGNING_IDENTITY)" $(INSTALL_BIN)/cascade
 	mkdir -p $(INSTALL_APP)
 	rm -rf $(INSTALL_APP)/Cascade.app
 	cp -R $(BUILD_DIR)/Cascade.app $(INSTALL_APP)/Cascade.app
-	codesign --force --deep -s - $(INSTALL_APP)/Cascade.app
+	codesign --force --deep -s "$(SIGNING_IDENTITY)" $(INSTALL_APP)/Cascade.app
+	touch $(INSTALL_APP)/Cascade.app
+	@/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f -r $(INSTALL_APP)/Cascade.app 2>/dev/null || true
 	@echo "Installed cascade to $(INSTALL_BIN)/cascade"
 	@echo "Installed Cascade.app to $(INSTALL_APP)/Cascade.app"
+	@echo "Signed with identity: $(SIGNING_IDENTITY)"
 
 uninstall:
 	rm -f $(INSTALL_BIN)/cascade

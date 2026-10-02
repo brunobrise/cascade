@@ -1,0 +1,48 @@
+@startuml
+skinparam backgroundColor white
+skinparam handwritten false
+skinparam monochrome false
+skinparam shadowing false
+skinparam defaultFontName -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif
+skinparam roundCorner 8
+
+participant "Developer / CI" as Dev #F8FAFC
+participant "setup_signing_cert.sh" as CertTool #F1F5F9
+participant "Keychain\n(login.keychain-db)" as Keychain #FEF3C7
+participant "Makefile\n(make build / install)" as Build #F1F5F9
+participant "macOS tccd\n(Transparency Consent Control)" as TCC #EFF6FF
+participant "Cascade.app\n(Accessibility Client)" as App #ECFDF5
+
+== Step 1: One-Time Provisioning ==
+Dev -> CertTool: make cert (or setup_signing_cert.sh)
+CertTool -> Keychain: Generate 2048-bit RSA + "Cascade Code Signing" Cert (10 years)
+CertTool -> Keychain: security add-trusted-cert -p codeSign
+CertTool -> Keychain: security set-key-partition-list (allows codesign without UI prompt)
+CertTool --> Dev: Identity active: BB3F6F03... "Cascade Code Signing"
+
+== Step 2: Build & Signing ==
+Dev -> Build: make build
+Build -> Keychain: Query available signing identity
+Keychain --> Build: Found "Cascade Code Signing"
+Build -> App: codesign --force --deep --sign "Cascade Code Signing"
+note over App: DR = identifier "com.brunobrise.cascade"\nand certificate root = H"bb3f6f03..."
+
+== Step 3: Initial TCC Authorization ==
+Dev -> App: Launch Cascade
+App -> TCC: AXIsProcessTrustedWithOptions()
+TCC --> Dev: Prompt Accessibility permission dialog
+Dev -> TCC: Grant permission in System Settings
+TCC -> TCC: Store authorization: (bundle_id="com.brunobrise.cascade", DR=cert_hash)
+
+== Step 4: Recompilation & Update Cycle ==
+Dev -> Dev: Modify source code (main_bar.m, window_engine.c, etc.)
+Dev -> Build: make build && make install
+Build -> App: Recompile Mach-O (cdhash changes) & Re-sign with "Cascade Code Signing"
+note over App: New cdhash, but IDENTICAL Designated Requirement (DR)
+Dev -> App: Restart Cascade
+App -> TCC: AXIsProcessTrustedWithOptions()
+TCC -> TCC: Evaluate running process signature against stored DR
+note over TCC #E0F2FE: Match confirmed: Certificate leaf matches stored DR!\ncdhash difference ignored.
+TCC --> App: Authorized (AXIsProcessTrusted = true)
+App --> Dev: Seamless cascade operation without permission dialog!
+@enduml

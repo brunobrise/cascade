@@ -44,25 +44,27 @@ For detailed proofs and architecture, see the [Window Cascade Engine Spec](docs/
 The included `Makefile` provides commands to build, test, run, and install Cascade:
 
 ```bash
-make help          # Display all available make commands
-make build         # Compile CLI binary and Status Bar app bundle
-make icon          # Generate multi-resolution AppIcon.icns
-make test          # Run the unit test suite
-make run           # Launch Cascade.app into the status bar
-make run-cli       # Preview layout in terminal (--plan)
-make apply         # Cascade windows immediately (--apply)
+make help              # Display all available make commands
+make cert              # Provision persistent local code-signing certificate
+make build             # Compile CLI binary and Status Bar app bundle
+make icon              # Generate multi-resolution AppIcon.icns
+make test              # Run the unit test suite
+make run               # Launch Cascade.app into the status bar
+make run-cli           # Preview layout in terminal (--plan)
+make apply             # Cascade windows immediately (--apply)
 make watch             # Continuously watch and auto-rearrange on window lifecycle
 make check-permissions # Check accessibility permissions and diagnostic probe
 make open-permissions  # Open macOS Accessibility settings pane
+make reset-permissions # Reset TCC accessibility permissions (clears stale hashes)
 make login-enable      # Register Cascade to start at login
-make login-status  # Check login item registration status
-make login-disable # Unregister Cascade from login items
-make status        # Check if Cascade is running
-make stop          # Terminate running Cascade instance
-make restart       # Stop and re-launch Cascade.app
-make install       # Install CLI to ~/.local/bin and App to ~/Applications
-make uninstall     # Remove installed binaries
-make clean         # Remove build directory
+make login-status      # Check login item registration status
+make login-disable     # Unregister Cascade from login items
+make status            # Check if Cascade is running
+make stop              # Terminate running Cascade instance
+make restart           # Stop and re-launch Cascade.app
+make install           # Install CLI to ~/.local/bin and App to ~/Applications
+make uninstall         # Remove installed binaries
+make clean             # Remove build directory
 ```
 
 ### Installation
@@ -72,6 +74,31 @@ To install `cascade` into `~/.local/bin` and `Cascade.app` into `~/Applications`
 ```bash
 make install
 ```
+
+### Code Signing & Accessibility Permissions
+
+On macOS, Accessibility privileges are tied by Transparency, Consent, and Control (TCC) to an application's code signing Designated Requirement. If an app uses ad-hoc signing (`codesign -s -`), every rebuild produces a new binary hash (`cdhash`), invalidating previous permissions and forcing the user to re-grant access.
+
+Cascade provides an automated local code-signing workflow to anchor permissions permanently:
+
+1. **Provision local certificate (one-time setup):**
+   ```bash
+   make cert
+   ```
+   This generates a 10-year self-signed root certificate (`Cascade Code Signing`) in your login keychain and registers it for code signing trust and automated tool access.
+
+2. **Compile and Install:**
+   ```bash
+   make build
+   make install
+   ```
+   The build system automatically detects `Cascade Code Signing` and signs both `Cascade.app` and `cascade` with this certificate.
+
+3. **Reset stale ad-hoc records (if upgrading from ad-hoc build):**
+   ```bash
+   make reset-permissions
+   ```
+   After granting Accessibility permission once in System Settings, permissions remain permanently valid across all future recompilations and updates.
 
 ## Usage
 
@@ -148,8 +175,10 @@ cascade --open-permissions
 - [Documentation Index](docs/index.md)
 - [Architecture & Engine Specification](docs/specs/01a0f7ec7c122619-window-cascade-engine.md)
 - [Brand Identity & Native Icon Specification](docs/specs/01a0fc49a5197278-minimalist-identity-and-icon-system.md)
+- [Persistent Code Signing Specification](docs/specs/01a0fc7ed70771c2-persistent-code-signing-and-tcc.md)
 - [Invariant Cascade Success Story](docs/stories/01a0f7ec7c122619-invariant-cascade-success.md)
 - [Minimalist Identity Success Story](docs/stories/01a0fc49a5197278-minimalist-identity-and-icon-success.md)
+- [Persistent Code Signing Story](docs/stories/01a0fc7ed70771c2-persistent-code-signing-success.md)
 - [Order Preservation Story](docs/stories/01a0f7ec7c122619-order-preservation-success.md)
 - [Preferred App Order Story](docs/stories/01a0f7ec7c122619-preferred-app-order-success.md)
 - [User Preferences Persistence Story](docs/stories/01a0f7ec7c122619-user-preferences-persistence-success.md)

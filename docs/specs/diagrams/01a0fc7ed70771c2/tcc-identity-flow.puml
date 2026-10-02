@@ -1,0 +1,48 @@
+@startuml
+skinparam backgroundColor white
+skinparam handwritten false
+skinparam monochrome false
+skinparam shadowing false
+skinparam defaultFontName -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif
+skinparam roundCorner 8
+
+skinparam activity {
+  BackgroundColor #F8FAFC
+  BorderColor #0284C7
+  FontColor #0F172A
+}
+
+skinparam note {
+  BackgroundColor #FEF3C7
+  BorderColor #D97706
+  FontColor #92400E
+}
+
+title TCC Permission Persistence: Ad-Hoc vs Dedicated Certificate
+
+start
+
+if (Code Signing Identity?) then (Ad-Hoc: codesign -s -)
+  :Designated Requirement embeds cdhash;
+  note right: DR: cdhash H"<sha256-of-binary>"
+  :User grants Accessibility in System Settings;
+  :TCC.db stores (com.brunobrise.cascade, cdhash1);
+  :Developer updates code and recompiles;
+  :Binary hash changes (cdhash2 != cdhash1);
+  :TCC evaluates running process;
+  #pink:TCC Check Fails: Permission Revoked!
+  User forced to re-grant in System Settings;
+else (Certificate: "Cascade Code Signing")
+  :Designated Requirement embeds Certificate Leaf;
+  note right: DR: identifier "com.brunobrise.cascade" AND certificate leaf = H"<cert-hash>"
+  :User grants Accessibility in System Settings (once);
+  :TCC.db stores (com.brunobrise.cascade, cert-leaf);
+  :Developer updates code and recompiles;
+  :New binary re-signed with same certificate;
+  :DR remains identical across rebuilds;
+  :TCC evaluates running process;
+  #lightgreen:TCC Check Passes: Permission Preserved Seamlessly;
+endif
+
+stop
+@enduml
