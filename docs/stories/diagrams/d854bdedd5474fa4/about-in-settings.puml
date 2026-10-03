@@ -1,0 +1,27 @@
+@startuml
+skinparam backgroundColor white
+skinparam roundcorner 10
+skinparam shadowing false
+skinparam defaultFontName -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif
+
+actor User
+participant "Status Bar Menu" as Menu
+participant "SettingsWindowController" as Settings
+participant "NSApplication" as App
+participant "Standard About Panel" as About
+
+== Streamlined Status Bar Menu ==
+User -> Menu: Click Cascade menu bar icon
+Menu --> User: Minimal menu displayed\n(Cascade, Auto-Rearrange, Settings..., Quit)
+
+== Settings Modal & About Integration ==
+User -> Menu: Select "Settings..." (Cmd+,)
+Menu -> Settings: showWindow
+Settings --> User: Native preferences panel with Header (v0.19.1) & "About Cascade..." button
+
+User -> Settings: Click "About Cascade..."
+Settings -> Settings: showAboutPanel
+Settings -> App: orderFrontStandardAboutPanelWithOptions:
+App -> About: Order front standard macOS about panel with AppIcon & SemVer
+About --> User: Focused macOS About panel
+@enduml

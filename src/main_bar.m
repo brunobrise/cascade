@@ -121,23 +121,8 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
     settingsItem.keyEquivalent = @",";
     settingsItem.keyEquivalentModifierMask = NSEventModifierFlagCommand;
     [menu addItem:settingsItem];
-
-    NSMenuItem *aboutItem = makeItem(@"About Cascade", self, @selector(showAbout:), NSControlStateValueOff);
-    NSImage *menuIcon = [NSImage imageWithSystemSymbolName:@"macwindow.on.rectangle" accessibilityDescription:@"Cascade"];
-    if (menuIcon) {
-        NSImageSymbolConfiguration *config = [NSImageSymbolConfiguration configurationWithPointSize:14.0 weight:NSFontWeightMedium];
-        aboutItem.image = [menuIcon imageWithSymbolConfiguration:config];
-        [aboutItem.image setTemplate:YES];
-    } else {
-        NSImage *appIcon = [self cascadeAppIcon];
-        if (appIcon) {
-            NSImage *fallbackIcon = [appIcon copy];
-            fallbackIcon.size = NSMakeSize(16, 16);
-            aboutItem.image = fallbackIcon;
-        }
-    }
-    [menu addItem:aboutItem];
     [menu addItem:[NSMenuItem separatorItem]];
+
     NSMenuItem *quitItem = makeItem(@"Quit Cascade", self, @selector(quitCascade:), NSControlStateValueOff);
     quitItem.keyEquivalent = @"q";
     [menu addItem:quitItem];
@@ -188,16 +173,6 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
 }
 
 - (void)openAccessibilitySettings:(id)s { (void)s; [CascadeEngine openAccessibilitySettings]; }
-
-- (void)showAbout:(id)sender {
-    (void)sender;
-    [NSApp activateIgnoringOtherApps:YES];
-    NSString *ver = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"CFBundleShortVersionString"] ?: @"0.17.0";
-    NSMutableDictionary *options = [@{ NSAboutPanelOptionApplicationName: @"Cascade", NSAboutPanelOptionVersion: ver } mutableCopy];
-    NSImage *appIcon = [self cascadeAppIcon];
-    if (appIcon) options[NSAboutPanelOptionApplicationIcon] = appIcon;
-    [NSApp orderFrontStandardAboutPanelWithOptions:options];
-}
 
 - (void)quitCascade:(id)s { (void)s; [NSApp terminate:nil]; }
 - (void)terminate:(id)s { [self quitCascade:s]; }

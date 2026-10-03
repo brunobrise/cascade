@@ -15,6 +15,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)showWindow;
 - (void)closeWindow;
 - (BOOL)isWindowVisible;
+- (void)showAboutPanel;
 
 @end
 

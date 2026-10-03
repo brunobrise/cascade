@@ -80,6 +80,17 @@ static void testSettingsDisplayColumnsDecoupling() {
     printf("  [PASS] SettingsWindowController display columns decoupled from target screen.\n");
 }
 
+static void testSettingsAboutPanel() {
+    printf("Running testSettingsAboutPanel...\n");
+    SettingsWindowController *controller = [SettingsWindowController sharedController];
+    assert(controller != nil);
+    [controller showWindow];
+    assert([controller isWindowVisible]);
+    [controller showAboutPanel];
+    [controller closeWindow];
+    printf("  [PASS] SettingsWindowController about panel invocation verified.\n");
+}
+
 int main(int argc, const char * argv[]) {
     (void)argc;
     (void)argv;
@@ -89,6 +100,7 @@ int main(int argc, const char * argv[]) {
         testSettingsPreferencesSync();
         testSettingsColumnsControlSync();
         testSettingsDisplayColumnsDecoupling();
+        testSettingsAboutPanel();
         printf("\n=== All Settings Window Tests Passed Successfully! ===\n");
     }
     return 0;

@@ -4,6 +4,10 @@
 #import "LoginItemManager.h"
 #import "AppOrderWindowController.h"
 
+#ifndef CASCADE_VERSION
+#define CASCADE_VERSION "0.19.1"
+#endif
+
 static NSTextField *makeLabel(NSRect f, NSString *s, NSFont *font, NSColor *c) {
     NSTextField *tf = [[NSTextField alloc] initWithFrame:f];
     tf.stringValue = s ?: @"";
@@ -65,7 +69,9 @@ static NSButton *makeCheckbox(NSString *title, id target, SEL action, NSRect f) 
     if (appIcon) iconView.image = appIcon;
     [c addSubview:iconView];
 
-    [c addSubview:makeLabel(NSMakeRect(70, 477, 380, 22), @"Cascade Preferences", [NSFont boldSystemFontOfSize:15], [NSColor labelColor])];
+    NSString *ver = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"CFBundleShortVersionString"] ?: [NSString stringWithUTF8String:CASCADE_VERSION];
+    [c addSubview:makeLabel(NSMakeRect(70, 477, 240, 22), @"Cascade Preferences", [NSFont boldSystemFontOfSize:15], [NSColor labelColor])];
+    [c addSubview:makeLabel(NSMakeRect(315, 479, 135, 18), [NSString stringWithFormat:@"v%@", ver], [NSFont systemFontOfSize:12 weight:NSFontWeightMedium], [NSColor secondaryLabelColor])];
     [c addSubview:makeLabel(NSMakeRect(70, 461, 380, 16), @"Configure layout geometry, target displays, and automation", [NSFont systemFontOfSize:11], [NSColor secondaryLabelColor])];
     [c addSubview:makeSeparator(NSMakeRect(20, 447, 440, 1))];
 
@@ -145,9 +151,14 @@ static NSButton *makeCheckbox(NSString *title, id target, SEL action, NSRect f) 
 
     // Bottom Bar
     NSButton *cascadeBtn = [NSButton buttonWithTitle:@"Cascade Windows" target:self action:@selector(cascadeNowClicked:)];
-    cascadeBtn.frame = NSMakeRect(20, 20, 160, 32);
+    cascadeBtn.frame = NSMakeRect(20, 20, 145, 32);
     cascadeBtn.bezelStyle = NSBezelStyleRounded;
     [c addSubview:cascadeBtn];
+
+    NSButton *aboutBtn = [NSButton buttonWithTitle:@"About Cascade..." target:self action:@selector(aboutClicked:)];
+    aboutBtn.frame = NSMakeRect(175, 20, 140, 32);
+    aboutBtn.bezelStyle = NSBezelStyleRounded;
+    [c addSubview:aboutBtn];
 
     NSButton *doneBtn = [NSButton buttonWithTitle:@"Done" target:self action:@selector(doneClicked:)];
     doneBtn.frame = NSMakeRect(370, 20, 90, 32);
@@ -323,6 +334,20 @@ static NSButton *makeCheckbox(NSString *title, id target, SEL action, NSRect f) 
 - (void)doneClicked:(id)sender {
     (void)sender;
     [self.panel close];
+}
+
+- (void)showAboutPanel {
+    [NSApp activateIgnoringOtherApps:YES];
+    NSString *ver = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"CFBundleShortVersionString"] ?: [NSString stringWithUTF8String:CASCADE_VERSION];
+    NSMutableDictionary *options = [@{ NSAboutPanelOptionApplicationName: @"Cascade", NSAboutPanelOptionVersion: ver } mutableCopy];
+    NSImage *appIcon = [NSImage imageNamed:@"AppIcon"] ?: [[NSImage alloc] initWithContentsOfFile:[[NSBundle mainBundle] pathForResource:@"AppIcon" ofType:@"icns"]];
+    if (appIcon) options[NSAboutPanelOptionApplicationIcon] = appIcon;
+    [NSApp orderFrontStandardAboutPanelWithOptions:options];
+}
+
+- (void)aboutClicked:(id)sender {
+    (void)sender;
+    [self showAboutPanel];
 }
 
 @end
