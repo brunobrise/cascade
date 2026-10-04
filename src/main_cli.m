@@ -174,6 +174,7 @@ int main(int argc, const char * argv[]) {
             } else if ([arg isEqualToString:@"--set-order"] && i + 1 < argc) {
                 CascadeOrderMode m = parseOrderMode([NSString stringWithUTF8String:argv[++i]]);
                 [CascadeEngine saveOrderMode:m];
+                [CascadeEngine saveEstablishedWindowOrder:@[]];
                 printf("Saved order mode: %s\n", orderModeName(m));
                 return 0;
             } else if ([arg isEqualToString:@"--set-delta"] && i + 1 < argc) {
@@ -224,6 +225,7 @@ int main(int argc, const char * argv[]) {
                 NSString *csv = [NSString stringWithUTF8String:argv[++i]];
                 NSArray<NSString *> *parsed = [CascadeEngine parseAppOrderString:csv];
                 [CascadeEngine setPreferredAppOrder:parsed];
+                [CascadeEngine saveEstablishedWindowOrder:@[]];
                 printf("Preferred app order set to: %s\n", [parsed componentsJoinedByString:@", "].UTF8String);
                 return 0;
             } else if ([arg isEqualToString:@"--get-app-order"]) {

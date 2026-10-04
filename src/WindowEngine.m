@@ -241,7 +241,7 @@ static NSInteger rankForApp(NSString *appName, NSArray<NSString *> *preferred) {
         if ([appName localizedCaseInsensitiveCompare:preferred[i]] == NSOrderedSame) return (NSInteger)i;
     }
     for (NSUInteger i = 0; i < preferred.count; i++) {
-        if ([appName localizedCaseInsensitiveContainsString:preferred[i]]) return (NSInteger)i;
+        if ([appName localizedCaseInsensitiveContainsString:preferred[i]] || [preferred[i] localizedCaseInsensitiveContainsString:appName]) return (NSInteger)i;
     }
     return 999999;
 }
@@ -334,7 +334,7 @@ static NSInteger rankForApp(NSString *appName, NSArray<NSString *> *preferred) {
                                           onUsableFrame:(CGRect)usableFrame {
     if (windows.count == 0) return @[];
     if (previousOrder.count == 0) {
-        return [self calculateLayoutForWindows:windows orderMode:CascadeOrderModeMRU preferredOrder:[self preferredAppOrder] delta:delta onUsableFrame:usableFrame];
+        return [self calculateLayoutForWindows:windows orderMode:[self savedOrderMode] preferredOrder:[self preferredAppOrder] delta:delta onUsableFrame:usableFrame];
     }
     NSMutableArray<CascadeWindow *> *remaining = [windows mutableCopy], *ordered = [NSMutableArray array];
     for (CascadeWindow *prev in previousOrder) {

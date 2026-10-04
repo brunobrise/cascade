@@ -233,6 +233,24 @@ static void testPreferredAppOrderSorting() {
     // 4. Slack is unlisted, so placed last
     assert([planned[4].appName isEqualToString:@"Slack"]);
 
+    // 5. Bidirectional substring matching: preferred has "Visual Studio Code" and app is "Code"
+    CascadeWindow *wCode = makeMockWindow(@"Code", 0, 0, 800, 600, 6);
+    NSArray<CascadeWindow *> *plannedCode = [CascadeEngine calculateLayoutForWindows:@[wSlack, wCode]
+                                                                           orderMode:CascadeOrderModeCustom
+                                                                      preferredOrder:@[@"Visual Studio Code"]
+                                                                               delta:40.0];
+    assert([plannedCode[0].appName isEqualToString:@"Code"]);
+
+    // 6. Preserving order with empty previousOrder falls back to savedOrderMode
+    CascadeOrderMode savedMode = [CascadeEngine savedOrderMode];
+    [CascadeEngine saveOrderMode:CascadeOrderModeAlphabetical];
+    NSArray<CascadeWindow *> *fallbackAlpha = [CascadeEngine calculateLayoutForWindows:@[wTerminal, wCursor]
+                                                                   preservingOrderFrom:@[]
+                                                                                 delta:40.0];
+    assert([fallbackAlpha[0].appName isEqualToString:@"Cursor"]);
+    assert([fallbackAlpha[1].appName isEqualToString:@"Terminal"]);
+    [CascadeEngine saveOrderMode:savedMode];
+
     printf("  [PASS] Preferred app order sorting verified with substring and tie-breakers.\n");
 }
 

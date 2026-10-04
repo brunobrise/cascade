@@ -1,0 +1,45 @@
+@startuml
+skinparam backgroundColor white
+skinparam roundcorner 10
+skinparam shadowing false
+skinparam defaultFontName -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif
+
+actor User
+participant "Settings / AppOrder Modal" as Settings
+participant "CascadeBarApp" as App
+participant "WindowEngine" as Engine
+participant "WindowWatcher" as Watcher
+participant "NSUserDefaults" as Defaults
+
+== Scenario 1: User Configures Window Order or Preferred Apps ==
+User -> Settings: Selects Order Mode or Saves App Order
+Settings -> Defaults: saveOrderMode: / setPreferredAppOrder:
+Settings -> App: settingsDidChange / settingsRequestsCascade
+activate App
+App -> App: self.establishedOrder = nil
+App -> Defaults: saveEstablishedWindowOrder: @[]
+App -> Engine: calculateLayoutForWindows: orderMode: preferredOrder: (preserveOrder: NO)
+Engine --> App: planned layout (in configured order)
+App -> Engine: applyLayoutToWindows: restackZ:
+App -> App: self.establishedOrder = planned
+App -> Defaults: saveEstablishedWindowOrder: planned
+deactivate App
+
+== Scenario 2: Manual Cascade (Cmd+Opt+C or Menu) ==
+User -> App: Clicks "Cascade Windows" (Cmd+Opt+C)
+activate App
+App -> Engine: calculateLayoutForWindows: orderMode: preferredOrder: (preserveOrder: NO)
+Engine --> App: planned layout (fresh configured order)
+App -> Engine: applyLayoutToWindows: restackZ:
+App -> App: self.establishedOrder = planned
+App -> Defaults: saveEstablishedWindowOrder: planned
+deactivate App
+
+== Scenario 3: Event-Driven Maintenance (Auto-Rearrange) ==
+Watcher -> App: windowWatcherDidDetectChange: (window open/close)
+activate App
+App -> Engine: calculateLayoutForWindows: preservingOrderFrom: (preserveOrder: YES)
+Engine --> App: planned layout (preserves existing window slots)
+App -> Engine: applyLayoutToWindows: restackZ: NO
+deactivate App
+@enduml
