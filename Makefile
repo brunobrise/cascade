@@ -186,6 +186,8 @@ login-status: $(BUILD_DIR)/cascade
 run: build
 	@pkill -x Cascade 2>/dev/null || true
 	@pkill -x CascadeBar 2>/dev/null || true
+	@pkill -f "Cascade.app/Contents/MacOS/Cascade" 2>/dev/null || true
+	@sleep 0.2
 	open $(BUILD_DIR)/Cascade.app
 	@echo "Cascade.app launched in status bar."
 
@@ -207,6 +209,8 @@ open-permissions: $(BUILD_DIR)/cascade
 stop:
 	@pkill -x Cascade 2>/dev/null || true
 	@pkill -x CascadeBar 2>/dev/null || true
+	@pkill -f "Cascade.app/Contents/MacOS/Cascade" 2>/dev/null || true
+	@sleep 0.2
 	@echo "Cascade stopped."
 
 restart: stop run

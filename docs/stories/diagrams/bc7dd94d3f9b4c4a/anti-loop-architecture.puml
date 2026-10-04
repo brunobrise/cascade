@@ -1,0 +1,47 @@
+@startuml
+skinparam backgroundColor white
+skinparam roundcorner 10
+skinparam shadowing false
+skinparam defaultFontName -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif
+
+participant "macOS WindowServer" as WS
+participant "WindowWatcher" as Watcher
+participant "CascadeBarApp" as App
+participant "WindowEngine" as Engine
+participant "Target Window" as Window
+
+== Layer 1: Structural Lifecycle Filtering ==
+Window -> WS: Resized (User or Cascade)
+WS -> Watcher: (Filtered out - kAXWindowResizedNotification eliminated)
+note over Watcher: Ignores size adjustments;\nonly structural events (Create/Destroy/Min/Demin) trigger layout
+
+== Layer 2: Debounced Asynchronous Suppression ==
+Window -> WS: Window Created / Miniaturized
+WS -> Watcher: Lifecycle Event
+Watcher -> Watcher: scheduleDebouncedChange (350ms window)
+Watcher -> App: windowWatcherDidDetectChange:
+App -> Watcher: performWithoutTriggering:
+activate Watcher
+Watcher -> Watcher: isSuppressed = YES
+
+== Layer 3: Idempotent Execution Guard ==
+App -> Engine: cascadeWindowsOnScreens:... (restack: NO)
+Engine -> Engine: calculateLayoutForWindows:
+Engine -> Window: Read actualSize & currentFrame
+alt |currentFrame - targetFrame| <= 1.0pt
+    Engine -> Window: (No-op: AX calls bypassed, zero feedback events)
+else |currentFrame - targetFrame| > 1.0pt
+    Engine -> Window: Set kAXSizeAttribute & kAXPositionAttribute
+end
+
+Engine --> App: Layout complete
+App --> Watcher: performWithoutTriggering block ends
+Watcher -> Watcher: dispatch_after(500ms): isSuppressed = NO
+deactivate Watcher
+
+== Layer 4: Single-Instance Enforcement ==
+actor User
+User -> App: Launch second Cascade instance
+App -> App: Check runningApplicationsWithBundleIdentifier:
+App -> App: Duplicate PID detected -> Exit 0 immediately
+@enduml

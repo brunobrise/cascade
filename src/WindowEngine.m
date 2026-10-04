@@ -222,13 +222,8 @@ static void setPref(NSString *k, id v) {
     return ordered;
 }
 
-+ (NSArray<NSDictionary<NSString *, NSString *> *> *)savedEstablishedWindowOrder {
-    return getPref(@"establishedWindowOrder", @[]);
-}
-
-+ (void)saveEstablishedWindowOrder:(NSArray<CascadeWindow *> *)windows {
-    setPref(@"establishedWindowOrder", [self serializeWindows:windows]);
-}
++ (NSArray<NSDictionary<NSString *, NSString *> *> *)savedEstablishedWindowOrder { return getPref(@"establishedWindowOrder", @[]); }
++ (void)saveEstablishedWindowOrder:(NSArray<CascadeWindow *> *)windows { setPref(@"establishedWindowOrder", [self serializeWindows:windows]); }
 
 + (NSArray<NSString *> *)parseAppOrderString:(NSString *)string {
     if (!string || string.length == 0) return @[];
@@ -383,8 +378,11 @@ static NSInteger rankForApp(NSString *appName, NSArray<NSString *> *preferred) {
     for (CascadeWindow *cw in windows) {
         if (!cw.axRef) continue;
         CGSize targetSize = cw.targetFrame.size;
-        AXValueRef szVal = AXValueCreate(kAXValueTypeCGSize, &targetSize);
-        if (szVal) { AXUIElementSetAttributeValue(cw.axRef, kAXSizeAttribute, szVal); CFRelease(szVal); }
+        BOOL szChanged = fabs(cw.currentFrame.size.width - targetSize.width) > 1.0 || fabs(cw.currentFrame.size.height - targetSize.height) > 1.0;
+        if (szChanged) {
+            AXValueRef szVal = AXValueCreate(kAXValueTypeCGSize, &targetSize);
+            if (szVal) { AXUIElementSetAttributeValue(cw.axRef, kAXSizeAttribute, szVal); CFRelease(szVal); }
+        }
 
         CGSize actualSize = targetSize;
         CFTypeRef actualSzRef = NULL;
@@ -396,8 +394,11 @@ static NSInteger rankForApp(NSString *appName, NSArray<NSString *> *preferred) {
         CGRect usable = !CGRectIsEmpty(cw.usableFrame) ? cw.usableFrame : [self usableScreenFrameWithTopInset:nil];
         CGRect finalFrame = [self clampedFrameForTargetFrame:cw.targetFrame actualSize:actualSize usableFrame:usable];
         CGPoint finalPos = finalFrame.origin;
-        AXValueRef posVal = AXValueCreate(kAXValueTypeCGPoint, &finalPos);
-        if (posVal) { AXUIElementSetAttributeValue(cw.axRef, kAXPositionAttribute, posVal); CFRelease(posVal); }
+        BOOL posChanged = fabs(cw.currentFrame.origin.x - finalPos.x) > 1.0 || fabs(cw.currentFrame.origin.y - finalPos.y) > 1.0;
+        if (posChanged) {
+            AXValueRef posVal = AXValueCreate(kAXValueTypeCGPoint, &finalPos);
+            if (posVal) { AXUIElementSetAttributeValue(cw.axRef, kAXPositionAttribute, posVal); CFRelease(posVal); }
+        }
         cw.targetFrame = finalFrame;
         cw.currentFrame = finalFrame;
     }

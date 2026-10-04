@@ -92,7 +92,6 @@ static void axObserverCallback(AXObserverRef observer, AXUIElementRef element, C
         AXObserverAddNotification(observer, appRef, kAXUIElementDestroyedNotification, (__bridge void *)self);
         AXObserverAddNotification(observer, appRef, kAXWindowMiniaturizedNotification, (__bridge void *)self);
         AXObserverAddNotification(observer, appRef, kAXWindowDeminiaturizedNotification, (__bridge void *)self);
-        AXObserverAddNotification(observer, appRef, kAXWindowResizedNotification, (__bridge void *)self);
 
         CFRunLoopAddSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(observer), kCFRunLoopCommonModes);
         self.observers[@(pid)] = [NSValue valueWithPointer:observer];
@@ -142,7 +141,7 @@ static void axObserverCallback(AXObserverRef observer, AXUIElementRef element, C
     [self.debounceTimer invalidate];
     self.debounceTimer = nil;
     block();
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.08 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         self.isSuppressed = NO;
     });
 }

@@ -304,6 +304,15 @@ int main(int argc, const char * argv[]) {
     (void)argc;
     (void)argv;
     @autoreleasepool {
+        NSString *bundleId = [[NSBundle mainBundle] bundleIdentifier] ?: @"com.brunobrise.cascade";
+        NSArray<NSRunningApplication *> *apps = [NSRunningApplication runningApplicationsWithBundleIdentifier:bundleId];
+        pid_t currentPid = [[NSProcessInfo processInfo] processIdentifier];
+        for (NSRunningApplication *app in apps) {
+            if (app.processIdentifier != currentPid) {
+                NSLog(@"Cascade is already running with PID %d. Exiting duplicate instance.", (int)app.processIdentifier);
+                return 0;
+            }
+        }
         NSApplication *app = [NSApplication sharedApplication];
         [app setActivationPolicy:NSApplicationActivationPolicyAccessory];
 
