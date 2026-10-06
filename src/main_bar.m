@@ -249,11 +249,18 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
         [CascadeEngine applyLayoutToWindows:planned restackZ:restack];
     }
     if (allPlanned.count > 0) {
-        NSMutableArray<CascadeWindow *> *merged = [allPlanned mutableCopy];
-        for (CascadeWindow *prev in (self.establishedOrder ?: @[])) {
-            BOOL has = NO;
-            for (CascadeWindow *p in allPlanned) { if ([p matchesWindow:prev]) { has = YES; break; } }
-            if (!has) [merged addObject:prev];
+        NSMutableArray<CascadeWindow *> *merged = [NSMutableArray array];
+        if (preserveOrder && self.establishedOrder.count > 0) {
+            NSMutableSet<CascadeWindow *> *used = [NSMutableSet set];
+            for (CascadeWindow *prev in self.establishedOrder) {
+                CascadeWindow *matched = nil;
+                for (CascadeWindow *p in allPlanned) { if ([p matchesWindow:prev]) { matched = p; break; } }
+                if (matched) { [merged addObject:matched]; [used addObject:matched]; }
+                else { [merged addObject:prev]; }
+            }
+            for (CascadeWindow *p in allPlanned) { if (![used containsObject:p]) [merged addObject:p]; }
+        } else {
+            [merged addObjectsFromArray:allPlanned];
         }
         self.establishedOrder = merged;
         [CascadeEngine saveEstablishedWindowOrder:merged];

@@ -249,10 +249,7 @@ static NSInteger rankForApp(NSString *appName, NSArray<NSString *> *preferred) {
 + (NSArray<CascadeWindow *> *)calculateLayoutForWindows:(NSArray<CascadeWindow *> *)windows
                                               orderMode:(CascadeOrderMode)orderMode
                                                   delta:(CGFloat)delta {
-    return [self calculateLayoutForWindows:windows
-                                 orderMode:orderMode
-                            preferredOrder:[self preferredAppOrder]
-                                     delta:delta];
+    return [self calculateLayoutForWindows:windows orderMode:orderMode preferredOrder:[self preferredAppOrder] delta:delta];
 }
 
 + (NSArray<CascadeWindow *> *)calculateLayoutForWindows:(NSArray<CascadeWindow *> *)windows
@@ -290,10 +287,7 @@ static NSInteger rankForApp(NSString *appName, NSArray<NSString *> *preferred) {
     return sorted;
 }
 
-+ (NSArray<CascadeWindow *> *)calculateLayoutForWindows:(NSArray<CascadeWindow *> *)windows
-                                              orderMode:(CascadeOrderMode)orderMode
-                                         preferredOrder:(NSArray<NSString *> *)preferredOrder
-                                                  delta:(CGFloat)delta {
++ (NSArray<CascadeWindow *> *)calculateLayoutForWindows:(NSArray<CascadeWindow *> *)windows orderMode:(CascadeOrderMode)orderMode preferredOrder:(NSArray<NSString *> *)preferredOrder delta:(CGFloat)delta {
     return [self calculateLayoutForWindows:windows orderMode:orderMode preferredOrder:preferredOrder delta:delta onUsableFrame:[self usableScreenFrameWithTopInset:nil]];
 }
 
@@ -349,9 +343,7 @@ static NSInteger rankForApp(NSString *appName, NSArray<NSString *> *preferred) {
     return ordered;
 }
 
-+ (NSArray<CascadeWindow *> *)calculateLayoutForWindows:(NSArray<CascadeWindow *> *)windows
-                                    preservingOrderFrom:(NSArray<CascadeWindow *> *)previousOrder
-                                                  delta:(CGFloat)delta {
++ (NSArray<CascadeWindow *> *)calculateLayoutForWindows:(NSArray<CascadeWindow *> *)windows preservingOrderFrom:(NSArray<CascadeWindow *> *)previousOrder delta:(CGFloat)delta {
     return [self calculateLayoutForWindows:windows preservingOrderFrom:previousOrder delta:delta onUsableFrame:[self usableScreenFrameWithTopInset:nil]];
 }
 
@@ -377,27 +369,39 @@ static NSInteger rankForApp(NSString *appName, NSArray<NSString *> *preferred) {
 + (void)applyLayoutToWindows:(NSArray<CascadeWindow *> *)windows restackZ:(BOOL)restackZ {
     for (CascadeWindow *cw in windows) {
         if (!cw.axRef) continue;
-        CGSize targetSize = cw.targetFrame.size;
-        BOOL szChanged = fabs(cw.currentFrame.size.width - targetSize.width) > 1.0 || fabs(cw.currentFrame.size.height - targetSize.height) > 1.0;
-        if (szChanged) {
-            AXValueRef szVal = AXValueCreate(kAXValueTypeCGSize, &targetSize);
-            if (szVal) { AXUIElementSetAttributeValue(cw.axRef, kAXSizeAttribute, szVal); CFRelease(szVal); }
-        }
-
-        CGSize actualSize = targetSize;
-        CFTypeRef actualSzRef = NULL;
-        if (AXUIElementCopyAttributeValue(cw.axRef, kAXSizeAttribute, &actualSzRef) == kAXErrorSuccess && actualSzRef) {
-            AXValueGetValue((AXValueRef)actualSzRef, kAXValueTypeCGSize, &actualSize);
-            CFRelease(actualSzRef);
-        }
-
+        CGRect t = cw.targetFrame, cur = cw.currentFrame;
         CGRect usable = !CGRectIsEmpty(cw.usableFrame) ? cw.usableFrame : [self usableScreenFrameWithTopInset:nil];
-        CGRect finalFrame = [self clampedFrameForTargetFrame:cw.targetFrame actualSize:actualSize usableFrame:usable];
-        CGPoint finalPos = finalFrame.origin;
-        BOOL posChanged = fabs(cw.currentFrame.origin.x - finalPos.x) > 1.0 || fabs(cw.currentFrame.origin.y - finalPos.y) > 1.0;
-        if (posChanged) {
-            AXValueRef posVal = AXValueCreate(kAXValueTypeCGPoint, &finalPos);
-            if (posVal) { AXUIElementSetAttributeValue(cw.axRef, kAXPositionAttribute, posVal); CFRelease(posVal); }
+
+        BOOL posDiff = fabs(cur.origin.x - t.origin.x) > 1.0 || fabs(cur.origin.y - t.origin.y) > 1.0;
+        if (posDiff) {
+            CGPoint p = t.origin; AXValueRef pv = AXValueCreate(kAXValueTypeCGPoint, &p);
+            if (pv) { AXUIElementSetAttributeValue(cw.axRef, kAXPositionAttribute, pv); CFRelease(pv); }
+        }
+
+        BOOL szDiff = fabs(cur.size.width - t.size.width) > 1.0 || fabs(cur.size.height - t.size.height) > 1.0;
+        if (szDiff) {
+            CGSize s = t.size; AXValueRef sv = AXValueCreate(kAXValueTypeCGSize, &s);
+            if (sv) { AXUIElementSetAttributeValue(cw.axRef, kAXSizeAttribute, sv); CFRelease(sv); }
+        }
+
+        CGSize actSize = t.size;
+        CFTypeRef actRef = NULL;
+        if (AXUIElementCopyAttributeValue(cw.axRef, kAXSizeAttribute, &actRef) == kAXErrorSuccess && actRef) {
+            if (CFGetTypeID(actRef) == AXValueGetTypeID()) {
+                CGSize readSz = CGSizeZero; AXValueGetValue((AXValueRef)actRef, kAXValueTypeCGSize, &readSz);
+                if ((readSz.width > t.size.width + 1.0 || readSz.height > t.size.height + 1.0) &&
+                    (readSz.width < usable.size.width || readSz.height < usable.size.height)) {
+                    actSize = readSz;
+                }
+            }
+            CFRelease(actRef);
+        }
+
+        CGRect finalFrame = [self clampedFrameForTargetFrame:t actualSize:actSize usableFrame:usable];
+        CGPoint fp = finalFrame.origin;
+        if (fabs(cur.origin.x - fp.x) > 1.0 || fabs(cur.origin.y - fp.y) > 1.0 || posDiff) {
+            AXValueRef fpv = AXValueCreate(kAXValueTypeCGPoint, &fp);
+            if (fpv) { AXUIElementSetAttributeValue(cw.axRef, kAXPositionAttribute, fpv); CFRelease(fpv); }
         }
         cw.targetFrame = finalFrame;
         cw.currentFrame = finalFrame;

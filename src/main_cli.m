@@ -37,11 +37,18 @@
             [CascadeEngine applyLayoutToWindows:planned restackZ:NO];
         }
         if (allPlanned.count > 0) {
-            NSMutableArray<CascadeWindow *> *merged = [allPlanned mutableCopy];
-            for (CascadeWindow *prev in (self.establishedOrder ?: @[])) {
-                BOOL has = NO;
-                for (CascadeWindow *p in allPlanned) { if ([p matchesWindow:prev]) { has = YES; break; } }
-                if (!has) [merged addObject:prev];
+            NSMutableArray<CascadeWindow *> *merged = [NSMutableArray array];
+            if (self.establishedOrder.count > 0) {
+                NSMutableSet<CascadeWindow *> *used = [NSMutableSet set];
+                for (CascadeWindow *prev in self.establishedOrder) {
+                    CascadeWindow *matched = nil;
+                    for (CascadeWindow *p in allPlanned) { if ([p matchesWindow:prev]) { matched = p; break; } }
+                    if (matched) { [merged addObject:matched]; [used addObject:matched]; }
+                    else { [merged addObject:prev]; }
+                }
+                for (CascadeWindow *p in allPlanned) { if (![used containsObject:p]) [merged addObject:p]; }
+            } else {
+                [merged addObjectsFromArray:allPlanned];
             }
             self.establishedOrder = merged;
             printf("  [OK] %lu windows updated without changing order across %lu screen(s).\n", (unsigned long)allPlanned.count, (unsigned long)targetScreens.count);

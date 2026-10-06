@@ -379,6 +379,23 @@ static void testActualWindowSizeAndSystemBarClamping(void) {
     printf("  [PASS] Actual window size and system bar height clamping verified.\n");
 }
 
+static void testWindowStateLayoutAndClamping(void) {
+    printf("Running testWindowStateLayoutAndClamping...\n");
+    CGRect usable = CGRectMake(0, 30, 2560, 1410);
+    CGRect target = CGRectMake(50, 80, 1200, 800);
+    CGRect clamped = [CascadeEngine clampedFrameForTargetFrame:target actualSize:CGSizeMake(1200, 800) usableFrame:usable];
+    assert(clamped.origin.x == 50 && clamped.origin.y == 80);
+    assert(clamped.size.width == 1200 && clamped.size.height == 800);
+
+    CascadeWindow *w1 = makeMockWindow(@"Editor", 0, 0, 800, 600, 1);
+    CascadeWindow *w2 = makeMockWindow(@"Browser", 0, 0, 800, 600, 2);
+    CascadeWindow *w3 = makeMockWindow(@"Terminal", 0, 0, 800, 600, 3);
+    NSArray<CascadeWindow *> *remaining = [CascadeEngine calculateLayoutForWindows:@[w1, w3] preservingOrderFrom:@[w1, w2, w3] delta:40.0 onUsableFrame:usable];
+    assert(remaining.count == 2 && [remaining[0].appName isEqualToString:@"Editor"] && [remaining[1].appName isEqualToString:@"Terminal"]);
+    assert(remaining[0].targetFrame.size.width == usable.size.width - 40.0);
+    printf("  [PASS] Window state layout calculation and clamping verified.\n");
+}
+
 int main(int argc, const char * argv[]) {
     (void)argc;
     (void)argv;
@@ -394,6 +411,7 @@ int main(int argc, const char * argv[]) {
         testPreferencesPersistence();
         testAccessibilityDiagnostics();
         testActualWindowSizeAndSystemBarClamping();
+        testWindowStateLayoutAndClamping();
         printf("\n=== All Tests Passed Successfully! ===\n");
     }
     return 0;

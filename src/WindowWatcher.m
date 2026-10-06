@@ -47,6 +47,7 @@ static void axObserverCallback(AXObserverRef observer, AXUIElementRef element, C
     [nc addObserver:self selector:@selector(appDidTerminate:) name:NSWorkspaceDidTerminateApplicationNotification object:nil];
     [nc addObserver:self selector:@selector(appDidHideOrUnhide:) name:NSWorkspaceDidHideApplicationNotification object:nil];
     [nc addObserver:self selector:@selector(appDidHideOrUnhide:) name:NSWorkspaceDidUnhideApplicationNotification object:nil];
+    [nc addObserver:self selector:@selector(spaceDidChange:) name:NSWorkspaceActiveSpaceDidChangeNotification object:nil];
 }
 
 - (void)refreshObservers {
@@ -131,6 +132,11 @@ static void axObserverCallback(AXObserverRef observer, AXUIElementRef element, C
 }
 
 - (void)appDidHideOrUnhide:(NSNotification *)note {
+    (void)note;
+    [self scheduleDebouncedChange];
+}
+
+- (void)spaceDidChange:(NSNotification *)note {
     (void)note;
     [self scheduleDebouncedChange];
 }

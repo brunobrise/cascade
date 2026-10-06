@@ -1,0 +1,56 @@
+@startuml
+skinparam backgroundColor white
+skinparam roundcorner 10
+skinparam shadowing false
+skinparam defaultFontName -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif
+
+participant "macOS WindowServer" as WS
+participant "WindowWatcher" as Watcher
+participant "CascadeBarApp" as App
+participant "CascadeEngine" as Engine
+participant "Target Window" as Window
+
+== Event Detection & Lifecycle Filtering ==
+User -> Window: Window State Change (Minimize, Deminimize, Close, Space Change)
+Window -> WS: Event / State Transition
+WS -> Watcher: Lifecycle Notification
+Watcher -> Watcher: scheduleDebouncedChange (350ms)
+Watcher -> App: windowWatcherDidDetectChange:
+
+== Safe Multi-Phase Layout Execution ==
+App -> Engine: applyLayoutToWindows:restackZ:
+activate Engine
+
+group Phase 1: Pre-Flight Move
+    Engine -> Engine: Check |currentPos - targetPos| > 1.0pt
+    alt Window needs repositioning
+        Engine -> Window: Set kAXPositionAttribute to target.origin
+        note over Window: Window placed in usable area;\nhas full space to expand without edge truncation
+    end
+end
+
+group Phase 2: Size Application
+    Engine -> Engine: Check |currentSize - targetSize| > 1.0pt
+    alt Window needs resizing
+        Engine -> Window: Set kAXSizeAttribute to target.size
+    end
+end
+
+group Phase 3: Smart Minimum-Size Constraint Check
+    Engine -> Window: Copy kAXSizeAttribute (actualSize)
+    alt actualSize > targetSize AND actualSize < usableSize
+        Engine -> Engine: Recognize genuine minimum size (e.g. Slack, Settings)
+    else actualSize >= usableSize
+        Engine -> Engine: Filter out stale maximized dimension;\npreserve computed target.size
+    end
+end
+
+group Phase 4: Final Boundary Clamping & Idempotent Move
+    Engine -> Engine: clampedFrameForTargetFrame (Dock / Menu bar protection)
+    Engine -> Window: Set kAXPositionAttribute to finalPos
+    Engine -> Engine: Store finalFrame in targetFrame and currentFrame
+end
+
+deactivate Engine
+Engine --> App: All windows correctly sized and positioned
+@enduml
