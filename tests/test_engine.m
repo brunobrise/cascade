@@ -397,21 +397,19 @@ static void testWindowStateLayoutAndClamping(void) {
 }
 
 int main(int argc, const char * argv[]) {
-    (void)argc;
-    (void)argv;
+    (void)argc; (void)argv;
     @autoreleasepool {
         printf("=== Running Cascade Unit Tests ===\n\n");
-        testTwoWindowLayout();
-        testCascadeTabDisjointness();
-        testSortingModes();
-        testOrderPreservationOnWindowClose();
-        testOrderPreservationOnNewWindow();
-        testOrderPreservationOnResize();
-        testPreferredAppOrderSorting();
-        testPreferencesPersistence();
-        testAccessibilityDiagnostics();
-        testActualWindowSizeAndSystemBarClamping();
-        testWindowStateLayoutAndClamping();
+        CascadeLayoutStyle origStyle = [CascadeEngine savedLayoutStyle];
+        [CascadeEngine saveLayoutStyle:CascadeLayoutStyleDiagonal];
+
+        testTwoWindowLayout(); testCascadeTabDisjointness(); testSortingModes();
+        testOrderPreservationOnWindowClose(); testOrderPreservationOnNewWindow();
+        testOrderPreservationOnResize(); testPreferredAppOrderSorting();
+        testPreferencesPersistence(); testAccessibilityDiagnostics();
+        testActualWindowSizeAndSystemBarClamping(); testWindowStateLayoutAndClamping();
+
+        [CascadeEngine saveLayoutStyle:origStyle];
         printf("\n=== All Tests Passed Successfully! ===\n");
     }
     return 0;

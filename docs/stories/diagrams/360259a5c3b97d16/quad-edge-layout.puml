@@ -1,0 +1,39 @@
+@startuml
+skinparam backgroundColor white
+skinparam roundcorner 10
+skinparam shadowing false
+skinparam defaultFontName -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif
+
+participant "User Trigger\n(HotKey / Menu / CLI / Watcher)" as User
+participant "CascadeEngine" as Engine
+participant "Sorting Phase\n(MRU / Alpha / Custom)" as Sorter
+participant "WindowLayoutGeometry\n(Quad-Edge Engine)" as Geometry
+participant "macOS WindowServer" as WS
+
+== 1. Sequence Ordering (Orthogonal) ==
+User -> Engine: Request Layout (OrderMode, LayoutStyleQuadEdge)
+Engine -> Sorter: Sort active windows
+Sorter --> Engine: Ordered sequence [W0, W1, W2, W3, ...]
+
+== 2. Quad-Edge Geometric Calculation ==
+Engine -> Geometry: assignQuadEdgeFramesToOrderedWindows:onUsableFrame:delta:
+activate Geometry
+
+group Clockwise Edge Partitioning
+    Geometry -> Geometry: Window 0 (i=0, side=Top):    Frame = (δ, 0, W-2δ, H-δ)\n-> Unoccluded Top Bar [x ∈ (δ, W-δ), y ∈ (0, δ)]
+    Geometry -> Geometry: Window 1 (i=1, side=Right):  Frame = (δ, δ, W-δ, H-2δ)\n-> Unoccluded Right Bar [x ∈ (W-δ, W), y ∈ (δ, H-δ)]
+    Geometry -> Geometry: Window 2 (i=2, side=Bottom): Frame = (δ, δ, W-2δ, H-δ)\n-> Unoccluded Bottom Bar [x ∈ (δ, W-δ), y ∈ (H-δ, H)]
+    Geometry -> Geometry: Window 3 (i=3, side=Left):   Frame = (0, δ, W-δ, H-2δ)\n-> Unoccluded Left Bar [x ∈ (0, δ), y ∈ (δ, H-δ)]
+    opt Window count > 4 (Multi-Cycle)
+        Geometry -> Geometry: Cycles c = i / 4 offset inward by c * δ\nGuarantees all N windows have disjoint clickable bars
+    end
+end
+
+Geometry --> Engine: Target frames calculated (94%+ screen area per window)
+deactivate Geometry
+
+== 3. Multi-Phase Accessibility Dispatch ==
+Engine -> WS: Pre-flight move, size dispatch, boundary clamp
+note over WS: Every window exposes a full-length clickable bar\non its perimeter edge (Top, Right, Bottom, Left).\nAny window brought forward leaves all other bars 100% clickable.
+
+@enduml

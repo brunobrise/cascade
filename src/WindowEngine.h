@@ -8,6 +8,11 @@ typedef NS_ENUM(NSInteger, CascadeOrderMode) {
     CascadeOrderModeCustom = 3        // Preferred application order by name
 };
 
+typedef NS_ENUM(NSInteger, CascadeLayoutStyle) {
+    CascadeLayoutStyleDiagonal = 0,  // Traditional top-left to bottom-right cascade
+    CascadeLayoutStyleQuadEdge = 1   // Clockwise perimeter: Top -> Right -> Bottom -> Left
+};
+
 @interface CascadeWindow : NSObject
 @property (nonatomic, copy) NSString *appName;
 @property (nonatomic, copy) NSString *title;
@@ -31,6 +36,8 @@ typedef NS_ENUM(NSInteger, CascadeOrderMode) {
 + (NSUserDefaults *)userDefaults;
 + (CascadeOrderMode)savedOrderMode;
 + (void)saveOrderMode:(CascadeOrderMode)mode;
++ (CascadeLayoutStyle)savedLayoutStyle;
++ (void)saveLayoutStyle:(CascadeLayoutStyle)style;
 + (CGFloat)savedDelta;
 + (void)saveDelta:(CGFloat)delta;
 + (BOOL)savedRestackZOrder;
@@ -56,6 +63,12 @@ typedef NS_ENUM(NSInteger, CascadeOrderMode) {
                                           onUsableFrame:(CGRect)usableFrame;
 + (NSArray<CascadeWindow *> *)calculateLayoutForWindows:(NSArray<CascadeWindow *> *)windows
                                               orderMode:(CascadeOrderMode)orderMode
+                                         preferredOrder:(NSArray<NSString *> *)preferredOrder
+                                                  delta:(CGFloat)delta
+                                            layoutStyle:(CascadeLayoutStyle)layoutStyle
+                                          onUsableFrame:(CGRect)usableFrame;
++ (NSArray<CascadeWindow *> *)calculateLayoutForWindows:(NSArray<CascadeWindow *> *)windows
+                                              orderMode:(CascadeOrderMode)orderMode
                                                   delta:(CGFloat)delta;
 + (NSArray<CascadeWindow *> *)calculateLayoutForWindows:(NSArray<CascadeWindow *> *)windows
                                     preservingOrderFrom:(NSArray<CascadeWindow *> *)previousOrder
@@ -63,6 +76,11 @@ typedef NS_ENUM(NSInteger, CascadeOrderMode) {
 + (NSArray<CascadeWindow *> *)calculateLayoutForWindows:(NSArray<CascadeWindow *> *)windows
                                     preservingOrderFrom:(NSArray<CascadeWindow *> *)previousOrder
                                                   delta:(CGFloat)delta
+                                          onUsableFrame:(CGRect)usableFrame;
++ (NSArray<CascadeWindow *> *)calculateLayoutForWindows:(NSArray<CascadeWindow *> *)windows
+                                    preservingOrderFrom:(NSArray<CascadeWindow *> *)previousOrder
+                                                  delta:(CGFloat)delta
+                                            layoutStyle:(CascadeLayoutStyle)layoutStyle
                                           onUsableFrame:(CGRect)usableFrame;
 + (NSArray<NSDictionary<NSString *, NSString *> *> *)serializeWindows:(NSArray<CascadeWindow *> *)windows;
 + (NSArray<CascadeWindow *> *)matchWindows:(NSArray<CascadeWindow *> *)currentWindows

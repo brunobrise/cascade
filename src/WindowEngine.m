@@ -1,5 +1,6 @@
 #import "WindowEngine.h"
 #import "ScreenManager.h"
+#import "WindowLayoutGeometry.h"
 
 @implementation CascadeWindow
 - (void)dealloc {
@@ -169,6 +170,8 @@ static void setPref(NSString *k, id v) {
 
 + (CascadeOrderMode)savedOrderMode { NSNumber *n = getPref(@"orderMode", nil); return n ? (CascadeOrderMode)[n integerValue] : CascadeOrderModeMRU; }
 + (void)saveOrderMode:(CascadeOrderMode)m { setPref(@"orderMode", @(m)); }
++ (CascadeLayoutStyle)savedLayoutStyle { NSNumber *n = getPref(@"layoutStyle", nil); return n ? (CascadeLayoutStyle)[n integerValue] : CascadeLayoutStyleDiagonal; }
++ (void)saveLayoutStyle:(CascadeLayoutStyle)s { setPref(@"layoutStyle", @(s)); }
 + (CGFloat)savedDelta { NSNumber *n = getPref(@"delta", nil); return n ? (CGFloat)[n doubleValue] : 40.0; }
 + (void)saveDelta:(CGFloat)d { setPref(@"delta", @(d)); }
 + (BOOL)savedRestackZOrder { NSNumber *n = getPref(@"restackZOrder", nil); return n ? [n boolValue] : YES; }
@@ -257,6 +260,7 @@ static NSInteger rankForApp(NSString *appName, NSArray<NSString *> *preferred) {
                                               orderMode:(CascadeOrderMode)orderMode
                                          preferredOrder:(NSArray<NSString *> *)preferredOrder
                                                   delta:(CGFloat)delta
+                                            layoutStyle:(CascadeLayoutStyle)layoutStyle
                                           onUsableFrame:(CGRect)usableFrame {
     if (windows.count == 0) return @[];
     NSMutableArray<CascadeWindow *> *sorted = [windows mutableCopy];
@@ -284,39 +288,24 @@ static NSInteger rankForApp(NSString *appName, NSArray<NSString *> *preferred) {
                    [a.title ?: @"" localizedCaseInsensitiveCompare:b.title ?: @""];
         }];
     }
-    [self assignFramesToOrderedWindows:sorted onUsableFrame:usableFrame delta:delta];
+    [WindowLayoutGeometry assignFramesToOrderedWindows:sorted onUsableFrame:usableFrame delta:delta layoutStyle:layoutStyle];
     return sorted;
+}
+
++ (NSArray<CascadeWindow *> *)calculateLayoutForWindows:(NSArray<CascadeWindow *> *)windows
+                                              orderMode:(CascadeOrderMode)orderMode
+                                         preferredOrder:(NSArray<NSString *> *)preferredOrder
+                                                  delta:(CGFloat)delta
+                                          onUsableFrame:(CGRect)usableFrame {
+    return [self calculateLayoutForWindows:windows orderMode:orderMode preferredOrder:preferredOrder delta:delta layoutStyle:[self savedLayoutStyle] onUsableFrame:usableFrame];
 }
 
 + (NSArray<CascadeWindow *> *)calculateLayoutForWindows:(NSArray<CascadeWindow *> *)windows orderMode:(CascadeOrderMode)orderMode preferredOrder:(NSArray<NSString *> *)preferredOrder delta:(CGFloat)delta {
     return [self calculateLayoutForWindows:windows orderMode:orderMode preferredOrder:preferredOrder delta:delta onUsableFrame:[self usableScreenFrameWithTopInset:nil]];
 }
 
-+ (void)assignFramesToOrderedWindows:(NSArray<CascadeWindow *> *)ordered
-                       onUsableFrame:(CGRect)usable
-                               delta:(CGFloat)delta {
-    NSUInteger count = ordered.count;
-    if (count == 0) return;
-    for (CascadeWindow *w in ordered) { w.usableFrame = usable; }
-    CGFloat usableW = usable.size.width, usableH = usable.size.height;
-    CGFloat originX = usable.origin.x, originY = usable.origin.y;
-
-    if (count == 1) {
-        ordered[0].targetFrame = usable;
-    } else if (count == 2) {
-        ordered[0].targetFrame = CGRectMake(originX, originY, usableW - delta, usableH);
-        ordered[1].targetFrame = CGRectMake(originX + delta, originY, usableW - delta, usableH);
-    } else {
-        CGFloat totalOffsetX = (count - 1) * delta, totalOffsetY = (count - 1) * delta;
-        if (usableW - totalOffsetX < 400 || usableH - totalOffsetY < 300) {
-            delta = MIN((usableW - 400) / (count - 1), (usableH - 300) / (count - 1));
-            totalOffsetX = (count - 1) * delta; totalOffsetY = (count - 1) * delta;
-        }
-        CGFloat targetW = usableW - totalOffsetX, targetH = usableH - totalOffsetY;
-        for (NSUInteger i = 0; i < count; i++) {
-            ordered[i].targetFrame = CGRectMake(originX + i * delta, originY + i * delta, targetW, targetH);
-        }
-    }
++ (void)assignFramesToOrderedWindows:(NSArray<CascadeWindow *> *)ordered onUsableFrame:(CGRect)usable delta:(CGFloat)delta {
+    [WindowLayoutGeometry assignFramesToOrderedWindows:ordered onUsableFrame:usable delta:delta layoutStyle:[self savedLayoutStyle]];
 }
 
 + (void)assignFramesToOrderedWindows:(NSArray<CascadeWindow *> *)ordered delta:(CGFloat)delta {
@@ -326,10 +315,11 @@ static NSInteger rankForApp(NSString *appName, NSArray<NSString *> *preferred) {
 + (NSArray<CascadeWindow *> *)calculateLayoutForWindows:(NSArray<CascadeWindow *> *)windows
                                     preservingOrderFrom:(NSArray<CascadeWindow *> *)previousOrder
                                                   delta:(CGFloat)delta
+                                            layoutStyle:(CascadeLayoutStyle)layoutStyle
                                           onUsableFrame:(CGRect)usableFrame {
     if (windows.count == 0) return @[];
     if (previousOrder.count == 0) {
-        return [self calculateLayoutForWindows:windows orderMode:[self savedOrderMode] preferredOrder:[self preferredAppOrder] delta:delta onUsableFrame:usableFrame];
+        return [self calculateLayoutForWindows:windows orderMode:[self savedOrderMode] preferredOrder:[self preferredAppOrder] delta:delta layoutStyle:layoutStyle onUsableFrame:usableFrame];
     }
     NSMutableArray<CascadeWindow *> *remaining = [windows mutableCopy], *ordered = [NSMutableArray array];
     for (CascadeWindow *prev in previousOrder) {
@@ -340,8 +330,12 @@ static NSInteger rankForApp(NSString *appName, NSArray<NSString *> *preferred) {
         if (matched) { [ordered addObject:matched]; [remaining removeObject:matched]; }
     }
     if (remaining.count > 0) [ordered addObjectsFromArray:remaining];
-    [self assignFramesToOrderedWindows:ordered onUsableFrame:usableFrame delta:delta];
+    [WindowLayoutGeometry assignFramesToOrderedWindows:ordered onUsableFrame:usableFrame delta:delta layoutStyle:layoutStyle];
     return ordered;
+}
+
++ (NSArray<CascadeWindow *> *)calculateLayoutForWindows:(NSArray<CascadeWindow *> *)windows preservingOrderFrom:(NSArray<CascadeWindow *> *)previousOrder delta:(CGFloat)delta onUsableFrame:(CGRect)usableFrame {
+    return [self calculateLayoutForWindows:windows preservingOrderFrom:previousOrder delta:delta layoutStyle:[self savedLayoutStyle] onUsableFrame:usableFrame];
 }
 
 + (NSArray<CascadeWindow *> *)calculateLayoutForWindows:(NSArray<CascadeWindow *> *)windows preservingOrderFrom:(NSArray<CascadeWindow *> *)previousOrder delta:(CGFloat)delta {
