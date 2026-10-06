@@ -75,42 +75,47 @@ static const char *orderModeName(CascadeOrderMode mode) {
 }
 
 static void printHelp(const char *prog) {
-    printf("Cascade - Maximize macOS windows while keeping all clickable at anytime\n\n");
-    printf("Usage: %s [options]\n\n", prog);
-    printf("Options:\n");
-    printf("  --apply              Apply calculated cascade layout to windows\n");
-    printf("  --watch              Continuously watch and rearrange on window open/minimize/close\n");
-    printf("  --plan               Display layout calculation without applying (default)\n");
-    printf("  --list               List current standard windows and exit\n");
-    printf("  --list-screens       List connected screens/monitors and exit\n");
-    printf("  --screen <target>    Target screen ('all', 'pointer', 'primary', index, or name)\n");
-    printf("  --split <1..4>       Override screen column split (1, 2, 3, or 4)\n");
-    printf("  --order <mode>       Ordering: 'mru', 'spatial', 'alpha', or 'preferred'\n");
-    printf("  --delta <pixels>     Offset/tab size in pixels (default: saved or 40)\n");
-    printf("  --no-restack         Do not re-raise windows in order\n");
-    printf("  --get-preferences    Print all saved user preferences and exit\n");
-    printf("  --set-screen <target> Persist default target screen ('all'|name|index)\n");
-    printf("  --set-split <1..4>   Persist default screen columns (1..4) for target screen\n");
-    printf("  --set-order <mode>   Persist default order mode ('mru'|'spatial'|'alpha'|'preferred')\n");
-    printf("  --set-delta <pixels> Persist default delta in pixels\n");
-    printf("  --set-restack <on|off> Persist restack Z-order preference ('enable'|'disable')\n");
-    printf("  --set-auto-rearrange <on|off> Persist auto-rearrange watcher preference ('enable'|'disable')\n");
-    printf("  --app-order <apps>   Comma-separated list of app names to prioritize (frontmost first)\n");
-    printf("  --set-app-order <apps> Persist preferred app order to preferences and exit\n");
-    printf("  --get-app-order      Print current preferred app order and exit\n");
-    printf("  --start-at-login <op> Enable, disable, or query login item ('enable'|'disable'|'status')\n");
-    printf("  --only <apps>        Comma-separated list of app names to include\n");
-    printf("  --check-permissions Run diagnostic tests on Accessibility permissions and exit\n");
-    printf("  --open-permissions  Open System Settings directly to Accessibility panel and exit\n");
-    printf("  --version, -v        Display Cascade version and exit\n");
-    printf("  --help, -h           Show this help message\n");
+    printf("Cascade - Maximize macOS windows while keeping all clickable at anytime\n\n"
+           "Usage: %s [options]\n\n"
+           "Options:\n"
+           "  --apply              Apply calculated cascade layout to windows\n"
+           "  --watch              Continuously watch and rearrange on window open/minimize/close\n"
+           "  --plan               Display layout calculation without applying (default)\n"
+           "  --list               List current standard windows and exit\n"
+           "  --list-screens       List connected screens/monitors and exit\n"
+           "  --screen <target>    Target screen ('all', 'pointer', 'primary', index, or name)\n"
+           "  --split <1..4>       Override screen column split (1, 2, 3, or 4)\n"
+           "  --order <mode>       Ordering: 'mru', 'spatial', 'alpha', or 'preferred'\n"
+           "  --delta <pixels>     Offset/tab size in pixels (default: saved or 40)\n"
+           "  --no-restack         Do not re-raise windows in order\n"
+           "  --get-preferences    Print all saved user preferences and exit\n"
+           "  --set-screen <target> Persist default target screen ('all'|name|index)\n"
+           "  --set-split <1..4>   Persist default screen columns (1..4) for target screen\n"
+           "  --set-order <mode>   Persist default order mode ('mru'|'spatial'|'alpha'|'preferred')\n"
+           "  --set-delta <pixels> Persist default delta in pixels\n"
+           "  --set-restack <on|off> Persist restack Z-order preference ('enable'|'disable')\n"
+           "  --set-auto-rearrange <on|off> Persist auto-rearrange watcher preference ('enable'|'disable')\n"
+           "  --app-order <apps>   Comma-separated list of app names to prioritize (frontmost first)\n"
+           "  --set-app-order <apps> Persist preferred app order to preferences and exit\n"
+           "  --get-app-order      Print current preferred app order and exit\n"
+           "  --get-ignored        Print current ignored apps and exit\n"
+           "  --set-ignored <apps> Persist ignored apps to preferences and exit\n"
+           "  --add-ignore <app>   Add app to persistent ignore list and exit\n"
+           "  --remove-ignore <app> Remove app from persistent ignore list and exit\n"
+           "  --clear-ignored      Clear all ignored apps and exit\n"
+           "  --no-ignore          Bypass saved ignored apps for this run\n"
+           "  --start-at-login <op> Enable, disable, or query login item ('enable'|'disable'|'status')\n"
+           "  --only <apps>        Comma-separated list of app names to include\n"
+           "  --exclude <apps>     Comma-separated list of app names to exclude for this run\n"
+           "  --check-permissions Run diagnostic tests on Accessibility permissions and exit\n"
+           "  --open-permissions  Open System Settings directly to Accessibility panel and exit\n"
+           "  --version, -v        Display Cascade version and exit\n"
+           "  --help, -h           Show this help message\n", prog);
 }
 
 int main(int argc, const char * argv[]) {
     @autoreleasepool {
-        BOOL doApply = NO;
-        BOOL doWatch = NO;
-        BOOL doList = NO;
+        BOOL doApply = NO, doWatch = NO, doList = NO, bypassIgnore = NO;
         BOOL restack = [CascadeEngine savedRestackZOrder];
         CGFloat delta = [CascadeEngine savedDelta];
         CascadeOrderMode orderMode = [CascadeEngine savedOrderMode];
@@ -118,7 +123,7 @@ int main(int argc, const char * argv[]) {
         NSString *targetScreen = [ScreenManager savedScreenTarget];
         NSInteger cliSplit = 0;
         NSArray<NSString *> *onlyApps = nil;
-        NSArray<NSString *> *excludeApps = nil;
+        NSMutableArray<NSString *> *cliExcludes = [NSMutableArray array];
 
         for (int i = 1; i < argc; i++) {
             NSString *arg = [NSString stringWithUTF8String:argv[i]];
@@ -176,94 +181,91 @@ int main(int argc, const char * argv[]) {
                 printf("  Screen Split:      %ld cols\n", (long)[ScreenManager savedScreenSplit]);
                 NSArray *apps = [CascadeEngine preferredAppOrder];
                 printf("  Preferred Apps:    %s\n", apps.count > 0 ? [apps componentsJoinedByString:@", "].UTF8String : "(none set)");
+                NSArray *ignored = [CascadeEngine ignoredApps];
+                printf("  Ignored Apps:      %s\n", ignored.count > 0 ? [ignored componentsJoinedByString:@", "].UTF8String : "(none set)");
                 printf("  Start at Login:    %s\n", [LoginItemManager isStartAtLoginEnabled] ? "YES" : "NO");
                 return 0;
             } else if ([arg isEqualToString:@"--set-order"] && i + 1 < argc) {
                 CascadeOrderMode m = parseOrderMode([NSString stringWithUTF8String:argv[++i]]);
-                [CascadeEngine saveOrderMode:m];
-                [CascadeEngine saveEstablishedWindowOrder:@[]];
-                printf("Saved order mode: %s\n", orderModeName(m));
-                return 0;
+                [CascadeEngine saveOrderMode:m]; [CascadeEngine saveEstablishedWindowOrder:@[]];
+                printf("Saved order mode: %s\n", orderModeName(m)); return 0;
             } else if ([arg isEqualToString:@"--set-delta"] && i + 1 < argc) {
-                CGFloat d = atof(argv[++i]);
-                [CascadeEngine saveDelta:d];
-                printf("Saved delta: %.0f px\n", d);
-                return 0;
+                CGFloat d = atof(argv[++i]); [CascadeEngine saveDelta:d];
+                printf("Saved delta: %.0f px\n", d); return 0;
             } else if ([arg isEqualToString:@"--set-restack"] && i + 1 < argc) {
                 NSString *val = [[NSString stringWithUTF8String:argv[++i]] lowercaseString];
                 BOOL en = [val isEqualToString:@"enable"] || [val isEqualToString:@"yes"] || [val isEqualToString:@"1"] || [val isEqualToString:@"true"];
-                [CascadeEngine saveRestackZOrder:en];
-                printf("Saved restack Z-order: %s\n", en ? "YES" : "NO");
-                return 0;
+                [CascadeEngine saveRestackZOrder:en]; printf("Saved restack Z-order: %s\n", en ? "YES" : "NO"); return 0;
             } else if ([arg isEqualToString:@"--set-auto-rearrange"] && i + 1 < argc) {
                 NSString *val = [[NSString stringWithUTF8String:argv[++i]] lowercaseString];
                 BOOL en = [val isEqualToString:@"enable"] || [val isEqualToString:@"yes"] || [val isEqualToString:@"1"] || [val isEqualToString:@"true"];
-                [CascadeEngine saveAutoRearrange:en];
-                printf("Saved auto-rearrange: %s\n", en ? "YES" : "NO");
-                return 0;
+                [CascadeEngine saveAutoRearrange:en]; printf("Saved auto-rearrange: %s\n", en ? "YES" : "NO"); return 0;
             } else if ([arg isEqualToString:@"--start-at-login"] && i + 1 < argc) {
-                NSString *action = [[NSString stringWithUTF8String:argv[++i]] lowercaseString];
-                if ([action isEqualToString:@"enable"]) {
-                    NSError *err = nil;
-                    if ([LoginItemManager setStartAtLoginEnabled:YES error:&err]) {
-                        printf("Start at login: ENABLED\n");
-                    } else {
-                        fprintf(stderr, "Failed to enable start at login: %s\n", err.localizedDescription.UTF8String);
-                    }
-                } else if ([action isEqualToString:@"disable"]) {
-                    NSError *err = nil;
-                    if ([LoginItemManager setStartAtLoginEnabled:NO error:&err]) {
-                        printf("Start at login: DISABLED\n");
-                    } else {
-                        fprintf(stderr, "Failed to disable start at login: %s\n", err.localizedDescription.UTF8String);
-                    }
+                NSString *act = [[NSString stringWithUTF8String:argv[++i]] lowercaseString];
+                if ([act isEqualToString:@"enable"] || [act isEqualToString:@"disable"]) {
+                    BOOL en = [act isEqualToString:@"enable"]; NSError *err = nil;
+                    if ([LoginItemManager setStartAtLoginEnabled:en error:&err]) printf("Start at login: %s\n", en ? "ENABLED" : "DISABLED");
+                    else fprintf(stderr, "Failed to update start at login: %s\n", err.localizedDescription.UTF8String);
                 } else {
-                    BOOL enabled = [LoginItemManager isStartAtLoginEnabled];
-                    printf("Start at login: %s\n", enabled ? "ENABLED" : "DISABLED");
+                    printf("Start at login: %s\n", [LoginItemManager isStartAtLoginEnabled] ? "ENABLED" : "DISABLED");
                 }
                 return 0;
             } else if ([arg isEqualToString:@"--order"] && i + 1 < argc) {
                 orderMode = parseOrderMode([NSString stringWithUTF8String:argv[++i]]);
             } else if ([arg isEqualToString:@"--app-order"] && i + 1 < argc) {
-                NSString *csv = [NSString stringWithUTF8String:argv[++i]];
-                preferredOrder = [CascadeEngine parseAppOrderString:csv];
+                preferredOrder = [CascadeEngine parseAppOrderString:[NSString stringWithUTF8String:argv[++i]]];
                 orderMode = CascadeOrderModeCustom;
             } else if ([arg isEqualToString:@"--set-app-order"] && i + 1 < argc) {
-                NSString *csv = [NSString stringWithUTF8String:argv[++i]];
-                NSArray<NSString *> *parsed = [CascadeEngine parseAppOrderString:csv];
-                [CascadeEngine setPreferredAppOrder:parsed];
-                [CascadeEngine saveEstablishedWindowOrder:@[]];
+                NSArray<NSString *> *parsed = [CascadeEngine parseAppOrderString:[NSString stringWithUTF8String:argv[++i]]];
+                [CascadeEngine setPreferredAppOrder:parsed]; [CascadeEngine saveEstablishedWindowOrder:@[]];
                 printf("Preferred app order set to: %s\n", [parsed componentsJoinedByString:@", "].UTF8String);
                 return 0;
             } else if ([arg isEqualToString:@"--get-app-order"]) {
-                NSArray<NSString *> *current = [CascadeEngine preferredAppOrder];
-                if (current.count > 0) {
-                    printf("Current preferred app order: %s\n", [current componentsJoinedByString:@", "].UTF8String);
-                } else {
-                    printf("Current preferred app order: (none set)\n");
-                }
+                NSArray<NSString *> *cur = [CascadeEngine preferredAppOrder];
+                printf("Current preferred app order: %s\n", cur.count > 0 ? [cur componentsJoinedByString:@", "].UTF8String : "(none set)");
                 return 0;
+            } else if ([arg isEqualToString:@"--get-ignored"] || [arg isEqualToString:@"--get-ignore"]) {
+                NSArray *cur = [CascadeEngine ignoredApps];
+                printf("Ignored applications: %s\n", cur.count > 0 ? [cur componentsJoinedByString:@", "].UTF8String : "(none set)");
+                return 0;
+            } else if ([arg isEqualToString:@"--set-ignored"] && i + 1 < argc) {
+                NSArray *parsed = [CascadeEngine parseAppOrderString:[NSString stringWithUTF8String:argv[++i]]];
+                [CascadeEngine setIgnoredApps:parsed];
+                printf("Ignored applications set to: %s\n", parsed.count > 0 ? [parsed componentsJoinedByString:@", "].UTF8String : "(none set)");
+                return 0;
+            } else if ([arg isEqualToString:@"--add-ignore"] && i + 1 < argc) {
+                NSString *app = [NSString stringWithUTF8String:argv[++i]];
+                [CascadeEngine addIgnoredApp:app];
+                printf("Added '%s' to ignored apps. Current: %s\n", app.UTF8String, [[CascadeEngine ignoredApps] componentsJoinedByString:@", "].UTF8String);
+                return 0;
+            } else if ([arg isEqualToString:@"--remove-ignore"] && i + 1 < argc) {
+                NSString *app = [NSString stringWithUTF8String:argv[++i]];
+                [CascadeEngine removeIgnoredApp:app];
+                printf("Removed '%s' from ignored apps. Current: %s\n", app.UTF8String, [[CascadeEngine ignoredApps] componentsJoinedByString:@", "].UTF8String);
+                return 0;
+            } else if ([arg isEqualToString:@"--clear-ignored"]) {
+                [CascadeEngine clearIgnoredApps];
+                printf("Cleared ignored applications.\n");
+                return 0;
+            } else if ([arg isEqualToString:@"--no-ignore"]) {
+                bypassIgnore = YES;
             } else if ([arg isEqualToString:@"--only"] && i + 1 < argc) {
+                onlyApps = [CascadeEngine parseAppOrderString:[NSString stringWithUTF8String:argv[++i]]];
+            } else if (([arg isEqualToString:@"--exclude"] || [arg isEqualToString:@"--ignore"]) && i + 1 < argc) {
                 NSString *csv = [NSString stringWithUTF8String:argv[++i]];
-                onlyApps = [csv componentsSeparatedByString:@","];
-            } else if ([arg isEqualToString:@"--exclude"] && i + 1 < argc) {
-                NSString *csv = [NSString stringWithUTF8String:argv[++i]];
-                excludeApps = [csv componentsSeparatedByString:@","];
+                [cliExcludes addObjectsFromArray:[CascadeEngine parseAppOrderString:csv]];
             } else if ([arg isEqualToString:@"--check-permissions"]) {
                 NSDictionary *d = [CascadeEngine accessibilityDiagnostics];
                 BOOL ok = [d[@"trusted"] boolValue];
-                printf("Cascade Accessibility Diagnostics:\n");
-                printf("  Host Application:    %s\n", [d[@"hostApp"] UTF8String]);
-                printf("  TCC Process Trusted: %s\n", [d[@"apiTrusted"] boolValue] ? "YES" : "NO");
-                printf("  Live AX Probe:       %s (AXError: %ld)\n",
+                printf("Cascade Accessibility Diagnostics:\n"
+                       "  Host Application:    %s\n"
+                       "  TCC Process Trusted: %s\n"
+                       "  Live AX Probe:       %s (AXError: %ld)\n"
+                       "  Effective Status:    %s\n",
+                       [d[@"hostApp"] UTF8String], [d[@"apiTrusted"] boolValue] ? "YES" : "NO",
                        [d[@"functional"] boolValue] ? "FUNCTIONAL" : "DISABLED",
-                       (long)[d[@"errorCode"] integerValue]);
-                printf("  Effective Status:    %s\n", ok ? "GRANTED (Ready)" : "DENIED (Action Required)");
-                if (!ok) {
-                    printf("\nAction Required:\n");
-                    printf("  Enable your terminal (%s) and Cascade in System Settings > Privacy & Security > Accessibility\n", [d[@"hostApp"] UTF8String]);
-                    printf("  Or run: cascade --open-permissions\n");
-                }
+                       (long)[d[@"errorCode"] integerValue], ok ? "GRANTED (Ready)" : "DENIED (Action Required)");
+                if (!ok) printf("\nAction Required:\n  Enable terminal (%s) and Cascade in Accessibility Settings\n  Or run: cascade --open-permissions\n", [d[@"hostApp"] UTF8String]);
                 return ok ? 0 : 1;
             } else if ([arg isEqualToString:@"--open-permissions"]) {
                 [CascadeEngine openAccessibilitySettings];
@@ -284,22 +286,27 @@ int main(int argc, const char * argv[]) {
 
         if (![CascadeEngine isAccessibilityTrustedWithPrompt:YES]) {
             NSDictionary *d = [CascadeEngine accessibilityDiagnostics];
-            fprintf(stderr, "\n============================================================\n");
-            fprintf(stderr, "Error: Accessibility permission is required for Cascade.\n\n");
-            fprintf(stderr, "Diagnostics:\n");
-            fprintf(stderr, "  Host Application: %s\n", [d[@"hostApp"] UTF8String]);
-            fprintf(stderr, "  TCC Trusted:      %s\n", [d[@"apiTrusted"] boolValue] ? "YES" : "NO");
-            fprintf(stderr, "  Live Probe:       %s (AXError: %ld)\n\n",
+            fprintf(stderr, "\n============================================================\n"
+                            "Error: Accessibility permission is required for Cascade.\n\n"
+                            "Diagnostics:\n"
+                            "  Host Application: %s\n"
+                            "  TCC Trusted:      %s\n"
+                            "  Live Probe:       %s (AXError: %ld)\n\n"
+                            "To enable:\n"
+                            "  1. Open System Settings > Privacy & Security > Accessibility\n"
+                            "  2. Ensure %s and Cascade are enabled\n\n"
+                            "Or run: cascade --open-permissions\n"
+                            "============================================================\n\n",
+                    [d[@"hostApp"] UTF8String], [d[@"apiTrusted"] boolValue] ? "YES" : "NO",
                     [d[@"functional"] boolValue] ? "FUNCTIONAL" : "DISABLED",
-                    (long)[d[@"errorCode"] integerValue]);
-            fprintf(stderr, "To enable:\n");
-            fprintf(stderr, "  1. Open System Settings > Privacy & Security > Accessibility\n");
-            fprintf(stderr, "  2. Ensure %s and Cascade are enabled\n\n", [d[@"hostApp"] UTF8String]);
-            fprintf(stderr, "Or run:\n");
-            fprintf(stderr, "  cascade --open-permissions\n");
-            fprintf(stderr, "============================================================\n\n");
+                    (long)[d[@"errorCode"] integerValue], [d[@"hostApp"] UTF8String]);
             return 1;
         }
+
+        NSMutableArray<NSString *> *effectiveExclude = [NSMutableArray array];
+        if (!bypassIgnore) [effectiveExclude addObjectsFromArray:[CascadeEngine ignoredApps]];
+        [effectiveExclude addObjectsFromArray:cliExcludes];
+        NSArray<NSString *> *finalExcludes = effectiveExclude.count > 0 ? effectiveExclude : nil;
 
         if (doWatch) {
             printf("Starting Cascade watcher daemon (auto-rearranging on window open/minimize/close)...\n");
@@ -311,11 +318,12 @@ int main(int argc, const char * argv[]) {
             del.delta = delta;
             del.restack = restack;
             del.onlyApps = onlyApps;
-            del.excludeApps = excludeApps;
+            del.excludeApps = finalExcludes;
             del.preferredOrder = preferredOrder;
             del.targetScreen = targetScreen;
 
             WindowWatcher *watcher = [[WindowWatcher alloc] initWithDelegate:del];
+            watcher.excludeApps = finalExcludes;
             [watcher startWatching];
 
             // Perform initial cascade
@@ -332,14 +340,12 @@ int main(int argc, const char * argv[]) {
             NSMutableArray *m = [NSMutableArray array];
             for (CascadeScreen *s in targetScreens) [m addObjectsFromArray:[ScreenManager subscreensForScreen:s splitCount:cliSplit]];
             expandedScreens = m;
-        } else {
-            expandedScreens = [ScreenManager expandScreensWithSplits:targetScreens];
-        }
+        } else { expandedScreens = [ScreenManager expandScreensWithSplits:targetScreens]; }
         NSArray<CascadeScreen *> *allExpanded = [ScreenManager expandScreensWithSplits:allScreens];
         printf("Screen Target: %s (%lu column(s)/screen(s) selected across %lu display(s))\n\n",
                targetScreen.UTF8String, (unsigned long)expandedScreens.count, (unsigned long)allScreens.count);
 
-        NSArray<CascadeWindow *> *windows = [CascadeEngine collectStandardWindowsWithOnly:onlyApps exclude:excludeApps];
+        NSArray<CascadeWindow *> *windows = [CascadeEngine collectStandardWindowsWithOnly:onlyApps exclude:finalExcludes];
         if (windows.count == 0) {
             printf("No active standard windows found matching criteria.\n");
             return 0;
@@ -368,11 +374,7 @@ int main(int argc, const char * argv[]) {
                 continue;
             }
 
-            NSArray<CascadeWindow *> *planned = [CascadeEngine calculateLayoutForWindows:screenWins
-                                                                               orderMode:orderMode
-                                                                          preferredOrder:preferredOrder
-                                                                                   delta:delta
-                                                                           onUsableFrame:screen.quartzVisibleFrame];
+            NSArray<CascadeWindow *> *planned = [CascadeEngine calculateLayoutForWindows:screenWins orderMode:orderMode preferredOrder:preferredOrder delta:delta onUsableFrame:screen.quartzVisibleFrame];
             if (planned.count == 0) continue;
             totalPlanned += planned.count;
 
@@ -381,15 +383,15 @@ int main(int argc, const char * argv[]) {
             CGFloat ratio = (winArea / screenArea) * 100.0;
             const char *orderName = orderModeName(orderMode);
 
-            printf("=== Display: %s (%dx%d) [%s | Delta: %.0f px] ===\n",
+            printf("=== Display: %s (%dx%d) [%s | Delta: %.0f px] ===\n"
+                   "Usable Bounds: X=%.0f, Y=%.0f, W=%.0f, H=%.0f\n"
+                   "Window Dimensions: %.0f x %.0f (%.1f%% of screen per window!)\n"
+                   "--------------------------------------------------------------------------------\n",
                    [screen.name UTF8String], (int)screen.quartzFrame.size.width, (int)screen.quartzFrame.size.height,
-                   orderName, delta);
-            printf("Usable Bounds: X=%.0f, Y=%.0f, W=%.0f, H=%.0f\n",
+                   orderName, delta,
                    screen.quartzVisibleFrame.origin.x, screen.quartzVisibleFrame.origin.y,
-                   screen.quartzVisibleFrame.size.width, screen.quartzVisibleFrame.size.height);
-            printf("Window Dimensions: %.0f x %.0f (%.1f%% of screen per window!)\n",
+                   screen.quartzVisibleFrame.size.width, screen.quartzVisibleFrame.size.height,
                    planned[0].targetFrame.size.width, planned[0].targetFrame.size.height, ratio);
-            printf("--------------------------------------------------------------------------------\n");
 
             for (NSUInteger i = 0; i < planned.count; i++) {
                 CascadeWindow *w = planned[i];

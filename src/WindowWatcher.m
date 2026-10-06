@@ -50,12 +50,32 @@ static void axObserverCallback(AXObserverRef observer, AXUIElementRef element, C
     [nc addObserver:self selector:@selector(spaceDidChange:) name:NSWorkspaceActiveSpaceDidChangeNotification object:nil];
 }
 
+static BOOL isAppExcluded(NSString *appName, NSArray<NSString *> *excludeApps) {
+    if (!excludeApps || excludeApps.count == 0 || appName.length == 0) return NO;
+    for (NSString *item in excludeApps) {
+        NSString *trimmed = [item stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+        if (trimmed.length == 0) continue;
+        if ([appName localizedCaseInsensitiveCompare:trimmed] == NSOrderedSame ||
+            [appName localizedCaseInsensitiveContainsString:trimmed]) return YES;
+    }
+    return NO;
+}
+
+- (void)setExcludeApps:(NSArray<NSString *> *)excludeApps {
+    _excludeApps = [excludeApps copy];
+    [self refreshObservers];
+}
+
 - (void)refreshObservers {
     if (!self.isWatching) return;
     NSArray<NSRunningApplication *> *apps = [[NSWorkspace sharedWorkspace] runningApplications];
     for (NSRunningApplication *app in apps) {
         if (app.activationPolicy == NSApplicationActivationPolicyRegular) {
-            [self attachToApp:app];
+            if (isAppExcluded(app.localizedName, self.excludeApps)) {
+                [self detachFromPid:app.processIdentifier];
+            } else {
+                [self attachToApp:app];
+            }
         }
     }
 }
@@ -80,6 +100,7 @@ static void axObserverCallback(AXObserverRef observer, AXUIElementRef element, C
 }
 
 - (void)attachToApp:(NSRunningApplication *)app {
+    if (isAppExcluded(app.localizedName, self.excludeApps)) return;
     pid_t pid = app.processIdentifier;
     if (self.observers[@(pid)]) return;
 
@@ -118,6 +139,7 @@ static void axObserverCallback(AXObserverRef observer, AXUIElementRef element, C
 - (void)appDidLaunch:(NSNotification *)note {
     NSRunningApplication *app = note.userInfo[NSWorkspaceApplicationKey];
     if (app && app.activationPolicy == NSApplicationActivationPolicyRegular) {
+        if (isAppExcluded(app.localizedName, self.excludeApps)) return;
         [self attachToApp:app];
         [self scheduleDebouncedChange];
     }
@@ -127,12 +149,15 @@ static void axObserverCallback(AXObserverRef observer, AXUIElementRef element, C
     NSRunningApplication *app = note.userInfo[NSWorkspaceApplicationKey];
     if (app) {
         [self detachFromPid:app.processIdentifier];
-        [self scheduleDebouncedChange];
+        if (!isAppExcluded(app.localizedName, self.excludeApps)) {
+            [self scheduleDebouncedChange];
+        }
     }
 }
 
 - (void)appDidHideOrUnhide:(NSNotification *)note {
-    (void)note;
+    NSRunningApplication *app = note.userInfo[NSWorkspaceApplicationKey];
+    if (app && isAppExcluded(app.localizedName, self.excludeApps)) return;
     [self scheduleDebouncedChange];
 }
 

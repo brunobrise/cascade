@@ -1,0 +1,45 @@
+@startuml
+skinparam backgroundColor white
+skinparam roundcorner 10
+skinparam shadowing false
+skinparam defaultFontName -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif
+
+participant "User / CLI / UI" as User
+participant "IgnoreListWindowController\n/ CLI" as UI
+participant "CascadeEngine\n(Preferences)" as Engine
+participant "NSUserDefaults" as Defaults
+participant "WindowWatcher" as Watcher
+participant "macOS WindowServer\n& NSWorkspace" as WS
+
+== 1. Configuration & Persistence ==
+User -> UI: Add / Remove / Clear Ignored App (e.g. "Slack")
+UI -> Engine: addIgnoredApp: / setIgnoredApps:
+Engine -> Defaults: Write array to "ignoredApps"
+Engine -> UI: Return updated list
+UI -> Watcher: Update watcher.excludeApps
+
+== 2. Dynamic Observer Detachment & Lifecycle Suppression ==
+Watcher -> Watcher: Compare active observers with excludeApps
+opt App newly ignored
+    Watcher -> WS: Detach AX observers for ignored PID
+    note over Watcher: Prevents spurious AX notifications\nfrom ignored windows
+end
+
+== 3. Event Filtering During Execution ==
+WS -> Watcher: App Lifecycle Event (Launch, Terminate, Hide, Unhide)
+Watcher -> Watcher: isAppExcluded(appName)?
+alt App is in excludeApps
+    Watcher -> Watcher: Suppress notification (no re-cascade scheduled)
+else App is not excluded
+    Watcher -> Watcher: scheduleDebouncedChange (350ms)
+end
+
+== 4. Cascade Window Collection & Geometry Execution ==
+User -> Engine: Trigger Cascade (Menu, Hotkey, or CLI)
+Engine -> Engine: Read [CascadeEngine ignoredApps]
+Engine -> WS: Query on-screen standard windows
+Engine -> Engine: Filter out windows matching ignoredApps
+Engine -> WS: Apply cascade layout only to non-ignored windows
+note over WS: Ignored application windows\nretain current size and position untouched
+
+@enduml

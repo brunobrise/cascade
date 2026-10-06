@@ -85,7 +85,10 @@ $(BUILD_DIR)/WindowWatcher.o: src/WindowWatcher.m src/WindowWatcher.h | $(BUILD_
 $(BUILD_DIR)/AppOrderWindowController.o: src/AppOrderWindowController.m src/AppOrderWindowController.h src/WindowEngine.h | $(BUILD_DIR)/.dir
 	$(CC) $(CFLAGS) -c src/AppOrderWindowController.m -o $@
 
-$(BUILD_DIR)/SettingsWindowController.o: src/SettingsWindowController.m src/SettingsWindowController.h src/WindowEngine.h src/ScreenManager.h src/LoginItemManager.h src/AppOrderWindowController.h | $(BUILD_DIR)/.dir
+$(BUILD_DIR)/IgnoreListWindowController.o: src/IgnoreListWindowController.m src/IgnoreListWindowController.h src/WindowEngine.h | $(BUILD_DIR)/.dir
+	$(CC) $(CFLAGS) -c src/IgnoreListWindowController.m -o $@
+
+$(BUILD_DIR)/SettingsWindowController.o: src/SettingsWindowController.m src/SettingsWindowController.h src/WindowEngine.h src/ScreenManager.h src/LoginItemManager.h src/AppOrderWindowController.h src/IgnoreListWindowController.h | $(BUILD_DIR)/.dir
 	$(CC) $(CFLAGS) -c src/SettingsWindowController.m -o $@
 
 # CLI binary
@@ -109,8 +112,11 @@ $(BUILD_DIR)/test_app_order: tests/test_app_order.m $(BUILD_DIR)/AppOrderWindowC
 $(BUILD_DIR)/test_screen_manager: tests/test_screen_manager.m $(BUILD_DIR)/ScreenManager.o $(BUILD_DIR)/WindowEngine.o | $(BUILD_DIR)/.dir
 	$(CC) $(CFLAGS) $(LDFLAGS) tests/test_screen_manager.m $(BUILD_DIR)/ScreenManager.o $(BUILD_DIR)/WindowEngine.o -o $@
 
-$(BUILD_DIR)/test_settings: tests/test_settings.m $(BUILD_DIR)/SettingsWindowController.o $(BUILD_DIR)/AppOrderWindowController.o $(BUILD_DIR)/WindowEngine.o $(BUILD_DIR)/ScreenManager.o $(BUILD_DIR)/LoginItemManager.o | $(BUILD_DIR)/.dir
-	$(CC) $(CFLAGS) $(LDFLAGS) tests/test_settings.m $(BUILD_DIR)/SettingsWindowController.o $(BUILD_DIR)/AppOrderWindowController.o $(BUILD_DIR)/WindowEngine.o $(BUILD_DIR)/ScreenManager.o $(BUILD_DIR)/LoginItemManager.o -o $@
+$(BUILD_DIR)/test_settings: tests/test_settings.m $(BUILD_DIR)/SettingsWindowController.o $(BUILD_DIR)/AppOrderWindowController.o $(BUILD_DIR)/IgnoreListWindowController.o $(BUILD_DIR)/WindowEngine.o $(BUILD_DIR)/ScreenManager.o $(BUILD_DIR)/LoginItemManager.o | $(BUILD_DIR)/.dir
+	$(CC) $(CFLAGS) $(LDFLAGS) tests/test_settings.m $(BUILD_DIR)/SettingsWindowController.o $(BUILD_DIR)/AppOrderWindowController.o $(BUILD_DIR)/IgnoreListWindowController.o $(BUILD_DIR)/WindowEngine.o $(BUILD_DIR)/ScreenManager.o $(BUILD_DIR)/LoginItemManager.o -o $@
+
+$(BUILD_DIR)/test_ignore: tests/test_ignore.m $(BUILD_DIR)/IgnoreListWindowController.o $(BUILD_DIR)/SettingsWindowController.o $(BUILD_DIR)/AppOrderWindowController.o $(BUILD_DIR)/WindowEngine.o $(BUILD_DIR)/ScreenManager.o $(BUILD_DIR)/LoginItemManager.o $(BUILD_DIR)/WindowWatcher.o | $(BUILD_DIR)/.dir
+	$(CC) $(CFLAGS) $(LDFLAGS) tests/test_ignore.m $(BUILD_DIR)/IgnoreListWindowController.o $(BUILD_DIR)/SettingsWindowController.o $(BUILD_DIR)/AppOrderWindowController.o $(BUILD_DIR)/WindowEngine.o $(BUILD_DIR)/ScreenManager.o $(BUILD_DIR)/LoginItemManager.o $(BUILD_DIR)/WindowWatcher.o -o $@
 
 $(BUILD_DIR)/test_icon_generator: tests/test_icon_generator.m | $(BUILD_DIR)/.dir
 	$(CC) $(CFLAGS) $(LDFLAGS) tests/test_icon_generator.m -o $@
@@ -118,13 +124,14 @@ $(BUILD_DIR)/test_icon_generator: tests/test_icon_generator.m | $(BUILD_DIR)/.di
 $(BUILD_DIR)/test_signing: tests/test_signing.m | $(BUILD_DIR)/.dir
 	$(CC) $(CFLAGS) $(LDFLAGS) tests/test_signing.m -o $@
 
-test: $(BUILD_DIR)/test_engine $(BUILD_DIR)/test_login $(BUILD_DIR)/test_watcher $(BUILD_DIR)/test_app_order $(BUILD_DIR)/test_screen_manager $(BUILD_DIR)/test_settings $(BUILD_DIR)/test_icon_generator $(BUILD_DIR)/test_signing
+test: $(BUILD_DIR)/test_engine $(BUILD_DIR)/test_login $(BUILD_DIR)/test_watcher $(BUILD_DIR)/test_app_order $(BUILD_DIR)/test_screen_manager $(BUILD_DIR)/test_settings $(BUILD_DIR)/test_ignore $(BUILD_DIR)/test_icon_generator $(BUILD_DIR)/test_signing
 	./$(BUILD_DIR)/test_engine
 	./$(BUILD_DIR)/test_login
 	./$(BUILD_DIR)/test_watcher
 	./$(BUILD_DIR)/test_app_order
 	./$(BUILD_DIR)/test_screen_manager
 	./$(BUILD_DIR)/test_settings
+	./$(BUILD_DIR)/test_ignore
 	./$(BUILD_DIR)/test_icon_generator
 	./$(BUILD_DIR)/test_signing
 	python3 tests/test_semver.py
@@ -146,10 +153,10 @@ reset-permissions:
 	@echo "Reset Accessibility permissions for com.brunobrise.cascade in TCC database."
 
 # Status Bar App Bundle
-$(BUILD_DIR)/Cascade.app: src/main_bar.m $(BUILD_DIR)/WindowEngine.o $(BUILD_DIR)/ScreenManager.o $(BUILD_DIR)/LoginItemManager.o $(BUILD_DIR)/WindowWatcher.o $(BUILD_DIR)/AppOrderWindowController.o $(BUILD_DIR)/SettingsWindowController.o resources/Info.plist resources/AppIcon.icns $(wildcard VERSION) | $(BUILD_DIR)/.dir
+$(BUILD_DIR)/Cascade.app: src/main_bar.m $(BUILD_DIR)/WindowEngine.o $(BUILD_DIR)/ScreenManager.o $(BUILD_DIR)/LoginItemManager.o $(BUILD_DIR)/WindowWatcher.o $(BUILD_DIR)/AppOrderWindowController.o $(BUILD_DIR)/IgnoreListWindowController.o $(BUILD_DIR)/SettingsWindowController.o resources/Info.plist resources/AppIcon.icns $(wildcard VERSION) | $(BUILD_DIR)/.dir
 	mkdir -p $(BUILD_DIR)/Cascade.app/Contents/MacOS
 	mkdir -p $(BUILD_DIR)/Cascade.app/Contents/Resources
-	$(CC) $(CFLAGS) $(LDFLAGS) src/main_bar.m $(BUILD_DIR)/WindowEngine.o $(BUILD_DIR)/ScreenManager.o $(BUILD_DIR)/LoginItemManager.o $(BUILD_DIR)/WindowWatcher.o $(BUILD_DIR)/AppOrderWindowController.o $(BUILD_DIR)/SettingsWindowController.o -o $(BUILD_DIR)/Cascade.app/Contents/MacOS/Cascade
+	$(CC) $(CFLAGS) $(LDFLAGS) src/main_bar.m $(BUILD_DIR)/WindowEngine.o $(BUILD_DIR)/ScreenManager.o $(BUILD_DIR)/LoginItemManager.o $(BUILD_DIR)/WindowWatcher.o $(BUILD_DIR)/AppOrderWindowController.o $(BUILD_DIR)/IgnoreListWindowController.o $(BUILD_DIR)/SettingsWindowController.o -o $(BUILD_DIR)/Cascade.app/Contents/MacOS/Cascade
 	cp resources/Info.plist $(BUILD_DIR)/Cascade.app/Contents/Info.plist
 	/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $(VERSION)" $(BUILD_DIR)/Cascade.app/Contents/Info.plist 2>/dev/null || true
 	cp resources/AppIcon.icns $(BUILD_DIR)/Cascade.app/Contents/Resources/AppIcon.icns

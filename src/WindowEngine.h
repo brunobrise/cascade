@@ -39,6 +39,11 @@ typedef NS_ENUM(NSInteger, CascadeOrderMode) {
 + (void)saveAutoRearrange:(BOOL)autoRearrange;
 + (NSArray<NSString *> *)preferredAppOrder;
 + (void)setPreferredAppOrder:(NSArray<NSString *> *)order;
++ (NSArray<NSString *> *)ignoredApps;
++ (void)setIgnoredApps:(NSArray<NSString *> *)apps;
++ (void)addIgnoredApp:(NSString *)app;
++ (void)removeIgnoredApp:(NSString *)app;
++ (void)clearIgnoredApps;
 + (NSArray<NSString *> *)parseAppOrderString:(NSString *)string;
 + (NSArray<CascadeWindow *> *)calculateLayoutForWindows:(NSArray<CascadeWindow *> *)windows
                                               orderMode:(CascadeOrderMode)orderMode

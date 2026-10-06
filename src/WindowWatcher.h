@@ -13,6 +13,7 @@
 @property (nonatomic, readonly) BOOL isWatching;
 @property (nonatomic, assign) BOOL isSuppressed;
 @property (nonatomic, assign) NSTimeInterval debounceInterval; // default: 0.35s
+@property (nonatomic, copy) NSArray<NSString *> *excludeApps;
 
 - (instancetype)initWithDelegate:(id<WindowWatcherDelegate>)delegate;
 - (void)startWatching;

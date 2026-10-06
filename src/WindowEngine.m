@@ -14,8 +14,7 @@
         if ([self.appName isEqualToString:other.appName]) return YES;
     }
     if (self.appName.length > 0 && [self.appName isEqualToString:other.appName]) {
-        if (self.title.length > 0 && other.title.length > 0) return [self.title isEqualToString:other.title];
-        return YES;
+        return (self.title.length > 0 && other.title.length > 0) ? [self.title isEqualToString:other.title] : YES;
     }
     return NO;
 }
@@ -48,11 +47,9 @@
         errorCode = (NSInteger)err;
         if (err == kAXErrorAPIDisabled) functional = NO;
     } else { functional = NO; }
-    NSRunningApplication *parent = [[NSWorkspace sharedWorkspace] frontmostApplication];
-    NSString *parentApp = parent.localizedName ?: @"Unknown";
+    NSString *parentApp = [[NSWorkspace sharedWorkspace] frontmostApplication].localizedName ?: @"Unknown";
     return @{ @"apiTrusted": @(apiTrusted), @"functional": @(functional),
-              @"errorCode": @(errorCode), @"trusted": @(apiTrusted && functional),
-              @"hostApp": parentApp };
+              @"errorCode": @(errorCode), @"trusted": @(apiTrusted && functional), @"hostApp": parentApp };
 }
 
 + (BOOL)isAccessibilityTrustedWithPrompt:(BOOL)prompt {
@@ -72,6 +69,17 @@
     [[NSWorkspace sharedWorkspace] openURL:[NSURL fileURLWithPath:@"/System/Applications/System Settings.app"]];
 }
 
+static BOOL listMatchesApp(NSArray<NSString *> *list, NSString *appName) {
+    if (!list || list.count == 0 || appName.length == 0) return NO;
+    for (NSString *item in list) {
+        NSString *trimmed = [item stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+        if (trimmed.length == 0) continue;
+        if ([appName localizedCaseInsensitiveCompare:trimmed] == NSOrderedSame ||
+            [appName localizedCaseInsensitiveContainsString:trimmed]) return YES;
+    }
+    return NO;
+}
+
 + (NSArray<CascadeWindow *> *)collectStandardWindowsWithOnly:(NSArray<NSString *> *)onlyApps
                                                       exclude:(NSArray<NSString *> *)excludeApps {
     CFArrayRef windowList = CGWindowListCopyWindowInfo(kCGWindowListOptionOnScreenOnly | kCGWindowListExcludeDesktopElements, kCGNullWindowID);
@@ -84,9 +92,7 @@
         NSNumber *layer = info[(id)kCGWindowLayer];
         if ([layer intValue] != 0) continue;
         NSNumber *pid = info[(id)kCGWindowOwnerPID];
-        if (!pidToZRank[pid]) {
-            pidToZRank[pid] = @(zRank++);
-        }
+        if (!pidToZRank[pid]) pidToZRank[pid] = @(zRank++);
     }
 
     NSMutableArray<CascadeWindow *> *result = [NSMutableArray array];
@@ -95,21 +101,8 @@
     for (NSRunningApplication *app in apps) {
         if (app.activationPolicy != NSApplicationActivationPolicyRegular) continue;
         NSString *appName = app.localizedName ?: @"";
-
-        if (onlyApps) {
-            BOOL match = NO;
-            for (NSString *allowed in onlyApps) {
-                if ([appName localizedCaseInsensitiveContainsString:allowed]) { match = YES; break; }
-            }
-            if (!match) continue;
-        }
-        if (excludeApps) {
-            BOOL excluded = NO;
-            for (NSString *ex in excludeApps) {
-                if ([appName localizedCaseInsensitiveContainsString:ex]) { excluded = YES; break; }
-            }
-            if (excluded) continue;
-        }
+        if (onlyApps && !listMatchesApp(onlyApps, appName)) continue;
+        if (excludeApps && listMatchesApp(excludeApps, appName)) continue;
 
         pid_t pid = app.processIdentifier;
         AXUIElementRef appRef = AXUIElementCreateApplication(pid);
@@ -132,14 +125,9 @@
                 NSString *subrole = subroleRef ? (NSString *)CFBridgingRelease(subroleRef) : @"";
                 BOOL isMin = minRef ? CFBooleanGetValue((CFBooleanRef)minRef) : NO;
                 if (minRef) CFRelease(minRef);
-
-                CGPoint curPos = CGPointZero;
-                CGSize curSize = CGSizeZero;
-                if (posRef) AXValueGetValue((AXValueRef)posRef, kAXValueTypeCGPoint, &curPos);
-                if (szRef) AXValueGetValue((AXValueRef)szRef, kAXValueTypeCGSize, &curSize);
-                if (posRef) CFRelease(posRef);
-                if (szRef) CFRelease(szRef);
-
+                CGPoint curPos = CGPointZero; CGSize curSize = CGSizeZero;
+                if (posRef) { AXValueGetValue((AXValueRef)posRef, kAXValueTypeCGPoint, &curPos); CFRelease(posRef); }
+                if (szRef) { AXValueGetValue((AXValueRef)szRef, kAXValueTypeCGSize, &curSize); CFRelease(szRef); }
                 NSString *title = titleRef ? (NSString *)CFBridgingRelease(titleRef) : @"";
 
                 if ([subrole isEqualToString:@"AXStandardWindow"] && !isMin && curSize.width > 100 && curSize.height > 100) {
@@ -189,12 +177,27 @@ static void setPref(NSString *k, id v) {
 + (void)saveAutoRearrange:(BOOL)a { setPref(@"autoRearrange", @(a)); }
 + (NSArray<NSString *> *)preferredAppOrder { return getPref(@"preferredAppOrder", @[]); }
 + (void)setPreferredAppOrder:(NSArray<NSString *> *)o { setPref(@"preferredAppOrder", o ?: @[]); }
++ (NSArray<NSString *> *)ignoredApps { return getPref(@"ignoredApps", @[]); }
++ (void)setIgnoredApps:(NSArray<NSString *> *)a { setPref(@"ignoredApps", a ?: @[]); }
++ (void)addIgnoredApp:(NSString *)a {
+    NSString *t = [a stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+    if (!t.length) return;
+    NSMutableArray *m = [[self ignoredApps] mutableCopy];
+    for (NSString *s in m) { if ([s localizedCaseInsensitiveCompare:t] == NSOrderedSame) return; }
+    [m addObject:t]; [self setIgnoredApps:m];
+}
++ (void)removeIgnoredApp:(NSString *)a {
+    NSString *t = [a stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+    if (!t.length) return;
+    NSMutableArray *m = [NSMutableArray array];
+    for (NSString *s in [self ignoredApps]) { if ([s localizedCaseInsensitiveCompare:t] != NSOrderedSame) [m addObject:s]; }
+    [self setIgnoredApps:m];
+}
++ (void)clearIgnoredApps { [self setIgnoredApps:@[]]; }
 
 + (NSArray<NSDictionary<NSString *, NSString *> *> *)serializeWindows:(NSArray<CascadeWindow *> *)windows {
     NSMutableArray *arr = [NSMutableArray arrayWithCapacity:windows.count];
-    for (CascadeWindow *w in windows) {
-        [arr addObject:@{@"appName": w.appName ?: @"", @"title": w.title ?: @""}];
-    }
+    for (CascadeWindow *w in windows) [arr addObject:@{@"appName": w.appName ?: @"", @"title": w.title ?: @""}];
     return arr;
 }
 
@@ -246,9 +249,7 @@ static NSInteger rankForApp(NSString *appName, NSArray<NSString *> *preferred) {
     return 999999;
 }
 
-+ (NSArray<CascadeWindow *> *)calculateLayoutForWindows:(NSArray<CascadeWindow *> *)windows
-                                              orderMode:(CascadeOrderMode)orderMode
-                                                  delta:(CGFloat)delta {
++ (NSArray<CascadeWindow *> *)calculateLayoutForWindows:(NSArray<CascadeWindow *> *)windows orderMode:(CascadeOrderMode)orderMode delta:(CGFloat)delta {
     return [self calculateLayoutForWindows:windows orderMode:orderMode preferredOrder:[self preferredAppOrder] delta:delta];
 }
 

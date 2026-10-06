@@ -58,6 +58,7 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
     if (appIcon) [NSApp setApplicationIconImage:appIcon];
 
     self.watcher = [[WindowWatcher alloc] initWithDelegate:self];
+    self.watcher.excludeApps = [CascadeEngine ignoredApps];
     if ([CascadeEngine savedAutoRearrange]) [self.watcher startWatching];
 
     [CascadeEngine isAccessibilityTrustedWithPrompt:YES];
@@ -93,7 +94,7 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
 
     NSArray *savedOrder = [CascadeEngine savedEstablishedWindowOrder];
     if (savedOrder.count > 0 && [CascadeEngine isAccessibilityTrustedWithPrompt:NO]) {
-        NSArray<CascadeWindow *> *wins = [CascadeEngine collectStandardWindowsWithOnly:nil exclude:nil];
+        NSArray<CascadeWindow *> *wins = [CascadeEngine collectStandardWindowsWithOnly:nil exclude:[CascadeEngine ignoredApps]];
         if (wins.count > 0) self.establishedOrder = [CascadeEngine matchWindows:wins withSavedDescriptors:savedOrder];
     }
 }
@@ -142,6 +143,7 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
     self.delta = [CascadeEngine savedDelta];
     self.targetScreen = [ScreenManager savedScreenTarget];
     self.restackZOrder = [CascadeEngine savedRestackZOrder];
+    self.watcher.excludeApps = [CascadeEngine ignoredApps];
     self.establishedOrder = nil;
     [CascadeEngine saveEstablishedWindowOrder:@[]];
     if ([CascadeEngine savedAutoRearrange] && !self.watcher.isWatching) {
@@ -196,7 +198,7 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
             if (self.establishedOrder.count == 0) {
                 NSArray *saved = [CascadeEngine savedEstablishedWindowOrder];
                 if (saved.count > 0) {
-                    NSArray<CascadeWindow *> *wins = [CascadeEngine collectStandardWindowsWithOnly:nil exclude:nil];
+                    NSArray<CascadeWindow *> *wins = [CascadeEngine collectStandardWindowsWithOnly:nil exclude:[CascadeEngine ignoredApps]];
                     if (wins.count > 0) self.establishedOrder = [CascadeEngine matchWindows:wins withSavedDescriptors:saved];
                 }
             }
@@ -221,7 +223,7 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
 - (void)cascadeWindowsOnScreens:(NSArray<CascadeScreen *> *)targetScreens
                         restack:(BOOL)restack
                   preserveOrder:(BOOL)preserveOrder {
-    NSArray<CascadeWindow *> *allWindows = [CascadeEngine collectStandardWindowsWithOnly:nil exclude:nil];
+    NSArray<CascadeWindow *> *allWindows = [CascadeEngine collectStandardWindowsWithOnly:nil exclude:[CascadeEngine ignoredApps]];
     if (allWindows.count == 0) return;
 
     if (preserveOrder && self.establishedOrder.count == 0) {
