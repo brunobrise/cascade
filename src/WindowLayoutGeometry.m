@@ -42,14 +42,19 @@
         ordered[0].targetFrame = usable;
         return;
     }
+    if (count == 2) {
+        ordered[0].targetFrame = CGRectMake(originX, originY, usableW - delta, usableH);
+        ordered[1].targetFrame = CGRectMake(originX + delta, originY, usableW - delta, usableH);
+        return;
+    }
 
     NSUInteger nT = (count + 3) / 4;
     NSUInteger nR = (count + 2) / 4;
     NSUInteger nB = (count + 1) / 4;
     NSUInteger nL = count / 4;
 
-    CGFloat maxDeltaX = (usableW - 400.0) / MAX((NSUInteger)1, (nL + nR));
-    CGFloat maxDeltaY = (usableH - 300.0) / MAX((NSUInteger)1, (nT + nB));
+    CGFloat maxDeltaX = (usableW - 400.0) / (CGFloat)MAX((NSUInteger)1, (nL + nR + MAX((NSInteger)0, (NSInteger)nT - 1)));
+    CGFloat maxDeltaY = (usableH - 300.0) / (CGFloat)MAX((NSUInteger)1, (nT + nB + MAX((NSInteger)0, (NSInteger)nR - 1)));
     CGFloat effDelta = MIN(delta, MIN(maxDeltaX, maxDeltaY));
     if (effDelta < 15.0) effDelta = 15.0;
 
@@ -62,25 +67,25 @@
         CGFloat x = originX, y = originY, w = usableW, h = usableH;
 
         if (side == 0) { // Top
-            x = originX + mL;
-            y = originY + cycle * effDelta;
-            w = usableW - mL - mR;
-            h = usableH - mB - cycle * effDelta;
-        } else if (side == 1) { // Right
+            w = usableW - mL - mR - (nT - 1) * effDelta;
+            h = usableH - mB - (nT - 1) * effDelta;
             x = originX + mL + cycle * effDelta;
-            y = originY + mT;
-            w = usableW - mL - cycle * effDelta;
-            h = usableH - mT - mB;
-        } else if (side == 2) { // Bottom
-            x = originX + mL;
+            y = originY + cycle * effDelta;
+        } else if (side == 1) { // Right
+            w = usableW - mL - (nR - 1) * effDelta;
+            h = usableH - mT - mB - (nR - 1) * effDelta;
+            x = originX + usableW - w - cycle * effDelta;
             y = originY + mT + cycle * effDelta;
-            w = usableW - mL - mR;
-            h = usableH - mT - cycle * effDelta;
+        } else if (side == 2) { // Bottom
+            w = usableW - mL - mR - (nB - 1) * effDelta;
+            h = usableH - mT - (nB - 1) * effDelta;
+            x = originX + mL + cycle * effDelta;
+            y = originY + usableH - h - cycle * effDelta;
         } else if (side == 3) { // Left
+            w = usableW - mR - (nL - 1) * effDelta;
+            h = usableH - mT - mB - (nL - 1) * effDelta;
             x = originX + cycle * effDelta;
-            y = originY + mT;
-            w = usableW - mR - cycle * effDelta;
-            h = usableH - mT - mB;
+            y = originY + mT + cycle * effDelta;
         }
 
         if (w < 200.0) w = 200.0;

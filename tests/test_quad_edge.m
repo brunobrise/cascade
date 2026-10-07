@@ -91,6 +91,38 @@ static void testMultiCycleQuadEdge() {
     printf("  [PASS] Multi-cycle Quad-Edge (N = 8) correctly calculated without distortion.\n");
 }
 
+static BOOL pointInRect(CGRect r, CGFloat px, CGFloat py) {
+    return px >= r.origin.x && px < CGRectGetMaxX(r) && py >= r.origin.y && py < CGRectGetMaxY(r);
+}
+
+static void testFiveWindowQuadEdgeUnoccludedTarget() {
+    printf("Running testFiveWindowQuadEdgeUnoccludedTarget (N = 5)...\n");
+    CGRect usable = CGRectMake(0, 30, 2560, 1410);
+    CGFloat delta = 40.0;
+    NSMutableArray<CascadeWindow *> *wins5 = [NSMutableArray array];
+    for (int i = 0; i < 5; i++) [wins5 addObject:[[CascadeWindow alloc] init]];
+    [WindowLayoutGeometry assignQuadEdgeFramesToOrderedWindows:wins5 onUsableFrame:usable delta:delta];
+
+    for (int i = 0; i < 5; i++) {
+        CGFloat unoccluded = 0;
+        CGRect fi = wins5[i].targetFrame;
+        for (CGFloat px = fi.origin.x; px < CGRectGetMaxX(fi); px += 4.0) {
+            for (CGFloat py = fi.origin.y; py < CGRectGetMaxY(fi); py += 4.0) {
+                BOOL covered = NO;
+                for (int j = 0; j < 5; j++) {
+                    if (j != i && pointInRect(wins5[j].targetFrame, px, py)) {
+                        covered = YES;
+                        break;
+                    }
+                }
+                if (!covered) unoccluded += 16.0;
+            }
+        }
+        assert(unoccluded > 0);
+    }
+    printf("  [PASS] 5th window (and all 5 windows) has guaranteed unoccluded click target.\n");
+}
+
 int main(int argc, const char * argv[]) {
     (void)argc; (void)argv;
     @autoreleasepool {
@@ -98,6 +130,7 @@ int main(int argc, const char * argv[]) {
         testQuadEdgePreferencesPersistence();
         testQuadEdgeGeometricInvariants();
         testMultiCycleQuadEdge();
+        testFiveWindowQuadEdgeUnoccludedTarget();
         printf("\n=== All Quad-Edge Tests Passed Successfully! ===\n");
     }
     return 0;

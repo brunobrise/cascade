@@ -1,0 +1,33 @@
+@startuml quad-edge-cycle-stagger
+skinparam backgroundColor white
+skinparam shadowing false
+skinparam roundcorner 8
+skinparam defaultFontName -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif
+
+title Quad-Edge 2D Cycle Stagger & Disjoint Click Targets (N >= 5)
+
+package "Display Usable Bounds [0, W] x [0, H]" {
+    component "Window 0 (Top, Cycle 0)\nOrigin: (mL, 0)\nSize: (W - mL - mR - d, H - mB - d)\n[Unoccluded Top Bar]" as W0 #E1F5FE
+    component "Window 4 (Top, Cycle 1)\nOrigin: (mL + d, d)\nSize: (W - mL - mR - d, H - mB - d)\n[Unoccluded Top-Right 40x40 Tab]" as W4 #FFF9C4
+    component "Window 1 (Right, Cycle 0)\nOrigin: (W - w1, mT)\n[Unoccluded Right Bar]" as W1 #E8F5E9
+    component "Window 2 (Bottom, Cycle 0)\nOrigin: (mL, H - h2)\n[Unoccluded Bottom Bar]" as W2 #FCE4EC
+    component "Window 3 (Left, Cycle 0)\nOrigin: (0, mT)\n[Unoccluded Left Bar]" as W3 #EDE7F6
+}
+
+note top of W0
+  Window 0 touches top bezel (Y = 0)
+  Exposed region: [mL, mL + W0 - d] x [0, d]
+end note
+
+note top of W4
+  Window 4 shifted in 2D (+d X-axis, +d Y-axis)
+  Exposed region: [mL + W0 - d, mL + W0] x [d, 2d]
+  Guaranteed 40x40 px unoccluded click target!
+end note
+
+W0 -[hidden]down-> W4
+W4 -[hidden]down-> W2
+W3 -[hidden]right-> W0
+W0 -[hidden]right-> W1
+
+@enduml
