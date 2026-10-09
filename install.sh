@@ -28,11 +28,18 @@ echo "=================================================="
 # 2. Determine Version
 VERSION="${CASCADE_VERSION:-}"
 if [ -z "$VERSION" ]; then
-    echo "🔍 Fetching latest release from GitHub..."
-    LATEST_JSON=$(curl -sSL "https://api.github.com/repos/brunobrise/cascade/releases/latest" 2>/dev/null || true)
-    VERSION=$(echo "$LATEST_JSON" | grep '"tag_name":' | head -1 | sed -E 's/.*"([^"]+)".*/\1/' | sed 's/^v//')
+    echo "🔍 Determining latest release..."
+    if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
+        VERSION=$(gh release view -R brunobrise/cascade --json tagName -q .tagName 2>/dev/null | sed 's/^v//' || true)
+    fi
     if [ -z "$VERSION" ]; then
-        VERSION="0.22.2"
+        AUTH_HEADER=()
+        [ -n "${GITHUB_TOKEN:-}" ] && AUTH_HEADER=(-H "Authorization: Bearer $GITHUB_TOKEN")
+        LATEST_JSON=$(curl -sSL "${AUTH_HEADER[@]}" "https://api.github.com/repos/brunobrise/cascade/releases/latest" 2>/dev/null || true)
+        VERSION=$(echo "$LATEST_JSON" | grep '"tag_name":' | head -1 | sed -E 's/.*"([^"]+)".*/\1/' | sed 's/^v//' || true)
+    fi
+    if [ -z "$VERSION" ]; then
+        VERSION="0.23.0"
     fi
 fi
 
@@ -42,11 +49,23 @@ echo "📦 Target Version: $TAG ($ARCH)"
 TMP_DIR=$(mktemp -d /tmp/cascade-install-XXXXXX)
 trap 'rm -rf "$TMP_DIR"' EXIT
 
+download_asset() {
+    local asset_name="$1"
+    local dest_path="$TMP_DIR/$asset_name"
+    if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
+        gh release download "$TAG" -R brunobrise/cascade -p "$asset_name" -D "$TMP_DIR" >/dev/null 2>&1 && return 0
+    fi
+    local auth_header=()
+    [ -n "${GITHUB_TOKEN:-}" ] && auth_header=(-H "Authorization: Bearer $GITHUB_TOKEN")
+    local url="https://github.com/brunobrise/cascade/releases/download/$TAG/$asset_name"
+    curl -fL "${auth_header[@]}" --progress-bar "$url" -o "$dest_path" 2>/dev/null && return 0
+    return 1
+}
+
 # 3. Download and Install CLI
 CLI_TARBALL="cascade-v$VERSION-darwin-$ARCH.tar.gz"
-DOWNLOAD_URL="https://github.com/brunobrise/cascade/releases/download/$TAG/$CLI_TARBALL"
 echo "⬇️  Downloading CLI binary: $CLI_TARBALL..."
-if curl -fL --progress-bar "$DOWNLOAD_URL" -o "$TMP_DIR/$CLI_TARBALL"; then
+if download_asset "$CLI_TARBALL"; then
     tar -xzf "$TMP_DIR/$CLI_TARBALL" -C "$TMP_DIR"
     INSTALL_BIN="$HOME/.local/bin"
     mkdir -p "$INSTALL_BIN"
@@ -60,9 +79,8 @@ fi
 
 # 4. Download and Install App Bundle (DMG)
 DMG_NAME="Cascade-v$VERSION-Universal.dmg"
-DMG_URL="https://github.com/brunobrise/cascade/releases/download/$TAG/$DMG_NAME"
 echo "⬇️  Downloading App installer: $DMG_NAME..."
-if curl -fL --progress-bar "$DMG_URL" -o "$TMP_DIR/$DMG_NAME"; then
+if download_asset "$DMG_NAME"; then
     MOUNT_DIR="$TMP_DIR/mount"
     mkdir -p "$MOUNT_DIR"
     echo "📂 Mounting disk image..."
