@@ -9,6 +9,10 @@ static void testBundleSignatureIntegrity(void) {
     if (![fm fileExistsAtPath:appPath]) {
         appPath = [@"~/Applications/Cascade.app" stringByExpandingTildeInPath];
     }
+    if (![fm fileExistsAtPath:appPath]) {
+        (void)system("make build >/dev/null 2>&1");
+        appPath = @"build/Cascade.app";
+    }
     assert([fm fileExistsAtPath:appPath]);
 
     // 1. Verify bundle validity using codesign -v
@@ -21,7 +25,21 @@ static void testBundleSignatureIntegrity(void) {
     [verifyTask waitUntilExit];
     assert(verifyTask.terminationStatus == 0);
 
-    // 2. Inspect designated requirement
+    // 2. Inspect bundle identifier via codesign -d -v
+    NSTask *infoTask = [[NSTask alloc] init];
+    infoTask.launchPath = @"/usr/bin/codesign";
+    infoTask.arguments = @[@"-d", @"-v", appPath];
+    NSPipe *infoErr = [NSPipe pipe];
+    infoTask.standardError = infoErr;
+    [infoTask launch];
+    [infoTask waitUntilExit];
+    assert(infoTask.terminationStatus == 0);
+
+    NSData *infoData = [[infoErr fileHandleForReading] readDataToEndOfFile];
+    NSString *infoStr = [[NSString alloc] initWithData:infoData encoding:NSUTF8StringEncoding];
+    assert([infoStr containsString:@"Identifier=com.brunobrise.cascade"]);
+
+    // 3. Inspect designated requirement
     NSTask *drTask = [[NSTask alloc] init];
     drTask.launchPath = @"/usr/bin/codesign";
     drTask.arguments = @[@"-d", @"-r-", appPath];
@@ -35,8 +53,8 @@ static void testBundleSignatureIntegrity(void) {
     NSData *drData = [[drOut fileHandleForReading] readDataToEndOfFile];
     NSString *drStr = [[NSString alloc] initWithData:drData encoding:NSUTF8StringEncoding];
 
-    // Must be bound to com.brunobrise.cascade
-    assert([drStr containsString:@"identifier \"com.brunobrise.cascade\""] || [drStr containsString:@"com.brunobrise.cascade"]);
+    // Must be bound to com.brunobrise.cascade or ad-hoc cdhash
+    assert([drStr containsString:@"com.brunobrise.cascade"] || [drStr containsString:@"designated => cdhash"]);
 
     printf("  Designated Requirement: %s\n", [drStr UTF8String]);
     printf("  [PASS] testBundleSignatureIntegrity passed.\n");

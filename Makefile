@@ -124,13 +124,13 @@ $(BUILD_DIR)/test_settings: tests/test_settings.m $(BUILD_DIR)/WindowLayoutGeome
 $(BUILD_DIR)/test_ignore: tests/test_ignore.m $(BUILD_DIR)/WindowLayoutGeometry.o $(BUILD_DIR)/IgnoreListWindowController.o $(BUILD_DIR)/SettingsWindowController.o $(BUILD_DIR)/AppOrderWindowController.o $(BUILD_DIR)/WindowEngine.o $(BUILD_DIR)/ScreenManager.o $(BUILD_DIR)/LoginItemManager.o $(BUILD_DIR)/WindowWatcher.o | $(BUILD_DIR)/.dir
 	$(CC) $(CFLAGS) $(LDFLAGS) tests/test_ignore.m $(BUILD_DIR)/WindowLayoutGeometry.o $(BUILD_DIR)/IgnoreListWindowController.o $(BUILD_DIR)/SettingsWindowController.o $(BUILD_DIR)/AppOrderWindowController.o $(BUILD_DIR)/WindowEngine.o $(BUILD_DIR)/ScreenManager.o $(BUILD_DIR)/LoginItemManager.o $(BUILD_DIR)/WindowWatcher.o -o $@
 
-$(BUILD_DIR)/test_icon_generator: tests/test_icon_generator.m | $(BUILD_DIR)/.dir
+$(BUILD_DIR)/test_icon_generator: tests/test_icon_generator.m resources/AppIcon.iconset | $(BUILD_DIR)/.dir
 	$(CC) $(CFLAGS) $(LDFLAGS) tests/test_icon_generator.m -o $@
 
-$(BUILD_DIR)/test_signing: tests/test_signing.m | $(BUILD_DIR)/.dir
+$(BUILD_DIR)/test_signing: tests/test_signing.m $(BUILD_DIR)/Cascade.app | $(BUILD_DIR)/.dir
 	$(CC) $(CFLAGS) $(LDFLAGS) tests/test_signing.m -o $@
 
-test: $(BUILD_DIR)/test_engine $(BUILD_DIR)/test_quad_edge $(BUILD_DIR)/test_login $(BUILD_DIR)/test_watcher $(BUILD_DIR)/test_app_order $(BUILD_DIR)/test_screen_manager $(BUILD_DIR)/test_settings $(BUILD_DIR)/test_ignore $(BUILD_DIR)/test_icon_generator $(BUILD_DIR)/test_signing
+test: build icon $(BUILD_DIR)/test_engine $(BUILD_DIR)/test_quad_edge $(BUILD_DIR)/test_login $(BUILD_DIR)/test_watcher $(BUILD_DIR)/test_app_order $(BUILD_DIR)/test_screen_manager $(BUILD_DIR)/test_settings $(BUILD_DIR)/test_ignore $(BUILD_DIR)/test_icon_generator $(BUILD_DIR)/test_signing
 	./$(BUILD_DIR)/test_engine
 	./$(BUILD_DIR)/test_quad_edge
 	./$(BUILD_DIR)/test_login
@@ -144,12 +144,15 @@ test: $(BUILD_DIR)/test_engine $(BUILD_DIR)/test_quad_edge $(BUILD_DIR)/test_log
 	python3 tests/test_semver.py
 
 # App Icon
-resources/AppIcon.icns: tools/generate_icon.m
+resources/AppIcon.iconset: tools/generate_icon.m
+	@mkdir -p resources
 	$(CC) -O2 -Wall -Wextra -fobjc-arc -framework Cocoa tools/generate_icon.m -o tools/generate_icon
 	./tools/generate_icon resources/AppIcon.iconset
+
+resources/AppIcon.icns: resources/AppIcon.iconset
 	iconutil -c icns resources/AppIcon.iconset -o $@
 
-icon: resources/AppIcon.icns
+icon: resources/AppIcon.iconset resources/AppIcon.icns
 
 # Code Signing Certificate Helper
 cert:

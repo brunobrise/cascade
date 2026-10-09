@@ -7,6 +7,9 @@ static void testIconSetIntegrity(void) {
     NSString *iconsetPath = @"resources/AppIcon.iconset";
 
     BOOL isDir = NO;
+    if (![fm fileExistsAtPath:iconsetPath isDirectory:&isDir] || !isDir) {
+        (void)system("make icon >/dev/null 2>&1");
+    }
     assert([fm fileExistsAtPath:iconsetPath isDirectory:&isDir] && isDir);
 
     struct ExpectedIcon {

@@ -24,6 +24,9 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Generate App Iconset & ICNS
+        run: make icon
+
       - name: Run Test Suites
         run: make test
 
