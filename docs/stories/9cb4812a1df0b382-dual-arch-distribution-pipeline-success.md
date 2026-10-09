@@ -70,4 +70,7 @@ Every release automatically compiles and publishes 8 assets:
 - Tested `cascade -v` on both `arm64` and `universal` binaries.
 - Verified DMG mounting, contents (`Cascade.app` and `/Applications` symlink), and unmounting.
 - All 11 unit test suites passed 100% (`make test`).
+- GitHub Actions workflow (`release.yml`) verified live on `macos-latest` runner (Run ID: `37950621276`), successfully building and publishing all 8 assets for release [`v0.23.2`](https://github.com/brunobrise/cascade/releases/tag/v0.23.2).
+- One-line installer [`install.sh`](file:///Users/bruno/Code/brunobrise/cascade/install.sh) tested end-to-end against the live GitHub Release, installing both CLI binary and application bundle.
 - All files strictly adhere to the $\le 420$ LOC limit.
+
