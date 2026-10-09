@@ -12,7 +12,7 @@ ifeq ($(SIGNING_IDENTITY),)
     SIGNING_IDENTITY := -
 endif
 
-.PHONY: all build clean test run run-cli apply watch stop restart status install uninstall login-enable login-disable login-status check-permissions open-permissions cert reset-permissions version hooks push-tags help
+.PHONY: all build clean dist package test run run-cli apply watch stop restart status install uninstall login-enable login-disable login-status check-permissions open-permissions cert reset-permissions version hooks push-tags help
 
 all: build
 
@@ -231,6 +231,11 @@ restart: stop run
 
 status:
 	@pgrep -x Cascade >/dev/null && echo "Cascade is running." || echo "Cascade is not running."
+
+dist: icon
+	@./tools/package.sh $(VERSION)
+
+package: dist
 
 clean:
 	rm -rf $(BUILD_DIR) tools/generate_icon

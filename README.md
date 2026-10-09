@@ -26,17 +26,27 @@ Native macOS window manager that maximizes application window size while guarant
 
 ## Quick Start
 
+### 1. One-Line Install (Apple Silicon & Intel)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/brunobrise/cascade/main/install.sh | bash
+```
+*Automatically detects CPU architecture, downloads the matching pre-built release, and installs both `cascade` CLI and `Cascade.app`.*
+
+### 2. Download Pre-built Installers (.dmg)
+
+Download native drag-and-drop installers and standalone CLI binaries from [GitHub Releases](https://github.com/brunobrise/cascade/releases/latest):
+- **Universal Installer (.dmg):** Works natively on all modern Macs (Apple Silicon & Intel)
+- **Architecture-Specific (.dmg & .tar.gz):** `arm64` (M1–M4) and `x86_64` (Intel)
+
+### 3. Build from Source
+
 Requires macOS 11.0+ and Xcode Command Line Tools (`xcode-select --install`).
 
 ```bash
-# 1. Provision persistent self-signed certificate (one-time setup)
-make cert
-
-# 2. Build and install CLI (~/.local/bin) and App (~/Applications)
-make install
-
-# 3. Grant Accessibility permission when prompted in System Settings
-make check-permissions
+make cert       # Provision persistent self-signed certificate (one-time setup)
+make install    # Build and install CLI (~/.local/bin) and App (~/Applications)
+make dist       # Build all dual-arch binaries, DMGs, and release packages
 ```
 
 Launch the menu bar app: `open -a ~/Applications/Cascade.app` (or `make run`).

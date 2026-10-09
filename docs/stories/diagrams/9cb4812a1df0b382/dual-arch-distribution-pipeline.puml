@@ -1,0 +1,46 @@
+@startuml dual-arch-distribution-pipeline
+skinparam backgroundColor white
+skinparam shadowing false
+skinparam roundcorner 8
+skinparam defaultFontName -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif
+
+title Cascade Dual-Architecture (Intel & Apple Silicon) Distribution Pipeline
+
+package "Compilation (Clang & Lipo)" {
+    [Source Files\n(Objective-C / Cocoa)] as SRC
+    [arm64 CLI & App\n(Apple Silicon M1-M4)] as ARM64 #E1F5FE
+    [x86_64 CLI & App\n(Intel 64-bit)] as X86 #FFF9C4
+    [Universal 2 Mach-O\n(Fat Binary: arm64 + x86_64)] as UNIV #E8F5E9
+
+    SRC -down-> ARM64 : clang -arch arm64
+    SRC -down-> X86 : clang -arch x86_64
+    ARM64 -down-> UNIV : lipo -create
+    X86 -down-> UNIV : lipo -create
+}
+
+package "Packaging & Verification (Native macOS)" {
+    [hdiutil Drag-and-Drop .dmg\n(Cascade-v0.22.2-Universal.dmg)] as DMG #FCE4EC
+    [Compressed Tarballs\n(cascade-*-darwin-*.tar.gz)] as TAR #EDE7F6
+    [SHA-256 Checksums\n(checksums.txt)] as SHASUM #F3E5F5
+
+    UNIV -down-> DMG : Bundle + /Applications symlink
+    UNIV -down-> TAR : CLI binary + docs
+    ARM64 -down-> TAR : Native arm64 archive
+    X86 -down-> TAR : Native x86_64 archive
+    DMG -down-> SHASUM
+    TAR -down-> SHASUM
+}
+
+package "Distribution Channels" {
+    [GitHub Releases\n(Assets & Release Notes)] as GH #E0F2F1
+    [curl install.sh | bash\n(Automated Arch Detection)] as CURL #FFF3E0
+    [GitHub Actions CI\n(.github/workflows/release.yml)] as GHA #F1F8E9
+
+    SHASUM -down-> GH : gh release create / action-gh-release
+    DMG -down-> GH
+    TAR -down-> GH
+    GH -down-> CURL : Direct binary / DMG stream
+    GHA -up-> GH : Triggers on git tag v*
+}
+
+@enduml
