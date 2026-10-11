@@ -68,6 +68,27 @@ typedef NS_ENUM(NSInteger, CascadeInstallOrigin) {
 + (void)checkForUpdatesForce:(BOOL)force
                   completion:(void (^)(BOOL updateAvailable, NSString *_Nullable latestVersion, NSString *_Nullable releaseURL, NSError *_Nullable error))completion;
 
+/// Returns GitHub Releases asset download URL for specified version and filename.
++ (NSString *)downloadURLForVersion:(NSString *)version assetName:(NSString *)assetName;
+
+/// Returns Universal DMG asset name for given version.
++ (NSString *)universalDmgAssetNameForVersion:(NSString *)version;
+
+/// Returns CLI tarball asset name for given version and architecture.
++ (NSString *)cliTarballAssetNameForVersion:(NSString *)version arch:(NSString *)arch;
+
+/// Generates the atomic bundle replacement shell script content.
++ (NSString *)generateSwapScriptWithOldPID:(pid_t)oldPid
+                                targetPath:(NSString *)targetPath
+                                 mountPath:(NSString *)mountPath
+                           signingIdentity:(NSString *)signingId
+                                   tempDir:(NSString *)tempDir;
+
+/// Asynchronously downloads and stages in-app update, then launches the detached swap helper and completes.
++ (void)downloadAndInstallUpdateVersion:(NSString *)targetVersion
+                               progress:(void (^)(NSString *statusMessage, double fraction))progressBlock
+                             completion:(void (^)(BOOL success, NSError * _Nullable error))completion;
+
 @end
 
 NS_ASSUME_NONNULL_END

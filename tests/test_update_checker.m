@@ -143,6 +143,38 @@ static void testGhCliDetection() {
     printf("  [PASS] gh CLI detection verified: %s\n", gh ? [gh UTF8String] : "none");
 }
 
+static void testUpdateAssetURLs() {
+    printf("Running testUpdateAssetURLs...\n");
+    NSString *dmgURL = [UpdateChecker downloadURLForVersion:@"0.25.1" assetName:@"Cascade-v0.25.1-Universal.dmg"];
+    assert([dmgURL isEqualToString:@"https://github.com/brunobrise/cascade/releases/download/v0.25.1/Cascade-v0.25.1-Universal.dmg"]);
+
+    NSString *dmgName = [UpdateChecker universalDmgAssetNameForVersion:@"0.25.1"];
+    assert([dmgName isEqualToString:@"Cascade-v0.25.1-Universal.dmg"]);
+
+    NSString *cliTarball = [UpdateChecker cliTarballAssetNameForVersion:@"0.25.1" arch:@"arm64"];
+    assert([cliTarball isEqualToString:@"cascade-v0.25.1-darwin-arm64.tar.gz"]);
+    printf("  [PASS] Update asset URL formatting verified.\n");
+}
+
+static void testUpdateSwapScript() {
+    printf("Running testUpdateSwapScript...\n");
+    NSString *script = [UpdateChecker generateSwapScriptWithOldPID:12345
+                                                        targetPath:@"/Applications/Cascade.app"
+                                                         mountPath:@"/tmp/cascade-mount-test"
+                                                   signingIdentity:@"Cascade Code Signing"
+                                                           tempDir:@"/tmp/cascade-test"];
+    assert(script != nil);
+    assert([script containsString:@"OLD_PID=12345"]);
+    assert([script containsString:@"kill -0 \"$OLD_PID\""]);
+    assert([script containsString:@"TARGET=\"/Applications/Cascade.app\""]);
+    assert([script containsString:@"BACKUP=\"${TARGET}.old\""]);
+    assert([script containsString:@"Cascade Code Signing"]);
+    assert([script containsString:@"xattr -cr"]);
+    assert([script containsString:@"hdiutil detach"]);
+    assert([script containsString:@"open \"$TARGET\""]);
+    printf("  [PASS] Atomic swap script structure verified.\n");
+}
+
 int main(void) {
     @autoreleasepool {
         printf("=== Running UpdateChecker Unit Tests ===\n");
@@ -151,6 +183,8 @@ int main(void) {
         testTTLAndThrottling();
         testInstallOriginDetection();
         testGhCliDetection();
+        testUpdateAssetURLs();
+        testUpdateSwapScript();
         printf("=== All UpdateChecker Tests Passed Successfully! ===\n");
     }
     return 0;

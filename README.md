@@ -23,6 +23,7 @@ Native macOS window manager that maximizes application window size while guarant
 - **Application Ignore List:** Exclude background utilities, menu bar apps, or specific tools from layouts.
 - **Menu Bar App & CLI:** Native macOS status bar item with global hotkey (`⌥⌘C`), native Settings panel, and scriptable CLI (`cascade`).
 - **Persistent Code-Signing:** Zero permission invalidation across rebuilds via persistent local keychain certificates.
+- **Seamless 1-Click Updates:** In-app atomic update installation with pre-flight DMG verification and automatic TCC code-signing preservation.
 
 ## Quick Start
 

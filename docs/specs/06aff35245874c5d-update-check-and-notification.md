@@ -97,6 +97,29 @@ The following sequence diagram illustrates the lifecycle of an update check acro
     To update, run: curl -fsSL https://raw.githubusercontent.com/brunobrise/cascade/main/install.sh | bash
     ```
 
+### 5. In-App 1-Click Update & Atomic Bundle Swap
+
+Users expect seamless single-click update installation without being forced to download DMGs manually or run terminal commands.
+
+![Update Installation Swap Flow](./diagrams/06aff35245874c5d/install-swap-flow.svg)
+
+*Figure 2: In-app 1-click update installation and atomic bundle replacement lifecycle.*
+
+- **Action Trigger:** The update alert presents `[Update Now]`, `[View Release]`, and `[Later]`.
+- **Pre-Flight Download & Verification:**
+  - Asset URL: `https://github.com/brunobrise/cascade/releases/download/v<version>/Cascade-v<version>-Universal.dmg`.
+  - Downloaded to temporary directory `/tmp/cascade-update-XXXXXX/Cascade.dmg`.
+  - Tested with `hdiutil attach -nobrowse -readonly` to verify disk image validity and bundle presence before terminating the running app.
+- **Detached Swap Helper (`update_helper.sh`):**
+  - Waits for current app PID to exit (`kill -0 $OLD_PID`).
+  - Creates backup (`Cascade.app.old`) to enable atomic rollback on copy failure.
+  - Replaces application bundle (`cp -R`).
+  - Re-signs bundle with local persistent certificate `Cascade Code Signing` (or ad-hoc `-` if missing) to preserve macOS TCC Accessibility trust across releases.
+  - Clears quarantine flags (`xattr -cr`).
+  - Unmounts disk image (`hdiutil detach -force`).
+  - Launches updated application via `open /Applications/Cascade.app`.
+  - If CLI binary `~/.local/bin/cascade` is present and CLI tarball is available, updates and re-signs CLI binary in sync.
+
 ## Acceptance Criteria
 
 - [ ] SemVer integer triple parsing correctly evaluates standard, prefixed (`vX.Y.Z`), and multi-digit versions (`0.23.10` > `0.23.4`).
@@ -105,4 +128,6 @@ The following sequence diagram illustrates the lifecycle of an update check acro
 - [ ] CLI update notices print strictly to `stderr` and only when `isatty(STDERR_FILENO)` is true.
 - [ ] Setting `CASCADE_NO_UPDATE_CHECK=1` or unchecking the preferences toggle completely inhibits background network queries.
 - [ ] Status bar menu and Settings window accurately reflect update status without UI thread lockup.
+- [ ] Update alert provides a direct `[Update Now]` action alongside `[View Release]` and `[Later]`.
+- [ ] In-app 1-click update downloads DMG, verifies mount, and performs atomic bundle swap with TCC code-signing preservation.
 - [ ] `install.sh` signs installed binaries with `Cascade Code Signing` when present, preserving Accessibility permissions across updates.

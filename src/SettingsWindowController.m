@@ -412,6 +412,59 @@ static NSButton *makeCheckbox(NSString *title, id target, SEL action, NSRect f) 
     [UpdateChecker setAutomaticCheckEnabled:(self.autoUpdateCheckbox.state == NSControlStateValueOn)];
 }
 
+- (void)installUpdateWithVersion:(NSString *)latestVersion {
+    NSPanel *hud = [[NSPanel alloc] initWithContentRect:NSMakeRect(0, 0, 360, 110)
+                                              styleMask:NSWindowStyleMaskTitled | NSWindowStyleMaskUtilityWindow
+                                                backing:NSBackingStoreBuffered
+                                                  defer:NO];
+    hud.title = @"Updating Cascade";
+    [hud center];
+    [hud makeKeyAndOrderFront:nil];
+    [NSApp activateIgnoringOtherApps:YES];
+
+    NSTextField *label = [[NSTextField alloc] initWithFrame:NSMakeRect(20, 55, 320, 22)];
+    label.stringValue = [NSString stringWithFormat:@"Downloading Cascade v%@...", latestVersion];
+    label.bezeled = NO;
+    label.drawsBackground = NO;
+    label.editable = NO;
+    label.selectable = NO;
+    label.font = [NSFont boldSystemFontOfSize:13];
+    [hud.contentView addSubview:label];
+
+    NSProgressIndicator *indicator = [[NSProgressIndicator alloc] initWithFrame:NSMakeRect(20, 25, 320, 20)];
+    indicator.indeterminate = YES;
+    indicator.style = NSProgressIndicatorStyleBar;
+    [indicator startAnimation:nil];
+    [hud.contentView addSubview:indicator];
+
+    [UpdateChecker downloadAndInstallUpdateVersion:latestVersion progress:^(NSString *statusMessage, double fraction) {
+        (void)fraction;
+        dispatch_async(dispatch_get_main_queue(), ^{
+            label.stringValue = statusMessage;
+        });
+    } completion:^(BOOL success, NSError *error) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [indicator stopAnimation:nil];
+            [hud close];
+            if (!success && error) {
+                NSAlert *errAlert = [[NSAlert alloc] init];
+                errAlert.alertStyle = NSAlertStyleCritical;
+                errAlert.messageText = @"Update Installation Failed";
+                errAlert.informativeText = [NSString stringWithFormat:@"Cascade could not complete the automatic update:\n%@\n\nWould you like to download the release manually?", error.localizedDescription ?: @"Unknown error"];
+                [errAlert addButtonWithTitle:@"View Release"];
+                [errAlert addButtonWithTitle:@"Cancel"];
+                if ([errAlert runModal] == NSAlertFirstButtonReturn) {
+                    CascadeUpdateState *st = [UpdateChecker loadStateFromPath:nil];
+                    NSString *url = st.releaseURL ?: @"https://github.com/brunobrise/cascade/releases/latest";
+                    [[NSWorkspace sharedWorkspace] openURL:[NSURL URLWithString:url]];
+                }
+            } else if (success) {
+                [NSApp terminate:nil];
+            }
+        });
+    }];
+}
+
 - (void)checkUpdatesNowClicked:(id)sender {
     (void)sender;
     self.checkUpdatesNowButton.enabled = NO;
@@ -427,7 +480,18 @@ static NSButton *makeCheckbox(NSString *title, id target, SEL action, NSRect f) 
             } else if (updateAvailable) {
                 self.updateStatusLabel.stringValue = [NSString stringWithFormat:@"Version %@ is available!", latestVersion];
                 self.updateStatusLabel.textColor = [NSColor systemGreenColor];
-                if (releaseURL) {
+
+                NSAlert *alert = [[NSAlert alloc] init];
+                alert.alertStyle = NSAlertStyleInformational;
+                alert.messageText = @"Update Available!";
+                alert.informativeText = [NSString stringWithFormat:@"A newer version of Cascade is available: v%@ (current: v%@).\n\nWould you like to update now?", latestVersion, [UpdateChecker currentVersion]];
+                [alert addButtonWithTitle:@"Update Now"];
+                [alert addButtonWithTitle:@"View Release"];
+                [alert addButtonWithTitle:@"Later"];
+                NSModalResponse resp = [alert runModal];
+                if (resp == NSAlertFirstButtonReturn) {
+                    [self installUpdateWithVersion:latestVersion];
+                } else if (resp == NSAlertSecondButtonReturn && releaseURL) {
                     [[NSWorkspace sharedWorkspace] openURL:[NSURL URLWithString:releaseURL]];
                 }
             } else {

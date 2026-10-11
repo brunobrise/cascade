@@ -1,4 +1,5 @@
 #import "UpdateChecker.h"
+#import <sys/stat.h>
 
 #ifndef CASCADE_VERSION
 #define CASCADE_VERSION "0.25.1"
@@ -366,6 +367,268 @@ static void invokeCompletion(void (^completion)(BOOL, NSString *, NSString *, NS
         NSError *err = [NSError errorWithDomain:@"CascadeUpdate" code:500
                                        userInfo:@{NSLocalizedDescriptionKey: @"Failed to fetch latest release via 'gh' CLI."}];
         invokeCompletion(completion, NO, nil, nil, err);
+    });
+}
+
++ (NSString *)downloadURLForVersion:(NSString *)version assetName:(NSString *)assetName {
+    NSString *cleanVer = [version stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+    if ([cleanVer hasPrefix:@"v"] || [cleanVer hasPrefix:@"V"]) {
+        cleanVer = [cleanVer substringFromIndex:1];
+    }
+    return [NSString stringWithFormat:@"https://github.com/brunobrise/cascade/releases/download/v%@/%@", cleanVer, assetName];
+}
+
++ (NSString *)universalDmgAssetNameForVersion:(NSString *)version {
+    NSString *cleanVer = [version stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+    if ([cleanVer hasPrefix:@"v"] || [cleanVer hasPrefix:@"V"]) {
+        cleanVer = [cleanVer substringFromIndex:1];
+    }
+    return [NSString stringWithFormat:@"Cascade-v%@-Universal.dmg", cleanVer];
+}
+
++ (NSString *)cliTarballAssetNameForVersion:(NSString *)version arch:(NSString *)arch {
+    NSString *cleanVer = [version stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+    if ([cleanVer hasPrefix:@"v"] || [cleanVer hasPrefix:@"V"]) {
+        cleanVer = [cleanVer substringFromIndex:1];
+    }
+    NSString *a = arch ?: @"darwin-arm64";
+    if (![a containsString:@"darwin-"]) {
+        a = [NSString stringWithFormat:@"darwin-%@", a];
+    }
+    return [NSString stringWithFormat:@"cascade-v%@-%@.tar.gz", cleanVer, a];
+}
+
++ (NSString *)findSigningIdentity {
+    NSTask *t = [[NSTask alloc] init];
+    t.launchPath = @"/usr/bin/security";
+    t.arguments = @[@"find-identity", @"-v", @"-p", @"codesigning"];
+    NSPipe *p = [NSPipe pipe];
+    t.standardOutput = p;
+    t.standardError = [NSPipe pipe];
+    @try {
+        [t launch];
+        [t waitUntilExit];
+        if (t.terminationStatus == 0) {
+            NSData *d = [p.fileHandleForReading readDataToEndOfFile];
+            NSString *outStr = [[NSString alloc] initWithData:d encoding:NSUTF8StringEncoding];
+            for (NSString *line in [outStr componentsSeparatedByCharactersInSet:[NSCharacterSet newlineCharacterSet]]) {
+                if ([line containsString:@"Cascade Code Signing"]) {
+                    return @"Cascade Code Signing";
+                }
+                if ([line containsString:@"Apple Development"]) {
+                    NSRange r1 = [line rangeOfString:@"\""];
+                    if (r1.location != NSNotFound) {
+                        NSString *sub = [line substringFromIndex:r1.location + 1];
+                        NSRange r2 = [sub rangeOfString:@"\""];
+                        if (r2.location != NSNotFound) {
+                            return [sub substringToIndex:r2.location];
+                        }
+                    }
+                }
+            }
+        }
+    } @catch (NSException *e) {
+        (void)e;
+    }
+    return @"-";
+}
+
++ (NSString *)generateSwapScriptWithOldPID:(pid_t)oldPid
+                                targetPath:(NSString *)targetPath
+                                 mountPath:(NSString *)mountPath
+                           signingIdentity:(NSString *)signingId
+                                   tempDir:(NSString *)tempDir {
+    NSString *ident = (signingId && signingId.length > 0) ? signingId : @"-";
+    NSMutableString *s = [NSMutableString string];
+    [s appendString:@"#!/bin/bash\n"];
+    [s appendString:@"exec > /tmp/cascade-update.log 2>&1\n"];
+    [s appendString:@"set -e\n\n"];
+    [s appendFormat:@"OLD_PID=%d\n", (int)oldPid];
+    [s appendFormat:@"TARGET=\"%@\"\n", targetPath];
+    [s appendFormat:@"MOUNT=\"%@\"\n", mountPath];
+    [s appendFormat:@"TMPDIR=\"%@\"\n", tempDir];
+    [s appendFormat:@"SIGN_ID=\"%@\"\n\n", ident];
+
+    [s appendString:@"# 1. Wait for old process to exit cleanly\n"];
+    [s appendString:@"for i in $(seq 1 60); do\n"];
+    [s appendString:@"    if ! kill -0 \"$OLD_PID\" 2>/dev/null; then break; fi\n"];
+    [s appendString:@"    sleep 0.1\n"];
+    [s appendString:@"done\n"];
+    [s appendString:@"kill -9 \"$OLD_PID\" 2>/dev/null || true\n\n"];
+
+    [s appendString:@"# 2. Atomic backup and replacement\n"];
+    [s appendString:@"BACKUP=\"${TARGET}.old\"\n"];
+    [s appendString:@"rm -rf \"$BACKUP\" 2>/dev/null || true\n"];
+    [s appendString:@"if [ -d \"$TARGET\" ]; then\n"];
+    [s appendString:@"    mv \"$TARGET\" \"$BACKUP\"\n"];
+    [s appendString:@"fi\n\n"];
+
+    [s appendString:@"if cp -R \"$MOUNT/Cascade.app\" \"$TARGET\"; then\n"];
+    [s appendString:@"    codesign --force -s \"$SIGN_ID\" \"$TARGET\" 2>/dev/null || true\n"];
+    [s appendString:@"    xattr -cr \"$TARGET\" 2>/dev/null || true\n"];
+    [s appendString:@"    rm -rf \"$BACKUP\" 2>/dev/null || true\n"];
+    [s appendString:@"else\n"];
+    [s appendString:@"    # Rollback on copy failure\n"];
+    [s appendString:@"    rm -rf \"$TARGET\" 2>/dev/null || true\n"];
+    [s appendString:@"    if [ -d \"$BACKUP\" ]; then mv \"$BACKUP\" \"$TARGET\"; fi\n"];
+    [s appendString:@"fi\n\n"];
+
+    [s appendString:@"# 3. Synchronize CLI binary if present in ~/.local/bin/cascade\n"];
+    [s appendString:@"CLI_BIN=\"$HOME/.local/bin/cascade\"\n"];
+    [s appendString:@"if [ -f \"$CLI_BIN\" ] && [ -f \"$TMPDIR/cascade\" ]; then\n"];
+    [s appendString:@"    cp \"$TMPDIR/cascade\" \"$CLI_BIN\"\n"];
+    [s appendString:@"    codesign --force -s \"$SIGN_ID\" \"$CLI_BIN\" 2>/dev/null || true\n"];
+    [s appendString:@"    xattr -cr \"$CLI_BIN\" 2>/dev/null || true\n"];
+    [s appendString:@"fi\n\n"];
+
+    [s appendString:@"# 4. Detach disk image and remove temporary staging\n"];
+    [s appendString:@"hdiutil detach \"$MOUNT\" -force 2>/dev/null || true\n"];
+    [s appendString:@"rm -rf \"$TMPDIR\" 2>/dev/null || true\n\n"];
+
+    [s appendString:@"# 5. Relaunch new application instance\n"];
+    [s appendString:@"open \"$TARGET\"\n"];
+    return s;
+}
+
++ (void)downloadAndInstallUpdateVersion:(NSString *)targetVersion
+                               progress:(void (^)(NSString *statusMessage, double fraction))progressBlock
+                             completion:(void (^)(BOOL success, NSError * _Nullable error))completion {
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        if (progressBlock) progressBlock(@"Preparing download...", 0.05);
+
+        NSString *cleanVer = [targetVersion stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+        if ([cleanVer hasPrefix:@"v"] || [cleanVer hasPrefix:@"V"]) {
+            cleanVer = [cleanVer substringFromIndex:1];
+        }
+
+        NSString *dmgName = [self universalDmgAssetNameForVersion:cleanVer];
+        NSString *dmgURLString = [self downloadURLForVersion:cleanVer assetName:dmgName];
+        NSURL *dmgURL = [NSURL URLWithString:dmgURLString];
+
+        NSString *tmpDir = [NSTemporaryDirectory() stringByAppendingPathComponent:[NSString stringWithFormat:@"cascade-update-%08x", arc4random()]];
+        [[NSFileManager defaultManager] createDirectoryAtPath:tmpDir withIntermediateDirectories:YES attributes:nil error:nil];
+
+        NSString *dmgDestPath = [tmpDir stringByAppendingPathComponent:dmgName];
+        NSString *mountDir = [tmpDir stringByAppendingPathComponent:@"mount"];
+        [[NSFileManager defaultManager] createDirectoryAtPath:mountDir withIntermediateDirectories:YES attributes:nil error:nil];
+
+        if (progressBlock) progressBlock(@"Downloading Cascade update...", 0.15);
+
+        NSURLSessionConfiguration *config = [NSURLSessionConfiguration defaultSessionConfiguration];
+        config.timeoutIntervalForRequest = 45.0;
+        config.timeoutIntervalForResource = 120.0;
+        NSURLSession *session = [NSURLSession sessionWithConfiguration:config];
+
+        NSURLSessionDownloadTask *task = [session downloadTaskWithURL:dmgURL completionHandler:^(NSURL *location, NSURLResponse *response, NSError *error) {
+            if (error || !location) {
+                [[NSFileManager defaultManager] removeItemAtPath:tmpDir error:nil];
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    if (completion) completion(NO, error ?: [NSError errorWithDomain:@"CascadeUpdate" code:501 userInfo:@{NSLocalizedDescriptionKey: @"Download failed"}]);
+                });
+                return;
+            }
+
+            NSHTTPURLResponse *httpResp = [response isKindOfClass:[NSHTTPURLResponse class]] ? (NSHTTPURLResponse *)response : nil;
+            if (httpResp && httpResp.statusCode != 200) {
+                [[NSFileManager defaultManager] removeItemAtPath:tmpDir error:nil];
+                NSString *msg = [NSString stringWithFormat:@"Server returned HTTP status %ld", (long)httpResp.statusCode];
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    if (completion) completion(NO, [NSError errorWithDomain:@"CascadeUpdate" code:httpResp.statusCode userInfo:@{NSLocalizedDescriptionKey: msg}]);
+                });
+                return;
+            }
+
+            [[NSFileManager defaultManager] removeItemAtPath:dmgDestPath error:nil];
+            NSError *moveErr = nil;
+            if (![[NSFileManager defaultManager] moveItemAtURL:location toURL:[NSURL fileURLWithPath:dmgDestPath] error:&moveErr]) {
+                [[NSFileManager defaultManager] removeItemAtPath:tmpDir error:nil];
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    if (completion) completion(NO, moveErr);
+                });
+                return;
+            }
+
+            if (progressBlock) progressBlock(@"Verifying installer image...", 0.60);
+
+            // Mount DMG
+            NSTask *mountTask = [[NSTask alloc] init];
+            mountTask.launchPath = @"/usr/bin/hdiutil";
+            mountTask.arguments = @[@"attach", @"-nobrowse", @"-readonly", @"-mountpoint", mountDir, dmgDestPath];
+            @try {
+                [mountTask launch];
+                [mountTask waitUntilExit];
+            } @catch (NSException *e) {
+                (void)e;
+            }
+
+            NSString *mountedApp = [mountDir stringByAppendingPathComponent:@"Cascade.app"];
+            NSString *mountedBinary = [mountedApp stringByAppendingPathComponent:@"Contents/MacOS/Cascade"];
+            if (mountTask.terminationStatus != 0 || ![[NSFileManager defaultManager] fileExistsAtPath:mountedBinary]) {
+                // Detach and fail
+                NSTask *unmountTask = [[NSTask alloc] init];
+                unmountTask.launchPath = @"/usr/bin/hdiutil";
+                unmountTask.arguments = @[@"detach", mountDir, @"-force"];
+                @try { [unmountTask launch]; [unmountTask waitUntilExit]; } @catch (NSException *e) { (void)e; }
+                [[NSFileManager defaultManager] removeItemAtPath:tmpDir error:nil];
+
+                NSError *verifyErr = [NSError errorWithDomain:@"CascadeUpdate" code:502
+                                                     userInfo:@{NSLocalizedDescriptionKey: @"Downloaded disk image could not be verified."}];
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    if (completion) completion(NO, verifyErr);
+                });
+                return;
+            }
+
+            // Determine target installation path
+            NSString *targetApp = [[NSBundle mainBundle] bundlePath];
+            if (!targetApp || ![targetApp hasSuffix:@".app"]) {
+                targetApp = @"/Applications/Cascade.app";
+            }
+
+            NSString *signingIdentity = [self findSigningIdentity];
+            pid_t currentPID = [[NSProcessInfo processInfo] processIdentifier];
+
+            NSString *scriptContent = [self generateSwapScriptWithOldPID:currentPID
+                                                              targetPath:targetApp
+                                                               mountPath:mountDir
+                                                         signingIdentity:signingIdentity
+                                                                 tempDir:tmpDir];
+
+            NSString *scriptPath = [tmpDir stringByAppendingPathComponent:@"finish_update.sh"];
+            NSError *writeErr = nil;
+            if (![scriptContent writeToFile:scriptPath atomically:YES encoding:NSUTF8StringEncoding error:&writeErr]) {
+                NSTask *unmountTask = [[NSTask alloc] init];
+                unmountTask.launchPath = @"/usr/bin/hdiutil";
+                unmountTask.arguments = @[@"detach", mountDir, @"-force"];
+                @try { [unmountTask launch]; [unmountTask waitUntilExit]; } @catch (NSException *e) { (void)e; }
+                [[NSFileManager defaultManager] removeItemAtPath:tmpDir error:nil];
+
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    if (completion) completion(NO, writeErr);
+                });
+                return;
+            }
+
+            // Make executable
+            chmod([scriptPath fileSystemRepresentation], 0755);
+
+            if (progressBlock) progressBlock(@"Restarting Cascade...", 0.95);
+
+            // Launch detached swap helper
+            NSTask *swapTask = [[NSTask alloc] init];
+            swapTask.launchPath = @"/bin/bash";
+            swapTask.arguments = @[scriptPath];
+            @try {
+                [swapTask launch];
+            } @catch (NSException *e) {
+                (void)e;
+            }
+
+            dispatch_async(dispatch_get_main_queue(), ^{
+                if (completion) completion(YES, nil);
+            });
+        }];
+        [task resume];
     });
 }
 

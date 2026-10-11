@@ -1,0 +1,70 @@
+@startuml install-swap-flow
+skinparam backgroundColor white
+skinparam defaultFontName -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif
+skinparam roundCorner 8
+skinparam shadowing false
+
+<style>
+sequenceDiagram {
+  participant {
+    BorderColor #24292F
+    BackgroundColor #F6F8FA
+    FontColor #24292F
+  }
+  arrow {
+    LineColor #0969DA
+    FontColor #24292F
+  }
+  lifeLine {
+    LineColor #0969DA
+    BackgroundColor #DDF4FF
+  }
+}
+</style>
+
+actor User as "User"
+participant BarApp as "Cascade.app\n(v0.25.0)"
+participant Engine as "UpdateChecker\n(Obj-C)"
+participant GitHub as "GitHub Releases\n(HTTPS CDN)"
+participant Helper as "update_helper.sh\n(/tmp/cascade-update)"
+participant macOS as "macOS System\n(TCC / Applications)"
+
+User -> BarApp : Click [Update Now]
+activate BarApp
+
+BarApp -> Engine : downloadAndInstallUpdateVersion("0.25.1")
+activate Engine
+
+Engine -> GitHub : GET Cascade-v0.25.1-Universal.dmg
+activate GitHub
+GitHub --> Engine : 200 OK (DMG payload)
+deactivate GitHub
+
+Engine -> macOS : hdiutil attach (verify mount)
+activate macOS
+macOS --> Engine : Mount success (/tmp/mount/Cascade.app)
+deactivate macOS
+
+Engine -> Helper : Write detached atomic swap script
+Engine -> Helper : Launch detached (OLD_PID, TARGET, MOUNT, SIGN_ID)
+activate Helper
+
+Engine --> BarApp : Prepared for swap
+deactivate Engine
+
+BarApp -> BarApp : [NSApp terminate:nil]
+deactivate BarApp
+
+Helper -> Helper : Wait for OLD_PID to exit
+Helper -> macOS : mv /Applications/Cascade.app /Applications/Cascade.app.old
+Helper -> macOS : cp -R /tmp/mount/Cascade.app /Applications/Cascade.app
+Helper -> macOS : codesign --force -s "Cascade Code Signing" /Applications/Cascade.app
+Helper -> macOS : xattr -cr /Applications/Cascade.app
+Helper -> macOS : hdiutil detach /tmp/mount -force
+Helper -> macOS : open /Applications/Cascade.app
+activate macOS
+macOS -> User : Launch Cascade v0.25.1 (TCC Accessibility Preserved)
+deactivate macOS
+deactivate Helper
+
+@enduml
