@@ -183,15 +183,27 @@ install: build
 	mkdir -p $(INSTALL_BIN)
 	cp $(BUILD_DIR)/cascade $(INSTALL_BIN)/cascade
 	codesign --force -s "$(SIGNING_IDENTITY)" $(INSTALL_BIN)/cascade
+	@pkill -x Cascade 2>/dev/null || true
+	@pkill -f "Cascade.app/Contents/MacOS/Cascade" 2>/dev/null || true
+	@sleep 0.2
 	mkdir -p $(INSTALL_APP)
 	rm -rf $(INSTALL_APP)/Cascade.app
 	cp -R $(BUILD_DIR)/Cascade.app $(INSTALL_APP)/Cascade.app
 	codesign --force --deep -s "$(SIGNING_IDENTITY)" $(INSTALL_APP)/Cascade.app
 	touch $(INSTALL_APP)/Cascade.app
+	@if [ -w /Applications ] && [ "/Applications" != "$(INSTALL_APP)" ]; then \
+		rm -rf /Applications/Cascade.app; \
+		cp -R $(BUILD_DIR)/Cascade.app /Applications/Cascade.app; \
+		codesign --force --deep -s "$(SIGNING_IDENTITY)" /Applications/Cascade.app; \
+		touch /Applications/Cascade.app; \
+		/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f -r /Applications/Cascade.app 2>/dev/null || true; \
+		echo "Installed Cascade.app to /Applications/Cascade.app"; \
+	fi
 	@/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f -r $(INSTALL_APP)/Cascade.app 2>/dev/null || true
 	@echo "Installed cascade to $(INSTALL_BIN)/cascade"
 	@echo "Installed Cascade.app to $(INSTALL_APP)/Cascade.app"
 	@echo "Signed with identity: $(SIGNING_IDENTITY)"
+	open $(shell [ -w /Applications ] && echo "/Applications/Cascade.app" || echo "$(INSTALL_APP)/Cascade.app")
 
 uninstall:
 	rm -f $(INSTALL_BIN)/cascade

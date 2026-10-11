@@ -193,31 +193,13 @@ static NSUserDefaults *screenDefaults(void) {
         return ptr ? @[ptr] : screens;
     }
 
-    // Match by screenUUID
+    // Match by screenUUID, displayID, name, or index string
     for (CascadeScreen *s in screens) {
-        if (s.screenUUID.length > 0 && [s.screenUUID isEqualToString:target]) {
-            return @[s];
-        }
-    }
-
-    // Match by displayID
-    for (CascadeScreen *s in screens) {
-        if (s.displayID.length > 0 && [s.displayID isEqualToString:target]) {
-            return @[s];
-        }
-    }
-
-    // Match by name
-    for (CascadeScreen *s in screens) {
-        if ([s.name localizedCaseInsensitiveCompare:target] == NSOrderedSame ||
-            [s.name localizedCaseInsensitiveContainsString:target]) {
-            return @[s];
-        }
-    }
-
-    // Match by index string
-    for (CascadeScreen *s in screens) {
-        if ([[NSString stringWithFormat:@"%ld", (long)s.index] isEqualToString:target]) {
+        if ((s.screenUUID.length > 0 && [s.screenUUID isEqualToString:target]) ||
+            (s.displayID.length > 0 && [s.displayID isEqualToString:target]) ||
+            [s.name localizedCaseInsensitiveCompare:target] == NSOrderedSame ||
+            [s.name localizedCaseInsensitiveContainsString:target] ||
+            [[NSString stringWithFormat:@"%ld", (long)s.index] isEqualToString:target]) {
             return @[s];
         }
     }
@@ -237,13 +219,24 @@ static NSUserDefaults *screenDefaults(void) {
     return (s >= 1 && s <= 4) ? s : 1;
 }
 
+static void syncScreenSplitKey(NSString *key, NSInteger split) {
+    if (!key || key.length == 0) return;
+    [[[NSUserDefaults alloc] initWithSuiteName:kScreenDomain] setInteger:split forKey:key];
+    [[[NSUserDefaults alloc] initWithSuiteName:kScreenDomain] synchronize];
+    NSUserDefaults *defs = [NSUserDefaults standardUserDefaults];
+    NSMutableDictionary *dom = [[defs persistentDomainForName:kScreenDomain] mutableCopy] ?: [NSMutableDictionary dictionary];
+    dom[key] = @(split);
+    [defs setPersistentDomain:dom forName:kScreenDomain];
+    [defs synchronize];
+}
+
 + (void)saveScreenSplit:(NSInteger)split {
     if (split < 1) split = 1;
     if (split > 4) split = 4;
-    NSUserDefaults *defaults = [[NSUserDefaults alloc] initWithSuiteName:kScreenDomain];
-    [defaults setInteger:split forKey:@"screenSplit"];
+    syncScreenSplitKey(@"screenSplit", split);
     for (CascadeScreen *s in [self availableScreens]) {
-        [self saveScreenSplit:split forScreen:s];
+        CGFloat r = (s.quartzFrame.size.height > 0) ? (s.quartzFrame.size.width / s.quartzFrame.size.height) : 1.0;
+        if (r >= 2.0) [self saveScreenSplit:split forScreen:s];
     }
 }
 
@@ -278,42 +271,43 @@ static NSUserDefaults *screenDefaults(void) {
     if (split < 1) split = 1;
     if (split > 4) split = 4;
     if (!screen) { [self saveScreenSplit:split]; return; }
-    NSUserDefaults *defaults = [[NSUserDefaults alloc] initWithSuiteName:kScreenDomain];
     if (screen.screenUUID.length > 0)
-        [defaults setInteger:split forKey:[@"screenSplit_uuid_" stringByAppendingString:screen.screenUUID]];
+        syncScreenSplitKey([@"screenSplit_uuid_" stringByAppendingString:screen.screenUUID], split);
     if (screen.displayID.length > 0)
-        [defaults setInteger:split forKey:[@"screenSplit_id_" stringByAppendingString:screen.displayID]];
+        syncScreenSplitKey([@"screenSplit_id_" stringByAppendingString:screen.displayID], split);
     if (screen.name.length > 0)
-        [defaults setInteger:split forKey:[@"screenSplit_name_" stringByAppendingString:screen.name]];
+        syncScreenSplitKey([@"screenSplit_name_" stringByAppendingString:screen.name], split);
 }
 
 + (void)saveScreenSplit:(NSInteger)split forScreenUUID:(NSString *)uuid {
     if (split < 1) split = 1;
     if (split > 4) split = 4;
     if (!uuid || uuid.length == 0 || [uuid localizedCaseInsensitiveCompare:@"all"] == NSOrderedSame) {
-        [self saveScreenSplit:split];
-        return;
+        [self saveScreenSplit:split]; return;
     }
-    [[[NSUserDefaults alloc] initWithSuiteName:kScreenDomain] setInteger:split forKey:[@"screenSplit_uuid_" stringByAppendingString:uuid]];
+    for (CascadeScreen *s in [self availableScreens]) {
+        if (s.screenUUID.length > 0 && [s.screenUUID isEqualToString:uuid]) {
+            [self saveScreenSplit:split forScreen:s]; return;
+        }
+    }
+    syncScreenSplitKey([@"screenSplit_uuid_" stringByAppendingString:uuid], split);
 }
 
 + (void)saveScreenSplit:(NSInteger)split forScreenName:(NSString *)name {
     if (split < 1) split = 1;
     if (split > 4) split = 4;
     if (!name || [name localizedCaseInsensitiveCompare:@"all"] == NSOrderedSame) {
-        [self saveScreenSplit:split];
-        return;
+        [self saveScreenSplit:split]; return;
     }
     for (CascadeScreen *s in [self availableScreens]) {
         if ([s.name localizedCaseInsensitiveCompare:name] == NSOrderedSame ||
+            [s.name localizedCaseInsensitiveContainsString:name] ||
             (s.screenUUID.length > 0 && [s.screenUUID isEqualToString:name]) ||
             (s.displayID.length > 0 && [s.displayID isEqualToString:name])) {
-            [self saveScreenSplit:split forScreen:s];
-            return;
+            [self saveScreenSplit:split forScreen:s]; return;
         }
     }
-    NSUserDefaults *defaults = [[NSUserDefaults alloc] initWithSuiteName:kScreenDomain];
-    [defaults setInteger:split forKey:[NSString stringWithFormat:@"screenSplit_name_%@", name]];
+    syncScreenSplitKey([NSString stringWithFormat:@"screenSplit_name_%@", name], split);
 }
 
 + (NSArray<CascadeScreen *> *)subscreensForScreen:(CascadeScreen *)screen splitCount:(NSInteger)k {
@@ -397,15 +391,11 @@ static NSUserDefaults *screenDefaults(void) {
         }
 
         if (hasEmpty && totalWins.count > 0) {
-            for (CascadeScreen *cs in colScreens) {
-                [dict[cs] removeAllObjects];
-            }
-            NSUInteger total = totalWins.count;
-            NSUInteger numCols = colScreens.count;
+            for (CascadeScreen *cs in colScreens) [dict[cs] removeAllObjects];
+            NSUInteger total = totalWins.count, numCols = colScreens.count;
             for (NSUInteger idx = 0; idx < total; idx++) {
                 NSUInteger colIdx = (total >= numCols) ? ((idx * numCols) / total) : idx;
-                CascadeScreen *targetCol = colScreens[colIdx];
-                [dict[targetCol] addObject:totalWins[idx]];
+                [dict[colScreens[colIdx]] addObject:totalWins[idx]];
             }
         }
     }
