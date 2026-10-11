@@ -25,11 +25,64 @@ echo "=================================================="
 echo " Cascade Installer (macOS $ARCH)"
 echo "=================================================="
 
-# Detect persistent code signing identity (matches Makefile)
-SIGNING_IDENTITY=$(security find-identity -v -p codesigning 2>/dev/null | grep -E "Cascade Code Signing|Apple Development" | head -1 | sed -E 's/.*"([^"]+)".*/\1/' || true)
-if [ -z "$SIGNING_IDENTITY" ]; then
-    SIGNING_IDENTITY="-"
-fi
+# Detect or auto-provision persistent code signing identity (preserves Accessibility permissions)
+ensure_signing_certificate() {
+    local identity
+    identity=$(security find-identity -v -p codesigning 2>/dev/null | grep -E "Cascade Code Signing|Apple Development" | head -1 | sed -E 's/.*"([^"]+)".*/\1/' || true)
+    if [ -n "$identity" ]; then
+        echo "$identity"
+        return 0
+    fi
+
+    echo "🔐 Setting up local persistent code-signing certificate ('Cascade Code Signing')..." >&2
+    local keychain="${HOME}/Library/Keychains/login.keychain-db"
+    [ ! -f "$keychain" ] && keychain="${HOME}/Library/Keychains/login.keychain"
+
+    if [ -f "$keychain" ] && command -v openssl >/dev/null 2>&1; then
+        local tmp_cert_dir
+        tmp_cert_dir=$(mktemp -d /tmp/cascade_cert_XXXXXX)
+        local key_file="${tmp_cert_dir}/cascade_key.pem"
+        local cert_file="${tmp_cert_dir}/cascade_cert.pem"
+        local p12_file="${tmp_cert_dir}/cascade_cert.p12"
+        local cnf_file="${tmp_cert_dir}/openssl.cnf"
+        local pass="cascade-local-signing"
+
+        cat > "${cnf_file}" << 'EOF'
+[req]
+distinguished_name = req_dn
+prompt = no
+x509_extensions = v3_ca
+
+[req_dn]
+CN = Cascade Code Signing
+O = Bruno BriSe Local Development
+C = FR
+
+[v3_ca]
+basicConstraints = critical, CA:TRUE
+keyUsage = critical, digitalSignature, keyCertSign, cRLSign
+extendedKeyUsage = critical, codeSigning
+EOF
+        openssl req -x509 -newkey rsa:2048 -nodes -keyout "${key_file}" -out "${cert_file}" -days 3650 -config "${cnf_file}" >/dev/null 2>&1 || true
+        openssl pkcs12 -export -inkey "${key_file}" -in "${cert_file}" -out "${p12_file}" -passout "pass:${pass}" -legacy >/dev/null 2>&1 || true
+        security import "${p12_file}" -k "${keychain}" -P "${pass}" -T /usr/bin/codesign >/dev/null 2>&1 || true
+        security add-trusted-cert -r trustRoot -p codeSign -k "${keychain}" "${cert_file}" >/dev/null 2>&1 || true
+        security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "" "${keychain}" >/dev/null 2>&1 || true
+        rm -rf "${tmp_cert_dir}"
+
+        identity=$(security find-identity -v -p codesigning 2>/dev/null | grep -E "Cascade Code Signing|Apple Development" | head -1 | sed -E 's/.*"([^"]+)".*/\1/' || true)
+        if [ -n "$identity" ]; then
+            echo "✅ Created persistent signing certificate: '$identity'" >&2
+            echo "$identity"
+            return 0
+        fi
+    fi
+
+    echo "⚠️  Could not auto-generate persistent cert. Falling back to ad-hoc signature." >&2
+    echo "-"
+}
+
+SIGNING_IDENTITY=$(ensure_signing_certificate)
 
 # 2. Determine Version
 VERSION="${CASCADE_VERSION:-}"
@@ -78,6 +131,7 @@ if download_asset "$CLI_TARBALL"; then
     cp "$TMP_DIR/cascade" "$INSTALL_BIN/cascade"
     chmod +x "$INSTALL_BIN/cascade"
     codesign --force -s "$SIGNING_IDENTITY" "$INSTALL_BIN/cascade" 2>/dev/null || true
+    xattr -cr "$INSTALL_BIN/cascade" 2>/dev/null || true
     echo "✅ Installed 'cascade' CLI to $INSTALL_BIN/cascade"
 else
     echo "⚠️  Could not download pre-built CLI tarball. Continuing with App installer..."
@@ -96,6 +150,10 @@ if download_asset "$DMG_NAME"; then
     if [ ! -w "$TARGET_APP_DIR" ]; then
         TARGET_APP_DIR="$HOME/Applications"
         mkdir -p "$TARGET_APP_DIR"
+        rm -rf "/Applications/Cascade.app" 2>/dev/null || true
+    else
+        # Remove legacy duplicate in user Applications to prevent TCC conflict
+        rm -rf "$HOME/Applications/Cascade.app" 2>/dev/null || true
     fi
 
     echo "🚀 Installing Cascade.app to $TARGET_APP_DIR..."
@@ -105,6 +163,8 @@ if download_asset "$DMG_NAME"; then
     hdiutil detach "$MOUNT_DIR" >/dev/null || true
 
     codesign --force --deep -s "$SIGNING_IDENTITY" "$TARGET_APP_DIR/Cascade.app" 2>/dev/null || true
+    xattr -cr "$TARGET_APP_DIR/Cascade.app" 2>/dev/null || true
+    /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f -r "$TARGET_APP_DIR/Cascade.app" 2>/dev/null || true
     echo "✅ Installed Cascade.app to $TARGET_APP_DIR/Cascade.app"
     echo "🔏 Signed with identity: $SIGNING_IDENTITY"
 else

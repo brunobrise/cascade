@@ -9,7 +9,12 @@ INSTALL_APP = $(HOME)/Applications
 # Persistent code signing identity detection (Cascade Code Signing or Apple Development)
 SIGNING_IDENTITY ?= $(shell security find-identity -v -p codesigning 2>/dev/null | grep -E "Cascade Code Signing|Apple Development" | head -1 | sed -E 's/.*"([^"]+)".*/\1/')
 ifeq ($(SIGNING_IDENTITY),)
-    SIGNING_IDENTITY := -
+    # Auto-provision local persistent certificate if missing
+    _INIT_CERT := $(shell ./tools/setup_signing_cert.sh >/dev/null 2>&1)
+    SIGNING_IDENTITY := $(shell security find-identity -v -p codesigning 2>/dev/null | grep -E "Cascade Code Signing|Apple Development" | head -1 | sed -E 's/.*"([^"]+)".*/\1/')
+    ifeq ($(SIGNING_IDENTITY),)
+        SIGNING_IDENTITY := -
+    endif
 endif
 
 .PHONY: all build clean dist package test run run-cli apply watch stop restart status install uninstall login-enable login-disable login-status check-permissions open-permissions cert reset-permissions version hooks push-tags help
@@ -183,27 +188,38 @@ install: build
 	mkdir -p $(INSTALL_BIN)
 	cp $(BUILD_DIR)/cascade $(INSTALL_BIN)/cascade
 	codesign --force -s "$(SIGNING_IDENTITY)" $(INSTALL_BIN)/cascade
+	xattr -cr $(INSTALL_BIN)/cascade 2>/dev/null || true
 	@pkill -x Cascade 2>/dev/null || true
 	@pkill -f "Cascade.app/Contents/MacOS/Cascade" 2>/dev/null || true
 	@sleep 0.2
-	mkdir -p $(INSTALL_APP)
-	rm -rf $(INSTALL_APP)/Cascade.app
-	cp -R $(BUILD_DIR)/Cascade.app $(INSTALL_APP)/Cascade.app
-	codesign --force --deep -s "$(SIGNING_IDENTITY)" $(INSTALL_APP)/Cascade.app
-	touch $(INSTALL_APP)/Cascade.app
-	@if [ -w /Applications ] && [ "/Applications" != "$(INSTALL_APP)" ]; then \
+	@if [ -w /Applications ]; then \
+		echo "Installing to canonical system directory /Applications/Cascade.app..."; \
+		rm -rf $(INSTALL_APP)/Cascade.app 2>/dev/null || true; \
 		rm -rf /Applications/Cascade.app; \
 		cp -R $(BUILD_DIR)/Cascade.app /Applications/Cascade.app; \
 		codesign --force --deep -s "$(SIGNING_IDENTITY)" /Applications/Cascade.app; \
+		xattr -cr /Applications/Cascade.app 2>/dev/null || true; \
 		touch /Applications/Cascade.app; \
 		/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f -r /Applications/Cascade.app 2>/dev/null || true; \
 		echo "Installed Cascade.app to /Applications/Cascade.app"; \
+		echo "Installed cascade to $(INSTALL_BIN)/cascade"; \
+		echo "Signed with identity: $(SIGNING_IDENTITY)"; \
+		open /Applications/Cascade.app; \
+	else \
+		echo "Installing to user directory $(INSTALL_APP)/Cascade.app..."; \
+		rm -rf /Applications/Cascade.app 2>/dev/null || true; \
+		mkdir -p $(INSTALL_APP); \
+		rm -rf $(INSTALL_APP)/Cascade.app; \
+		cp -R $(BUILD_DIR)/Cascade.app $(INSTALL_APP)/Cascade.app; \
+		codesign --force --deep -s "$(SIGNING_IDENTITY)" $(INSTALL_APP)/Cascade.app; \
+		xattr -cr $(INSTALL_APP)/Cascade.app 2>/dev/null || true; \
+		touch $(INSTALL_APP)/Cascade.app; \
+		/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f -r $(INSTALL_APP)/Cascade.app 2>/dev/null || true; \
+		echo "Installed Cascade.app to $(INSTALL_APP)/Cascade.app"; \
+		echo "Installed cascade to $(INSTALL_BIN)/cascade"; \
+		echo "Signed with identity: $(SIGNING_IDENTITY)"; \
+		open $(INSTALL_APP)/Cascade.app; \
 	fi
-	@/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f -r $(INSTALL_APP)/Cascade.app 2>/dev/null || true
-	@echo "Installed cascade to $(INSTALL_BIN)/cascade"
-	@echo "Installed Cascade.app to $(INSTALL_APP)/Cascade.app"
-	@echo "Signed with identity: $(SIGNING_IDENTITY)"
-	open $(shell [ -w /Applications ] && echo "/Applications/Cascade.app" || echo "$(INSTALL_APP)/Cascade.app")
 
 uninstall:
 	rm -f $(INSTALL_BIN)/cascade

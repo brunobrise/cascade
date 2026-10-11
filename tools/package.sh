@@ -7,8 +7,9 @@ DIST_DIR="$ROOT_DIR/build/dist"
 STAGING_DIR="$ROOT_DIR/build/dist_staging"
 
 SIGNING_IDENTITY="${SIGNING_IDENTITY:-$(security find-identity -v -p codesigning 2>/dev/null | grep -E "Cascade Code Signing|Apple Development" | head -1 | sed -E 's/.*"([^"]+)".*/\1/' || true)}"
-if [ -z "$SIGNING_IDENTITY" ]; then
-    SIGNING_IDENTITY="-"
+if [ -z "$SIGNING_IDENTITY" ] || [ "$SIGNING_IDENTITY" = "-" ]; then
+    "$ROOT_DIR/tools/setup_signing_cert.sh" >/dev/null 2>&1 || true
+    SIGNING_IDENTITY="$(security find-identity -v -p codesigning 2>/dev/null | grep -E "Cascade Code Signing|Apple Development" | head -1 | sed -E 's/.*"([^"]+)".*/\1/' || echo "-")"
 fi
 
 echo "=================================================="
