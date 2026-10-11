@@ -3,6 +3,24 @@
 #import "ScreenManager.h"
 #import "LoginItemManager.h"
 #import "WindowWatcher.h"
+#import "UpdateChecker.h"
+
+static void checkPassiveUpdateNotice(const char *prog) {
+    if (!isatty(STDERR_FILENO)) return;
+    if (getenv("CI") || getenv("CASCADE_NO_UPDATE_CHECK") || getenv("DO_NOT_TRACK")) return;
+    if (![UpdateChecker isAutomaticCheckEnabled]) return;
+
+    CascadeUpdateState *state = [UpdateChecker loadStateFromPath:nil];
+    NSString *curr = [UpdateChecker currentVersion];
+    if ([UpdateChecker shouldNotifyForState:state currentVersion:curr throttleInterval:86400.0]) {
+        CascadeInstallOrigin origin = [UpdateChecker detectInstallOriginForPath:[NSString stringWithUTF8String:prog]];
+        NSString *cmd = [UpdateChecker upgradeCommandForOrigin:origin];
+        fprintf(stderr, "\n💡 Cascade update available: %s -> %s\n   To update: %s\n",
+                [curr UTF8String], [state.latestVersion UTF8String], [cmd UTF8String]);
+        state.lastNotifiedTimestamp = [[NSDate date] timeIntervalSince1970];
+        [UpdateChecker saveState:state toPath:nil];
+    }
+}
 
 @interface CliWatcherDelegate : NSObject <WindowWatcherDelegate>
 @property (nonatomic, assign) CascadeOrderMode orderMode;
@@ -113,6 +131,7 @@ static void printHelp(const char *prog) {
            "  --start-at-login <op>      Enable, disable, or query login item ('enable'|'disable'|'status')\n"
            "  --only <apps>, --exclude <apps> Filter apps for this cascade run\n"
            "  --check-permissions, --open-permissions Accessibility diagnostic and setup\n"
+           "  --check-update             Check for new Cascade releases and exit\n"
            "  --version, -v, --help, -h  Display version or this help message\n", prog);
 }
 
@@ -135,6 +154,29 @@ int main(int argc, const char * argv[]) {
             else if ([arg isEqualToString:@"--watch"]) { doWatch = YES; }
             else if ([arg isEqualToString:@"--plan"]) { doApply = NO; }
             else if ([arg isEqualToString:@"--list"]) { doList = YES; }
+            else if ([arg isEqualToString:@"--check-update"]) {
+                printf("Checking for Cascade updates...\n");
+                dispatch_semaphore_t sem = dispatch_semaphore_create(0);
+                __block int exitCode = 0;
+                [UpdateChecker checkForUpdatesForce:YES completion:^(BOOL updateAvailable, NSString *latestVersion, NSString *releaseURL, NSError *error) {
+                    if (error) {
+                        fprintf(stderr, "Error checking for updates: %s\n", [error.localizedDescription UTF8String] ?: "Network error");
+                        exitCode = 1;
+                    } else if (updateAvailable) {
+                        NSString *currentVer = [UpdateChecker currentVersion];
+                        CascadeInstallOrigin origin = [UpdateChecker detectInstallOriginForPath:[NSString stringWithUTF8String:argv[0]]];
+                        NSString *cmd = [UpdateChecker upgradeCommandForOrigin:origin];
+                        printf("\n🚀 Cascade update available: %s -> %s\n", [currentVer UTF8String], [latestVersion UTF8String]);
+                        if (releaseURL) printf("Release notes: %s\n", [releaseURL UTF8String]);
+                        printf("To upgrade, run:\n  %s\n\n", [cmd UTF8String]);
+                    } else {
+                        printf("Cascade is up to date (current: v%s).\n", [[UpdateChecker currentVersion] UTF8String]);
+                    }
+                    dispatch_semaphore_signal(sem);
+                }];
+                dispatch_semaphore_wait(sem, dispatch_time(DISPATCH_TIME_NOW, (int64_t)(5.0 * NSEC_PER_SEC)));
+                return exitCode;
+            }
             else if ([arg isEqualToString:@"--list-screens"]) {
                 NSArray<CascadeScreen *> *screens = [ScreenManager availableScreens];
                 printf("Connected Displays (%lu):\n", (unsigned long)screens.count);
@@ -410,6 +452,8 @@ int main(int argc, const char * argv[]) {
             printf("Plan complete for %lu window(s). Run with '--apply' to execute layout.\n",
                    (unsigned long)totalPlanned);
         }
+
+        checkPassiveUpdateNotice(argv[0]);
     }
     return 0;
 }

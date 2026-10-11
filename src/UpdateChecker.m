@@ -180,27 +180,26 @@ willPerformHTTPRedirection:(NSHTTPURLResponse *)response
     }
 }
 
+static void invokeCompletion(void (^completion)(BOOL, NSString *, NSString *, NSError *),
+                             BOOL avail, NSString *ver, NSString *url, NSError *err) {
+    if (completion) {
+        completion(avail, ver, url, err);
+    }
+}
+
 + (void)checkForUpdatesForce:(BOOL)force
                   completion:(void (^)(BOOL updateAvailable, NSString *_Nullable latestVersion, NSString *_Nullable releaseURL, NSError *_Nullable error))completion {
     NSString *currVer = [self currentVersion];
     CascadeUpdateState *cached = [self loadStateFromPath:nil];
 
     if (!force && ![self isCacheStale:cached interval:86400.0]) {
-        if (completion) {
-            dispatch_async(dispatch_get_main_queue(), ^{
-                BOOL avail = cached.latestVersion ? [self isVersion:cached.latestVersion newerThan:currVer] : NO;
-                completion(avail, cached.latestVersion, cached.releaseURL, nil);
-            });
-        }
+        BOOL avail = cached.latestVersion ? [self isVersion:cached.latestVersion newerThan:currVer] : NO;
+        invokeCompletion(completion, avail, cached.latestVersion, cached.releaseURL, nil);
         return;
     }
 
     if (!force && ![self isAutomaticCheckEnabled]) {
-        if (completion) {
-            dispatch_async(dispatch_get_main_queue(), ^{
-                completion(NO, nil, nil, nil);
-            });
-        }
+        invokeCompletion(completion, NO, nil, nil, nil);
         return;
     }
 
@@ -241,12 +240,8 @@ willPerformHTTPRedirection:(NSHTTPURLResponse *)response
         newState.lastCheckedTimestamp = [[NSDate date] timeIntervalSince1970];
         [UpdateChecker saveState:newState toPath:nil];
 
-        if (completion) {
-            dispatch_async(dispatch_get_main_queue(), ^{
-                BOOL avail = [UpdateChecker isVersion:tag newerThan:currVer];
-                completion(avail, tag, redirectURL.absoluteString, nil);
-            });
-        }
+        BOOL avail = [UpdateChecker isVersion:tag newerThan:currVer];
+        invokeCompletion(completion, avail, tag, redirectURL.absoluteString, nil);
     };
 
     NSURLSessionConfiguration *config = [NSURLSessionConfiguration ephemeralSessionConfiguration];
@@ -262,11 +257,7 @@ willPerformHTTPRedirection:(NSHTTPURLResponse *)response
             return;
         }
 
-        if (completion) {
-            dispatch_async(dispatch_get_main_queue(), ^{
-                completion(NO, nil, nil, error);
-            });
-        }
+        invokeCompletion(completion, NO, nil, nil, error);
     }];
     [task resume];
 }
@@ -286,7 +277,7 @@ willPerformHTTPRedirection:(NSHTTPURLResponse *)response
     NSURLSessionDataTask *t = [[NSURLSession sharedSession] dataTaskWithRequest:req completionHandler:^(NSData *data, NSURLResponse *res, NSError *err) {
         (void)res;
         if (err || !data) {
-            if (completion) dispatch_async(dispatch_get_main_queue(), ^{ completion(NO, nil, nil, err); });
+            invokeCompletion(completion, NO, nil, nil, err);
             return;
         }
         NSDictionary *json = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
@@ -301,14 +292,10 @@ willPerformHTTPRedirection:(NSHTTPURLResponse *)response
             newState.lastCheckedTimestamp = [[NSDate date] timeIntervalSince1970];
             [UpdateChecker saveState:newState toPath:nil];
 
-            if (completion) {
-                dispatch_async(dispatch_get_main_queue(), ^{
-                    BOOL avail = [UpdateChecker isVersion:v newerThan:currVer];
-                    completion(avail, v, htmlURL, nil);
-                });
-            }
+            BOOL avail = [UpdateChecker isVersion:v newerThan:currVer];
+            invokeCompletion(completion, avail, v, htmlURL, nil);
         } else {
-            if (completion) dispatch_async(dispatch_get_main_queue(), ^{ completion(NO, nil, nil, nil); });
+            invokeCompletion(completion, NO, nil, nil, nil);
         }
     }];
     [t resume];
@@ -327,12 +314,12 @@ willPerformHTTPRedirection:(NSHTTPURLResponse *)response
             [task launch];
             [task waitUntilExit];
             if (task.terminationStatus != 0) {
-                if (completion) dispatch_async(dispatch_get_main_queue(), ^{ completion(NO, nil, nil, nil); });
+                invokeCompletion(completion, NO, nil, nil, nil);
                 return;
             }
         } @catch (NSException *e) {
             (void)e;
-            if (completion) dispatch_async(dispatch_get_main_queue(), ^{ completion(NO, nil, nil, nil); });
+            invokeCompletion(completion, NO, nil, nil, nil);
             return;
         }
 
@@ -359,12 +346,8 @@ willPerformHTTPRedirection:(NSHTTPURLResponse *)response
                     newState.lastCheckedTimestamp = [[NSDate date] timeIntervalSince1970];
                     [UpdateChecker saveState:newState toPath:nil];
 
-                    if (completion) {
-                        dispatch_async(dispatch_get_main_queue(), ^{
-                            BOOL avail = [UpdateChecker isVersion:v newerThan:currVer];
-                            completion(avail, v, url, nil);
-                        });
-                    }
+                    BOOL avail = [UpdateChecker isVersion:v newerThan:currVer];
+                    invokeCompletion(completion, avail, v, url, nil);
                     return;
                 }
             }
@@ -372,7 +355,7 @@ willPerformHTTPRedirection:(NSHTTPURLResponse *)response
             (void)e;
         }
 
-        if (completion) dispatch_async(dispatch_get_main_queue(), ^{ completion(NO, nil, nil, nil); });
+        invokeCompletion(completion, NO, nil, nil, nil);
     });
 }
 

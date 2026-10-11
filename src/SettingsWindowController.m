@@ -419,20 +419,22 @@ static NSButton *makeCheckbox(NSString *title, id target, SEL action, NSRect f) 
     self.updateStatusLabel.textColor = [NSColor secondaryLabelColor];
 
     [UpdateChecker checkForUpdatesForce:YES completion:^(BOOL updateAvailable, NSString *latestVersion, NSString *releaseURL, NSError *error) {
-        self.checkUpdatesNowButton.enabled = YES;
-        if (error) {
-            self.updateStatusLabel.stringValue = @"Check failed (network error)";
-            self.updateStatusLabel.textColor = [NSColor systemRedColor];
-        } else if (updateAvailable) {
-            self.updateStatusLabel.stringValue = [NSString stringWithFormat:@"Version %@ is available!", latestVersion];
-            self.updateStatusLabel.textColor = [NSColor systemGreenColor];
-            if (releaseURL) {
-                [[NSWorkspace sharedWorkspace] openURL:[NSURL URLWithString:releaseURL]];
+        dispatch_async(dispatch_get_main_queue(), ^{
+            self.checkUpdatesNowButton.enabled = YES;
+            if (error) {
+                self.updateStatusLabel.stringValue = @"Check failed (network error)";
+                self.updateStatusLabel.textColor = [NSColor systemRedColor];
+            } else if (updateAvailable) {
+                self.updateStatusLabel.stringValue = [NSString stringWithFormat:@"Version %@ is available!", latestVersion];
+                self.updateStatusLabel.textColor = [NSColor systemGreenColor];
+                if (releaseURL) {
+                    [[NSWorkspace sharedWorkspace] openURL:[NSURL URLWithString:releaseURL]];
+                }
+            } else {
+                self.updateStatusLabel.stringValue = [NSString stringWithFormat:@"Cascade v%@ is up to date", [UpdateChecker currentVersion]];
+                self.updateStatusLabel.textColor = [NSColor secondaryLabelColor];
             }
-        } else {
-            self.updateStatusLabel.stringValue = [NSString stringWithFormat:@"Cascade v%@ is up to date", [UpdateChecker currentVersion]];
-            self.updateStatusLabel.textColor = [NSColor secondaryLabelColor];
-        }
+        });
     }];
 }
 

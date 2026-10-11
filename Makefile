@@ -98,8 +98,8 @@ $(BUILD_DIR)/UpdateChecker.o: src/UpdateChecker.m src/UpdateChecker.h | $(BUILD_
 	$(CC) $(CFLAGS) -c src/UpdateChecker.m -o $@
 
 # CLI binary
-$(BUILD_DIR)/cascade: src/main_cli.m $(BUILD_DIR)/WindowLayoutGeometry.o $(BUILD_DIR)/WindowEngine.o $(BUILD_DIR)/ScreenManager.o $(BUILD_DIR)/LoginItemManager.o $(BUILD_DIR)/WindowWatcher.o $(wildcard VERSION) | $(BUILD_DIR)/.dir
-	$(CC) $(CFLAGS) $(LDFLAGS) src/main_cli.m $(BUILD_DIR)/WindowLayoutGeometry.o $(BUILD_DIR)/WindowEngine.o $(BUILD_DIR)/ScreenManager.o $(BUILD_DIR)/LoginItemManager.o $(BUILD_DIR)/WindowWatcher.o -o $@
+$(BUILD_DIR)/cascade: src/main_cli.m $(BUILD_DIR)/WindowLayoutGeometry.o $(BUILD_DIR)/WindowEngine.o $(BUILD_DIR)/ScreenManager.o $(BUILD_DIR)/LoginItemManager.o $(BUILD_DIR)/WindowWatcher.o $(BUILD_DIR)/UpdateChecker.o $(wildcard VERSION) | $(BUILD_DIR)/.dir
+	$(CC) $(CFLAGS) $(LDFLAGS) src/main_cli.m $(BUILD_DIR)/WindowLayoutGeometry.o $(BUILD_DIR)/WindowEngine.o $(BUILD_DIR)/ScreenManager.o $(BUILD_DIR)/LoginItemManager.o $(BUILD_DIR)/WindowWatcher.o $(BUILD_DIR)/UpdateChecker.o -o $@
 	codesign --force -s "$(SIGNING_IDENTITY)" $@
 
 # Test binaries

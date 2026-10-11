@@ -214,29 +214,31 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
     (void)sender;
     [NSApp activateIgnoringOtherApps:YES];
     [UpdateChecker checkForUpdatesForce:YES completion:^(BOOL updateAvailable, NSString *latestVersion, NSString *releaseURL, NSError *error) {
-        NSAlert *alert = [[NSAlert alloc] init];
-        alert.alertStyle = NSAlertStyleInformational;
-        if (error) {
-            alert.messageText = @"Update Check Failed";
-            alert.informativeText = [NSString stringWithFormat:@"Could not check for updates: %@", error.localizedDescription ?: @"Network error"];
-            [alert addButtonWithTitle:@"OK"];
-        } else if (updateAvailable) {
-            alert.messageText = @"Update Available!";
-            alert.informativeText = [NSString stringWithFormat:@"A newer version of Cascade is available: v%@ (current: v%@).\n\nWould you like to view the release?", latestVersion, [UpdateChecker currentVersion]];
-            [alert addButtonWithTitle:@"View Release"];
-            [alert addButtonWithTitle:@"Later"];
-            NSModalResponse resp = [alert runModal];
-            if (resp == NSAlertFirstButtonReturn && releaseURL) {
-                [[NSWorkspace sharedWorkspace] openURL:[NSURL URLWithString:releaseURL]];
+        dispatch_async(dispatch_get_main_queue(), ^{
+            NSAlert *alert = [[NSAlert alloc] init];
+            alert.alertStyle = NSAlertStyleInformational;
+            if (error) {
+                alert.messageText = @"Update Check Failed";
+                alert.informativeText = [NSString stringWithFormat:@"Could not check for updates: %@", error.localizedDescription ?: @"Network error"];
+                [alert addButtonWithTitle:@"OK"];
+            } else if (updateAvailable) {
+                alert.messageText = @"Update Available!";
+                alert.informativeText = [NSString stringWithFormat:@"A newer version of Cascade is available: v%@ (current: v%@).\n\nWould you like to view the release?", latestVersion, [UpdateChecker currentVersion]];
+                [alert addButtonWithTitle:@"View Release"];
+                [alert addButtonWithTitle:@"Later"];
+                NSModalResponse resp = [alert runModal];
+                if (resp == NSAlertFirstButtonReturn && releaseURL) {
+                    [[NSWorkspace sharedWorkspace] openURL:[NSURL URLWithString:releaseURL]];
+                }
+                [self rebuildMenu];
+                return;
+            } else {
+                alert.messageText = @"You're Up to Date!";
+                alert.informativeText = [NSString stringWithFormat:@"Cascade v%@ is currently the newest version available.", [UpdateChecker currentVersion]];
+                [alert addButtonWithTitle:@"OK"];
             }
-            [self rebuildMenu];
-            return;
-        } else {
-            alert.messageText = @"You're Up to Date!";
-            alert.informativeText = [NSString stringWithFormat:@"Cascade v%@ is currently the newest version available.", [UpdateChecker currentVersion]];
-            [alert addButtonWithTitle:@"OK"];
-        }
-        [alert runModal];
+            [alert runModal];
+        });
     }];
 }
 
