@@ -204,7 +204,9 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
     [UpdateChecker checkForUpdatesForce:NO completion:^(BOOL updateAvailable, NSString *latestVersion, NSString *releaseURL, NSError *error) {
         (void)latestVersion; (void)releaseURL; (void)error;
         if (updateAvailable) {
-            [self rebuildMenu];
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [self rebuildMenu];
+            });
         }
     }];
 }
@@ -277,6 +279,7 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
 - (void)menuWillOpen:(NSMenu *)menu {
     (void)menu;
     [self checkPermissionsChange];
+    [self rebuildMenu];
 }
 
 - (void)setScreenTargetValue:(NSString *)target {
