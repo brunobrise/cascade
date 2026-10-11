@@ -1,7 +1,7 @@
 #import "UpdateChecker.h"
 
 #ifndef CASCADE_VERSION
-#define CASCADE_VERSION "0.24.0"
+#define CASCADE_VERSION "0.25.0"
 #endif
 
 @implementation CascadeUpdateState
