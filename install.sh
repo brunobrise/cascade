@@ -27,6 +27,11 @@ echo "=================================================="
 
 # Detect or auto-provision persistent code signing identity (preserves Accessibility permissions)
 ensure_signing_certificate() {
+    if [ -n "${CI:-}" ] || [ -n "${GITHUB_ACTIONS:-}" ]; then
+        echo "-"
+        return 0
+    fi
+
     local identity
     identity=$(security find-identity -v -p codesigning 2>/dev/null | grep -E "Cascade Code Signing|Apple Development" | head -1 | sed -E 's/.*"([^"]+)".*/\1/' || true)
     if [ -n "$identity" ]; then

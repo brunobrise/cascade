@@ -6,11 +6,14 @@ VERSION="${1:-$(cat "$ROOT_DIR/VERSION" 2>/dev/null || echo "0.22.2")}"
 DIST_DIR="$ROOT_DIR/build/dist"
 STAGING_DIR="$ROOT_DIR/build/dist_staging"
 
-SIGNING_IDENTITY="${SIGNING_IDENTITY:-$(security find-identity -v -p codesigning 2>/dev/null | grep -E "Cascade Code Signing|Apple Development" | head -1 | sed -E 's/.*"([^"]+)".*/\1/' || true)}"
-if [ -z "$SIGNING_IDENTITY" ] || [ "$SIGNING_IDENTITY" = "-" ]; then
-    "$ROOT_DIR/tools/setup_signing_cert.sh" >/dev/null 2>&1 || true
-    SIGNING_IDENTITY="$(security find-identity -v -p codesigning 2>/dev/null | grep -E "Cascade Code Signing|Apple Development" | head -1 | sed -E 's/.*"([^"]+)".*/\1/' || echo "-")"
+if [ -z "${CI:-}" ] && [ -z "${GITHUB_ACTIONS:-}" ]; then
+    SIGNING_IDENTITY="${SIGNING_IDENTITY:-$(security find-identity -v -p codesigning 2>/dev/null | grep -E "Cascade Code Signing|Apple Development" | head -1 | sed -E 's/.*"([^"]+)".*/\1/' || true)}"
+    if [ -z "$SIGNING_IDENTITY" ] || [ "$SIGNING_IDENTITY" = "-" ]; then
+        "$ROOT_DIR/tools/setup_signing_cert.sh" >/dev/null 2>&1 || true
+        SIGNING_IDENTITY="$(security find-identity -v -p codesigning 2>/dev/null | grep -E "Cascade Code Signing|Apple Development" | head -1 | sed -E 's/.*"([^"]+)".*/\1/' || echo "-")"
+    fi
 fi
+[ -z "${SIGNING_IDENTITY:-}" ] && SIGNING_IDENTITY="-"
 
 echo "=================================================="
 echo " Packaging Cascade v$VERSION"

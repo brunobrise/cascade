@@ -7,14 +7,18 @@ INSTALL_BIN = $(HOME)/.local/bin
 INSTALL_APP = $(HOME)/Applications
 
 # Persistent code signing identity detection (Cascade Code Signing or Apple Development)
+ifeq ($(CI),)
+ifeq ($(GITHUB_ACTIONS),)
 SIGNING_IDENTITY ?= $(shell security find-identity -v -p codesigning 2>/dev/null | grep -E "Cascade Code Signing|Apple Development" | head -1 | sed -E 's/.*"([^"]+)".*/\1/')
 ifeq ($(SIGNING_IDENTITY),)
     # Auto-provision local persistent certificate if missing
     _INIT_CERT := $(shell ./tools/setup_signing_cert.sh >/dev/null 2>&1)
     SIGNING_IDENTITY := $(shell security find-identity -v -p codesigning 2>/dev/null | grep -E "Cascade Code Signing|Apple Development" | head -1 | sed -E 's/.*"([^"]+)".*/\1/')
-    ifeq ($(SIGNING_IDENTITY),)
-        SIGNING_IDENTITY := -
-    endif
+endif
+endif
+endif
+ifeq ($(SIGNING_IDENTITY),)
+    SIGNING_IDENTITY := -
 endif
 
 .PHONY: all build clean dist package test run run-cli apply watch stop restart status install uninstall login-enable login-disable login-status check-permissions open-permissions cert reset-permissions version hooks push-tags help

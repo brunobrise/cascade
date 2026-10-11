@@ -76,6 +76,13 @@ static void testPersistentIdentityRequirement(void) {
     NSData *drData = [[drOut fileHandleForReading] readDataToEndOfFile];
     NSString *drStr = [[NSString alloc] initWithData:drData encoding:NSUTF8StringEncoding];
 
+    char *ciEnv = getenv("CI");
+    if (!ciEnv) ciEnv = getenv("GITHUB_ACTIONS");
+    if (ciEnv && (strcmp(ciEnv, "true") == 0 || strcmp(ciEnv, "1") == 0)) {
+        printf("  [SKIP] CI environment active (builds signed ad-hoc on ephemeral runners).\n");
+        return;
+    }
+
     // Check if system has a persistent identity available
     NSTask *idTask = [[NSTask alloc] init];
     idTask.launchPath = @"/usr/bin/security";

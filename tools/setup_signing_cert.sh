@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+if [ -n "${CI:-}" ] || [ -n "${GITHUB_ACTIONS:-}" ]; then
+    echo "CI environment detected. Skipping local keychain certificate generation."
+    exit 0
+fi
+
 CERT_NAME="Cascade Code Signing"
 KEYCHAIN="${HOME}/Library/Keychains/login.keychain-db"
 
