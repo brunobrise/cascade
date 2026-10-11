@@ -12,6 +12,7 @@ title: Documentation Index
 | [Persistent Code Signing Spec](./specs/01a0fc7ed70771c2-persistent-code-signing-and-tcc.md) | Spec | Defines persistent local code signing, Designated Requirement anchoring, and TCC permission continuity across rebuilds. |
 | [Window Order Persistence Spec](./specs/f449f0cfe05f4db0-window-order-persistence.md) | Spec | Defines window sequence serialization, startup matching, deterministic tie-breaking, and test isolation. |
 | [Multi-Screen Support Spec](./specs/ab844179246d4c2d-multi-screen-support.md) | Spec | Defines Cocoa-to-Quartz coordinate inversion, window-to-screen partitioning, and display target selection. |
+| [Update Check and Notification Spec](./specs/06aff35245874c5d-update-check-and-notification.md) | Spec | Defines zero-cost HEAD redirect release checking, 24h cache throttling, non-intrusive UI/CLI alerts, and TCC cert preservation. |
 | [Invariant Cascade Success Story](./stories/01a0f7ec7c122619-invariant-cascade-success.md) | Story (success) | Captures context, validation metrics, test results, and reusable engineering patterns for the invariant cascade layout. |
 | [Order Preservation Success Story](./stories/01a0f7ec7c122619-order-preservation-success.md) | Story (success) | Demonstrates stable window ordering and size-only adjustment across open, resize, minimize, and close events. |
 | [Preferred App Order Success Story](./stories/01a0f7ec7c122619-preferred-app-order-success.md) | Story (success) | Details user-configurable application priority ordering by name across GUI and CLI interfaces. |

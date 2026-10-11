@@ -1,0 +1,54 @@
+@startuml
+skinparam backgroundColor white
+skinparam defaultFontName Helvetica
+skinparam shadowing false
+skinparam RoundCorner 8
+
+skinparam sequence {
+  ArrowColor #0066CC
+  ActorBorderColor #333333
+  LifeLineBorderColor #888888
+  LifeLineBackgroundColor #FAFAFA
+  ParticipantBorderColor #333333
+  ParticipantBackgroundColor #E8F0FE
+  ParticipantFontColor #111111
+  BoxBorderColor #CCCCCC
+  BoxBackgroundColor #F9F9F9
+}
+
+participant "User / CLI / Hotkey" as User
+participant "Cascade Process\n(App or CLI)" as Cascade
+participant "UpdateChecker\nEngine" as Checker
+database "Local Cache\n(update_state.json)" as Cache
+boundary "GitHub Releases\n(Web / API)" as GitHub
+
+== 1. Cache & Throttle Evaluation ==
+User -> Cascade : Trigger command or launch app
+Cascade -> Checker : checkUpdate(isInteractive)
+Checker -> Cache : Read cached state
+Cache --> Checker : { last_checked, latest_ver, notified_epoch }
+
+alt Cache Fresh (< 24h)
+    Checker --> Cascade : Return cached latest version (0ms delay)
+else Cache Stale (>= 24h)
+    == 2. Zero-Cost Version Resolution ==
+    Checker -> GitHub : HTTP HEAD /releases/latest (or gh auth view)
+    GitHub --> Checker : HTTP 302 Location: .../tag/vX.Y.Z
+    Checker -> Checker : Parse integer triple (major.minor.patch)
+    Checker -> Cache : Atomically save state & reset TTL
+    Checker --> Cascade : Return resolution result
+end
+
+== 3. Context-Aware Non-Intrusive Notification ==
+alt Cascade.app (GUI Mode)
+    alt Update Available
+        Cascade -> Cascade : Add menu item "✨ Update Available (vX.Y.Z)"
+        Cascade -> Cascade : Highlight in Settings Preferences
+    end
+else cascade (CLI Mode)
+    alt Update Available & isatty(STDERR) & Not Notified in 24h
+        Cascade -> User : Print notice to stderr (Never stdout)
+        Cascade -> Cache : Update last_notified_epoch
+    end
+end
+@enduml
