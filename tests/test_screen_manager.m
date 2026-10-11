@@ -357,10 +357,20 @@ static void testPerScreenSplitPersistence() {
     [ScreenManager saveScreenSplit:-5 forScreen:s1];
     assert([ScreenManager screenSplitForScreen:s1] == 1);
 
+    // Verify ultrawide ratio (32:9) returns 1 when 1 is explicitly saved
+    CascadeScreen *sUW = [[CascadeScreen alloc] init];
+    sUW.name = @"Ultrawide 32:9";
+    sUW.screenUUID = @"UW-UUID-TEST-123";
+    sUW.quartzFrame = CGRectMake(0, 0, 5120, 1440);
+    [ScreenManager saveScreenSplit:1 forScreen:sUW];
+    assert([ScreenManager screenSplitForScreen:sUW] == 1);
+
     // Clean up test keys
     NSUserDefaults *defs = [[NSUserDefaults alloc] initWithSuiteName:@"com.brunobrise.cascade"];
     [defs removeObjectForKey:[@"screenSplit_uuid_" stringByAppendingString:u1]];
     [defs removeObjectForKey:[@"screenSplit_uuid_" stringByAppendingString:u2]];
+    [defs removeObjectForKey:@"screenSplit_uuid_UW-UUID-TEST-123"];
+    [defs removeObjectForKey:@"screenSplit_name_Ultrawide 32:9"];
     [defs removeObjectForKey:@"screenSplit_id_mock_id_1"];
     [defs removeObjectForKey:@"screenSplit_id_mock_id_2"];
     [defs removeObjectForKey:@"screenSplit_name_Mock Ultrawide Display"];

@@ -238,7 +238,7 @@ static NSButton *makeCheckbox(NSString *title, id target, SEL action, NSRect f) 
         [self.displayColumnsPopup addItemWithTitle:title];
         self.displayColumnsPopup.lastItem.representedObject = s;
     }
-    if (self.displayColumnsPopup.numberOfItems > 0 && !self.displayColumnsPopup.selectedItem) {
+    if (self.displayColumnsPopup.numberOfItems > 0) {
         NSInteger defIdx = 0;
         for (NSInteger i = 0; i < self.displayColumnsPopup.numberOfItems; i++) {
             CascadeScreen *cs = self.displayColumnsPopup.itemArray[i].representedObject;

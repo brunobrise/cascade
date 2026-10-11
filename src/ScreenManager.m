@@ -212,22 +212,31 @@ static NSUserDefaults *screenDefaults(void) {
     return [self screensMatchingTarget:target inScreens:[self availableScreens]];
 }
 
++ (NSUserDefaults *)sharedDefaults {
+    static NSUserDefaults *d = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        d = [[NSUserDefaults alloc] initWithSuiteName:kScreenDomain] ?: [NSUserDefaults standardUserDefaults];
+    });
+    return d;
+}
+
 + (NSInteger)savedScreenSplit {
-    NSUserDefaults *defaults = [[NSUserDefaults alloc] initWithSuiteName:kScreenDomain];
-    id val = [defaults objectForKey:@"screenSplit"];
+    id val = [[self sharedDefaults] objectForKey:@"screenSplit"];
     NSInteger s = val ? [val integerValue] : 1;
     return (s >= 1 && s <= 4) ? s : 1;
 }
 
 static void syncScreenSplitKey(NSString *key, NSInteger split) {
     if (!key || key.length == 0) return;
-    [[[NSUserDefaults alloc] initWithSuiteName:kScreenDomain] setInteger:split forKey:key];
-    [[[NSUserDefaults alloc] initWithSuiteName:kScreenDomain] synchronize];
-    NSUserDefaults *defs = [NSUserDefaults standardUserDefaults];
-    NSMutableDictionary *dom = [[defs persistentDomainForName:kScreenDomain] mutableCopy] ?: [NSMutableDictionary dictionary];
-    dom[key] = @(split);
-    [defs setPersistentDomain:dom forName:kScreenDomain];
+    NSUserDefaults *defs = [ScreenManager sharedDefaults];
+    [defs setInteger:split forKey:key];
     [defs synchronize];
+    NSUserDefaults *defsStd = [NSUserDefaults standardUserDefaults];
+    NSMutableDictionary *dom = [[defsStd persistentDomainForName:kScreenDomain] mutableCopy] ?: [NSMutableDictionary dictionary];
+    dom[key] = @(split);
+    [defsStd setPersistentDomain:dom forName:kScreenDomain];
+    [defsStd synchronize];
 }
 
 + (void)saveScreenSplit:(NSInteger)split {
@@ -242,22 +251,20 @@ static void syncScreenSplitKey(NSString *key, NSInteger split) {
 
 + (NSInteger)screenSplitForScreen:(CascadeScreen *)screen {
     if (!screen) return [self savedScreenSplit];
-    NSUserDefaults *defaults = [[NSUserDefaults alloc] initWithSuiteName:kScreenDomain];
-    NSArray<NSString *> *keys = @[
-        screen.screenUUID.length > 0 ? [@"screenSplit_uuid_" stringByAppendingString:screen.screenUUID] : @"",
-        screen.displayID.length > 0 ? [@"screenSplit_id_" stringByAppendingString:screen.displayID] : @"",
-        screen.name.length > 0 ? [@"screenSplit_name_" stringByAppendingString:screen.name] : @""
-    ];
-    for (NSString *k in keys) {
-        if (k.length == 0) continue;
-        id val = [defaults objectForKey:k];
-        if (val) {
-            NSInteger s = [val integerValue];
-            return (s >= 1 && s <= 4) ? s : 1;
-        }
+    NSUserDefaults *defaults = [self sharedDefaults];
+    if (screen.screenUUID.length > 0) {
+        id val = [defaults objectForKey:[@"screenSplit_uuid_" stringByAppendingString:screen.screenUUID]];
+        if (val) { NSInteger s = [val integerValue]; return (s >= 1 && s <= 4) ? s : 1; }
     }
-    NSInteger saved = [self savedScreenSplit];
-    if (saved > 1) return saved;
+    if (screen.name.length > 0) {
+        id val = [defaults objectForKey:[@"screenSplit_name_" stringByAppendingString:screen.name]];
+        if (val) { NSInteger s = [val integerValue]; return (s >= 1 && s <= 4) ? s : 1; }
+    }
+    id globalVal = [defaults objectForKey:@"screenSplit"];
+    if (globalVal) {
+        NSInteger s = [globalVal integerValue];
+        return (s >= 1 && s <= 4) ? s : 1;
+    }
     CGFloat w = screen.quartzFrame.size.width, h = screen.quartzFrame.size.height;
     if (h > 0) {
         CGFloat r = w / h;
@@ -273,10 +280,12 @@ static void syncScreenSplitKey(NSString *key, NSInteger split) {
     if (!screen) { [self saveScreenSplit:split]; return; }
     if (screen.screenUUID.length > 0)
         syncScreenSplitKey([@"screenSplit_uuid_" stringByAppendingString:screen.screenUUID], split);
-    if (screen.displayID.length > 0)
-        syncScreenSplitKey([@"screenSplit_id_" stringByAppendingString:screen.displayID], split);
     if (screen.name.length > 0)
         syncScreenSplitKey([@"screenSplit_name_" stringByAppendingString:screen.name], split);
+    NSString *tgt = [self savedScreenTarget];
+    if (screen.isPrimary || !tgt || [tgt localizedCaseInsensitiveCompare:@"all"] == NSOrderedSame) {
+        syncScreenSplitKey(@"screenSplit", split);
+    }
 }
 
 + (void)saveScreenSplit:(NSInteger)split forScreenUUID:(NSString *)uuid {
@@ -302,8 +311,7 @@ static void syncScreenSplitKey(NSString *key, NSInteger split) {
     for (CascadeScreen *s in [self availableScreens]) {
         if ([s.name localizedCaseInsensitiveCompare:name] == NSOrderedSame ||
             [s.name localizedCaseInsensitiveContainsString:name] ||
-            (s.screenUUID.length > 0 && [s.screenUUID isEqualToString:name]) ||
-            (s.displayID.length > 0 && [s.displayID isEqualToString:name])) {
+            (s.screenUUID.length > 0 && [s.screenUUID isEqualToString:name])) {
             [self saveScreenSplit:split forScreen:s]; return;
         }
     }
