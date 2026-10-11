@@ -25,6 +25,12 @@ echo "=================================================="
 echo " Cascade Installer (macOS $ARCH)"
 echo "=================================================="
 
+# Detect persistent code signing identity (matches Makefile)
+SIGNING_IDENTITY=$(security find-identity -v -p codesigning 2>/dev/null | grep -E "Cascade Code Signing|Apple Development" | head -1 | sed -E 's/.*"([^"]+)".*/\1/' || true)
+if [ -z "$SIGNING_IDENTITY" ]; then
+    SIGNING_IDENTITY="-"
+fi
+
 # 2. Determine Version
 VERSION="${CASCADE_VERSION:-}"
 if [ -z "$VERSION" ]; then
@@ -71,7 +77,7 @@ if download_asset "$CLI_TARBALL"; then
     mkdir -p "$INSTALL_BIN"
     cp "$TMP_DIR/cascade" "$INSTALL_BIN/cascade"
     chmod +x "$INSTALL_BIN/cascade"
-    codesign --force -s - "$INSTALL_BIN/cascade" 2>/dev/null || true
+    codesign --force -s "$SIGNING_IDENTITY" "$INSTALL_BIN/cascade" 2>/dev/null || true
     echo "✅ Installed 'cascade' CLI to $INSTALL_BIN/cascade"
 else
     echo "⚠️  Could not download pre-built CLI tarball. Continuing with App installer..."
@@ -98,8 +104,9 @@ if download_asset "$DMG_NAME"; then
     cp -R "$MOUNT_DIR/Cascade.app" "$TARGET_APP_DIR/Cascade.app"
     hdiutil detach "$MOUNT_DIR" >/dev/null || true
 
-    codesign --force --deep -s - "$TARGET_APP_DIR/Cascade.app" 2>/dev/null || true
+    codesign --force --deep -s "$SIGNING_IDENTITY" "$TARGET_APP_DIR/Cascade.app" 2>/dev/null || true
     echo "✅ Installed Cascade.app to $TARGET_APP_DIR/Cascade.app"
+    echo "🔏 Signed with identity: $SIGNING_IDENTITY"
 else
     echo "⚠️  Could not download DMG directly from GitHub."
 fi
