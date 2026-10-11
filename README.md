@@ -57,7 +57,7 @@ Launch the menu bar app: `open -a ~/Applications/Cascade.app` (or `make run`).
 
 - **Hotkey:** Press `Option + Command + C` (`⌥⌘C`) to cascade the monitor under your mouse cursor.
 - **Menu Bar Icon:** Click to cascade current display, cascade all displays, toggle **Auto-Rearrange**, or open **Settings** (`⌘,`).
-- **Settings Modal:** Configure Layout Style (Diagonal / Quad-Edge), Window Order, Column Splits, Margin (Delta), Ignore List, and Launch at Login.
+- **Settings Modal:** Configure Layout Style (Diagonal / Quad-Edge), Window Order, Column Splits, Margin (Delta), Ignore List, Launch at Login, and Software Updates.
 
 ### Command-Line Interface (`cascade`)
 
@@ -71,6 +71,7 @@ Launch the menu bar app: `open -a ~/Applications/Cascade.app` (or `make run`).
 | **Application filter** | `cascade --only "Cursor,Google Chrome" --apply` |
 | **Ignore list** | `cascade --set-ignore "Slack,Spotify"` *(or `--get-ignore`)* |
 | **Watch mode** | `cascade --watch` *(continuous auto-rearrange on window open/close)* |
+| **Check for updates** | `cascade --check-update` |
 | **Save defaults** | `cascade --set-layout quad-edge && cascade --set-split 2` |
 | **View preferences** | `cascade --get-preferences` |
 
