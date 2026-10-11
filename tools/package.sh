@@ -23,7 +23,7 @@ mkdir -p "$STAGING_DIR/bin/arm64" "$STAGING_DIR/bin/x86_64" "$STAGING_DIR/bin/un
 mkdir -p "$STAGING_DIR/app/arm64" "$STAGING_DIR/app/x86_64" "$STAGING_DIR/app/universal"
 
 FRAMEWORKS="-framework Cocoa -framework ApplicationServices -framework Carbon -framework ServiceManagement"
-CORE_SOURCES="$ROOT_DIR/src/WindowLayoutGeometry.m $ROOT_DIR/src/WindowEngine.m $ROOT_DIR/src/ScreenManager.m $ROOT_DIR/src/LoginItemManager.m $ROOT_DIR/src/WindowWatcher.m"
+CORE_SOURCES="$ROOT_DIR/src/WindowLayoutGeometry.m $ROOT_DIR/src/WindowEngine.m $ROOT_DIR/src/ScreenManager.m $ROOT_DIR/src/LoginItemManager.m $ROOT_DIR/src/WindowWatcher.m $ROOT_DIR/src/UpdateChecker.m"
 BAR_SOURCES="$CORE_SOURCES $ROOT_DIR/src/AppOrderWindowController.m $ROOT_DIR/src/IgnoreListWindowController.m $ROOT_DIR/src/SettingsWindowController.m $ROOT_DIR/src/main_bar.m"
 CLI_SOURCES="$CORE_SOURCES $ROOT_DIR/src/main_cli.m"
 

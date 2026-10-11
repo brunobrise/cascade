@@ -6,6 +6,7 @@
 #import "WindowWatcher.h"
 #import "AppOrderWindowController.h"
 #import "SettingsWindowController.h"
+#import "UpdateChecker.h"
 
 @interface CascadeBarApp : NSObject <NSApplicationDelegate, WindowWatcherDelegate, NSMenuDelegate, SettingsWindowDelegate>
 @property (nonatomic, strong) NSStatusItem *statusItem;
@@ -97,6 +98,12 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
         NSArray<CascadeWindow *> *wins = [CascadeEngine collectStandardWindowsWithOnly:nil exclude:[CascadeEngine ignoredApps]];
         if (wins.count > 0) self.establishedOrder = [CascadeEngine matchWindows:wins withSavedDescriptors:savedOrder];
     }
+
+    // Schedule background update check (delayed 10s after launch for zero startup overhead)
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(10.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        [self runBackgroundUpdateCheck];
+    });
+    [NSTimer scheduledTimerWithTimeInterval:86400.0 target:self selector:@selector(runBackgroundUpdateCheck) userInfo:nil repeats:YES];
 }
 
 - (void)rebuildMenu {
@@ -106,6 +113,15 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
         [menu addItem:makeItem(@"⚠️ Grant Accessibility Permission...", self, @selector(openAccessibilitySettings:), NSControlStateValueOff)];
         [menu addItem:[NSMenuItem separatorItem]];
     }
+
+    CascadeUpdateState *updateState = [UpdateChecker loadStateFromPath:nil];
+    if (updateState && [UpdateChecker isVersion:updateState.latestVersion newerThan:[UpdateChecker currentVersion]]) {
+        NSString *title = [NSString stringWithFormat:@"✨ Update Available: v%@...", updateState.latestVersion];
+        NSMenuItem *updateItem = makeItem(title, self, @selector(openReleasePage:), NSControlStateValueOff);
+        [menu addItem:updateItem];
+        [menu addItem:[NSMenuItem separatorItem]];
+    }
+
     NSMenuItem *cascadeItem = makeItem(@"Cascade Windows", self, @selector(performCascade:), NSControlStateValueOff);
     cascadeItem.keyEquivalent = @"c";
     cascadeItem.keyEquivalentModifierMask = NSEventModifierFlagOption | NSEventModifierFlagCommand;
@@ -122,6 +138,9 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
     settingsItem.keyEquivalent = @",";
     settingsItem.keyEquivalentModifierMask = NSEventModifierFlagCommand;
     [menu addItem:settingsItem];
+
+    NSMenuItem *checkUpdatesItem = makeItem(@"Check for Updates...", self, @selector(checkForUpdatesMenuAction:), NSControlStateValueOff);
+    [menu addItem:checkUpdatesItem];
     [menu addItem:[NSMenuItem separatorItem]];
 
     NSMenuItem *quitItem = makeItem(@"Quit Cascade", self, @selector(quitCascade:), NSControlStateValueOff);
@@ -180,6 +199,53 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
 }
 
 - (void)openAccessibilitySettings:(id)s { (void)s; [CascadeEngine openAccessibilitySettings]; }
+
+- (void)runBackgroundUpdateCheck {
+    if (![UpdateChecker isAutomaticCheckEnabled]) return;
+    [UpdateChecker checkForUpdatesForce:NO completion:^(BOOL updateAvailable, NSString *latestVersion, NSString *releaseURL, NSError *error) {
+        (void)latestVersion; (void)releaseURL; (void)error;
+        if (updateAvailable) {
+            [self rebuildMenu];
+        }
+    }];
+}
+
+- (void)checkForUpdatesMenuAction:(id)sender {
+    (void)sender;
+    [NSApp activateIgnoringOtherApps:YES];
+    [UpdateChecker checkForUpdatesForce:YES completion:^(BOOL updateAvailable, NSString *latestVersion, NSString *releaseURL, NSError *error) {
+        NSAlert *alert = [[NSAlert alloc] init];
+        alert.alertStyle = NSAlertStyleInformational;
+        if (error) {
+            alert.messageText = @"Update Check Failed";
+            alert.informativeText = [NSString stringWithFormat:@"Could not check for updates: %@", error.localizedDescription ?: @"Network error"];
+            [alert addButtonWithTitle:@"OK"];
+        } else if (updateAvailable) {
+            alert.messageText = @"Update Available!";
+            alert.informativeText = [NSString stringWithFormat:@"A newer version of Cascade is available: v%@ (current: v%@).\n\nWould you like to view the release?", latestVersion, [UpdateChecker currentVersion]];
+            [alert addButtonWithTitle:@"View Release"];
+            [alert addButtonWithTitle:@"Later"];
+            NSModalResponse resp = [alert runModal];
+            if (resp == NSAlertFirstButtonReturn && releaseURL) {
+                [[NSWorkspace sharedWorkspace] openURL:[NSURL URLWithString:releaseURL]];
+            }
+            [self rebuildMenu];
+            return;
+        } else {
+            alert.messageText = @"You're Up to Date!";
+            alert.informativeText = [NSString stringWithFormat:@"Cascade v%@ is currently the newest version available.", [UpdateChecker currentVersion]];
+            [alert addButtonWithTitle:@"OK"];
+        }
+        [alert runModal];
+    }];
+}
+
+- (void)openReleasePage:(id)sender {
+    (void)sender;
+    CascadeUpdateState *updateState = [UpdateChecker loadStateFromPath:nil];
+    NSString *url = updateState.releaseURL ?: @"https://github.com/brunobrise/cascade/releases/latest";
+    [[NSWorkspace sharedWorkspace] openURL:[NSURL URLWithString:url]];
+}
 
 - (void)quitCascade:(id)s { (void)s; [NSApp terminate:nil]; }
 - (void)terminate:(id)s { [self quitCascade:s]; }
