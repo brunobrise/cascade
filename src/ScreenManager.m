@@ -242,6 +242,9 @@ static NSUserDefaults *screenDefaults(void) {
     if (split > 4) split = 4;
     NSUserDefaults *defaults = [[NSUserDefaults alloc] initWithSuiteName:kScreenDomain];
     [defaults setInteger:split forKey:@"screenSplit"];
+    for (CascadeScreen *s in [self availableScreens]) {
+        [self saveScreenSplit:split forScreen:s];
+    }
 }
 
 + (NSInteger)screenSplitForScreen:(CascadeScreen *)screen {
@@ -260,7 +263,15 @@ static NSUserDefaults *screenDefaults(void) {
             return (s >= 1 && s <= 4) ? s : 1;
         }
     }
-    return [self savedScreenSplit];
+    NSInteger saved = [self savedScreenSplit];
+    if (saved > 1) return saved;
+    CGFloat w = screen.quartzFrame.size.width, h = screen.quartzFrame.size.height;
+    if (h > 0) {
+        CGFloat r = w / h;
+        if (r >= 2.8) return 3;
+        if (r >= 2.0) return 2;
+    }
+    return 1;
 }
 
 + (void)saveScreenSplit:(NSInteger)split forScreen:(CascadeScreen *)screen {
@@ -326,8 +337,9 @@ static NSUserDefaults *screenDefaults(void) {
         CGFloat w = (i == k - 1) ? (qf.size.width - (CGFloat)(k - 1) * colW) : colW;
         cs.quartzVisibleFrame = CGRectMake(x, qf.origin.y, w, qf.size.height);
         cs.quartzFrame = CGRectMake(x, qfTotal.origin.y, w, qfTotal.size.height);
-        cs.cocoaFrame = cs.quartzFrame;
-        cs.cocoaVisibleFrame = cs.quartzVisibleFrame;
+        CGFloat cx = screen.cocoaFrame.origin.x + (CGFloat)i * colW;
+        cs.cocoaFrame = CGRectMake(cx, screen.cocoaFrame.origin.y, w, screen.cocoaFrame.size.height);
+        cs.cocoaVisibleFrame = CGRectMake(cx, screen.cocoaVisibleFrame.origin.y, w, screen.cocoaVisibleFrame.size.height);
         [subs addObject:cs];
     }
     return subs;
@@ -384,14 +396,14 @@ static NSUserDefaults *screenDefaults(void) {
             [totalWins addObjectsFromArray:wList];
         }
 
-        if (hasEmpty && totalWins.count >= colScreens.count) {
+        if (hasEmpty && totalWins.count > 0) {
             for (CascadeScreen *cs in colScreens) {
                 [dict[cs] removeAllObjects];
             }
             NSUInteger total = totalWins.count;
             NSUInteger numCols = colScreens.count;
             for (NSUInteger idx = 0; idx < total; idx++) {
-                NSUInteger colIdx = (idx * numCols) / total;
+                NSUInteger colIdx = (total >= numCols) ? ((idx * numCols) / total) : idx;
                 CascadeScreen *targetCol = colScreens[colIdx];
                 [dict[targetCol] addObject:totalWins[idx]];
             }

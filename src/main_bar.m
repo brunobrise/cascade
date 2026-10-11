@@ -234,8 +234,14 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
     NSArray<CascadeScreen *> *allScreens = [ScreenManager availableScreens];
     if (targetScreens.count == 0) targetScreens = allScreens;
 
-    NSArray<CascadeScreen *> *expandedScreens = [ScreenManager expandScreensWithSplits:targetScreens];
-    NSArray<CascadeScreen *> *allExpandedScreens = [ScreenManager expandScreensWithSplits:allScreens];
+    NSMutableArray<CascadeScreen *> *allExpandedScreens = [NSMutableArray array], *expandedScreens = [NSMutableArray array];
+    for (CascadeScreen *s in allScreens) {
+        BOOL isTarget = [targetScreens containsObject:s];
+        NSInteger k = [ScreenManager screenSplitForScreen:s];
+        NSArray<CascadeScreen *> *subs = (k > 1) ? [ScreenManager subscreensForScreen:s splitCount:k] : @[s];
+        [allExpandedScreens addObjectsFromArray:subs];
+        if (isTarget) [expandedScreens addObjectsFromArray:subs];
+    }
     NSDictionary<CascadeScreen *, NSArray<CascadeWindow *> *> *partition = [ScreenManager partitionWindows:allWindows intoScreens:allExpandedScreens];
     NSMutableArray<CascadeWindow *> *allPlanned = [NSMutableArray array];
 
@@ -297,8 +303,16 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
 - (void)performCascade:(id)sender {
     (void)sender;
     if (![self ensureAccessibility]) return;
-    CascadeScreen *ptr = [ScreenManager screenForPointer];
-    NSArray *targets = ptr ? @[ptr] : [ScreenManager availableScreens];
+    NSString *tgt = self.targetScreen ?: [ScreenManager savedScreenTarget];
+    NSArray *all = [ScreenManager availableScreens];
+    NSArray *targets = nil;
+    if ([tgt localizedCaseInsensitiveCompare:@"pointer"] == NSOrderedSame ||
+        [tgt localizedCaseInsensitiveCompare:@"active"] == NSOrderedSame) {
+        CascadeScreen *ptr = [ScreenManager screenForPointer];
+        targets = ptr ? @[ptr] : all;
+    } else {
+        targets = [ScreenManager screensMatchingTarget:tgt inScreens:all];
+    }
     [self.watcher refreshObservers];
     [self.watcher performWithoutTriggering:^{
         [self cascadeWindowsOnScreens:targets restack:self.restackZOrder preserveOrder:NO];

@@ -314,6 +314,17 @@ static void testWindowPartitioningAcrossColumns() {
     assert([p3[cols[0]] count] == 2);
     assert([p3[cols[1]] count] == 2);
 
+    // M < K (2 windows on 3 columns) rebalancing test
+    NSArray<CascadeScreen *> *cols3 = [ScreenManager subscreensForScreen:s splitCount:3];
+    CascadeWindow *wx1 = [[CascadeWindow alloc] init];
+    wx1.currentFrame = CGRectMake(100, 100, 400, 400);
+    CascadeWindow *wx2 = [[CascadeWindow alloc] init];
+    wx2.currentFrame = CGRectMake(120, 120, 400, 400);
+    NSDictionary *p4 = [ScreenManager partitionWindows:@[wx1, wx2] intoScreens:cols3];
+    assert([p4[cols3[0]] count] == 1);
+    assert([p4[cols3[1]] count] == 1);
+    assert([p4[cols3[2]] count] == 0);
+
     printf("  [PASS] Window partitioning and column rebalancing verified.\n");
 }
 
@@ -323,9 +334,9 @@ static void testPerScreenSplitPersistence() {
     NSString *u2 = @"37D8832A-2D66-02CA-B9F7-8F30A301B230";
 
     CascadeScreen *s1 = [[CascadeScreen alloc] init];
-    s1.name = @"C49RG9x"; s1.displayID = @"2"; s1.screenUUID = u1;
+    s1.name = @"Mock Ultrawide Display"; s1.displayID = @"mock_id_1"; s1.screenUUID = u1;
     CascadeScreen *s2 = [[CascadeScreen alloc] init];
-    s2.name = @"Built-in Retina Display"; s2.displayID = @"1"; s2.screenUUID = u2;
+    s2.name = @"Mock Builtin Display"; s2.displayID = @"mock_id_2"; s2.screenUUID = u2;
     CascadeScreen *s3 = [[CascadeScreen alloc] init];
     s3.name = @"Unknown Monitor";
 
@@ -346,8 +357,14 @@ static void testPerScreenSplitPersistence() {
     [ScreenManager saveScreenSplit:-5 forScreen:s1];
     assert([ScreenManager screenSplitForScreen:s1] == 1);
 
-    [ScreenManager saveScreenSplit:1 forScreen:s1];
-    [ScreenManager saveScreenSplit:1 forScreen:s2];
+    // Clean up test keys
+    NSUserDefaults *defs = [[NSUserDefaults alloc] initWithSuiteName:@"com.brunobrise.cascade"];
+    [defs removeObjectForKey:[@"screenSplit_uuid_" stringByAppendingString:u1]];
+    [defs removeObjectForKey:[@"screenSplit_uuid_" stringByAppendingString:u2]];
+    [defs removeObjectForKey:@"screenSplit_id_mock_id_1"];
+    [defs removeObjectForKey:@"screenSplit_id_mock_id_2"];
+    [defs removeObjectForKey:@"screenSplit_name_Mock Ultrawide Display"];
+    [defs removeObjectForKey:@"screenSplit_name_Mock Builtin Display"];
     printf("  [PASS] Per-screen split persistence and clamping verified.\n");
 }
 

@@ -63,8 +63,10 @@ This guarantees zero coordinate overlap and zero pixel leakage:
         CGFloat w = (i == k - 1) ? (qf.size.width - (CGFloat)(k - 1) * colW) : colW;
         cs.quartzVisibleFrame = CGRectMake(x, qf.origin.y, w, qf.size.height);
         cs.quartzFrame = CGRectMake(x, qfTotal.origin.y, w, qfTotal.size.height);
-        cs.cocoaFrame = cs.quartzFrame;
-        cs.cocoaVisibleFrame = cs.quartzVisibleFrame;
+        CGFloat cocoaX = screen.cocoaFrame.origin.x + (CGFloat)i * colW;
+        CGFloat cocoaW = w;
+        cs.cocoaFrame = CGRectMake(cocoaX, screen.cocoaFrame.origin.y, cocoaW, screen.cocoaFrame.size.height);
+        cs.cocoaVisibleFrame = CGRectMake(cocoaX, screen.cocoaVisibleFrame.origin.y, cocoaW, screen.cocoaVisibleFrame.size.height);
         [subs addObject:cs];
     }
     return subs;
@@ -74,17 +76,17 @@ This guarantees zero coordinate overlap and zero pixel leakage:
 ### 2. Intelligent Spatial Partitioning with Auto-Rebalancing ([`src/ScreenManager.m`](file:///Users/bruno/Code/brunobrise/cascade/src/ScreenManager.m))
 When cascading across columns, windows already residing inside a column stay in that column via intersection area comparison. However, if windows were previously stacked or full-screened, naive assignment would place all windows in Column 1 and leave Columns 2..K empty.
 
-`partitionWindows:intoScreens:` monitors column occupancy; if any column is empty while total windows $M \ge K$, it seamlessly redistributes the windows evenly across the columns:
+`partitionWindows:intoScreens:` monitors column occupancy; if any column is empty while total windows $M > 0$, it seamlessly redistributes windows across the columns (even when $M < K$, placing 1 window per column up to $M$):
 
 ```objc
-if (hasEmpty && totalWins.count >= colScreens.count) {
+if (hasEmpty && totalWins.count > 0) {
     for (CascadeScreen *cs in colScreens) {
         [dict[cs] removeAllObjects];
     }
     NSUInteger total = totalWins.count;
     NSUInteger numCols = colScreens.count;
     for (NSUInteger idx = 0; idx < total; idx++) {
-        NSUInteger colIdx = (idx * numCols) / total;
+        NSUInteger colIdx = (total >= numCols) ? ((idx * numCols) / total) : idx;
         CascadeScreen *targetCol = colScreens[colIdx];
         [dict[targetCol] addObject:totalWins[idx]];
     }
@@ -103,8 +105,10 @@ The CLI supports:
 
 ## Verification & Validation
 
-All 8 comprehensive test suites were updated and executed successfully:
-1. `tests/test_screen_manager.m`: Added `testScreenSplitsAndSubscreens` (verifying geometry for 1, 2, 3, and 4 splits), `testWindowPartitioningAcrossColumns` (verifying spatial assignment and empty-column auto-rebalancing), and `testPerScreenSplitPersistence` (verifying per-display persistence and clamping).
-2. `tests/test_settings.m`: Added `testSettingsColumnsControlSync`.
-3. `tests/test_engine.m`, `tests/test_login.m`, `tests/test_watcher.m`, `tests/test_app_order.m`, `tests/test_icon_generator.m`, `tests/test_signing.m`: All passed with 100% success.
-4. Line count constraint ($\le 420$ LOC) maintained across all source and test files.
+All 10 comprehensive test suites were updated and executed successfully:
+1. `tests/test_screen_manager.m`: Added `testScreenSplitsAndSubscreens` (verifying geometry for 1, 2, 3, and 4 splits), `testWindowPartitioningAcrossColumns` (verifying spatial assignment and empty-column auto-rebalancing, including $M < K$), and `testPerScreenSplitPersistence` (verifying per-display persistence, clamping, and test mock isolation).
+2. `tests/test_settings.m`: Added `testSettingsColumnsControlSync` and preference backup/restore isolation to avoid corrupting developer environment defaults.
+3. `tests/test_engine.m`, `tests/test_login.m`, `tests/test_watcher.m`, `tests/test_app_order.m`, `tests/test_icon_generator.m`, `tests/test_signing.m`, `tests/test_state_update.m`, `tests/test_ignore_list.m`: All passed with 100% success.
+4. Line count constraint ($\le 420$ LOC) maintained across all source and test files (`ScreenManager.m` 416 LOC, `SettingsWindowController.m` 402 LOC, `main_bar.m` 354 LOC, `main_cli.m` 415 LOC).
+5. Hardware Validation: Verified on Samsung Odyssey C49RG9x (5120x1440 / 3360x1440 scaled) with 3 columns, correct multi-window distribution, pointer screen detection with negative Cocoa offsets, and unified CLI/GUI operation.
+

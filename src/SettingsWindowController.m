@@ -218,7 +218,14 @@ static NSButton *makeCheckbox(NSString *title, id target, SEL action, NSRect f) 
         self.displayColumnsPopup.lastItem.representedObject = s;
     }
     if (self.displayColumnsPopup.numberOfItems > 0 && !self.displayColumnsPopup.selectedItem) {
-        [self.displayColumnsPopup selectItemAtIndex:0];
+        NSInteger defIdx = 0;
+        for (NSInteger i = 0; i < self.displayColumnsPopup.numberOfItems; i++) {
+            CascadeScreen *cs = self.displayColumnsPopup.itemArray[i].representedObject;
+            if ([cs isKindOfClass:[CascadeScreen class]] && cs.quartzFrame.size.height > 0) {
+                if (cs.quartzFrame.size.width / cs.quartzFrame.size.height >= 2.0) { defIdx = i; break; }
+            }
+        }
+        [self.displayColumnsPopup selectItemAtIndex:defIdx];
     }
 }
 

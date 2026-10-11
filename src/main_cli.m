@@ -24,8 +24,14 @@
         if (allWindows.count == 0) return;
         NSArray<CascadeScreen *> *allScreens = [ScreenManager availableScreens];
         NSArray<CascadeScreen *> *targetScreens = [ScreenManager screensMatchingTarget:self.targetScreen inScreens:allScreens];
-        NSArray<CascadeScreen *> *expandedScreens = [ScreenManager expandScreensWithSplits:targetScreens];
-        NSArray<CascadeScreen *> *allExpanded = [ScreenManager expandScreensWithSplits:allScreens];
+        NSMutableArray<CascadeScreen *> *allExpanded = [NSMutableArray array], *expandedScreens = [NSMutableArray array];
+        for (CascadeScreen *s in allScreens) {
+            BOOL isTarget = [targetScreens containsObject:s];
+            NSInteger k = [ScreenManager screenSplitForScreen:s];
+            NSArray<CascadeScreen *> *subs = (k > 1) ? [ScreenManager subscreensForScreen:s splitCount:k] : @[s];
+            [allExpanded addObjectsFromArray:subs];
+            if (isTarget) [expandedScreens addObjectsFromArray:subs];
+        }
         NSDictionary *partition = [ScreenManager partitionWindows:allWindows intoScreens:allExpanded];
         NSMutableArray<CascadeWindow *> *allPlanned = [NSMutableArray array];
         for (CascadeScreen *screen in expandedScreens) {
@@ -147,23 +153,17 @@ int main(int argc, const char * argv[]) {
             } else if ([arg isEqualToString:@"--layout"] && i + 1 < argc) {
                 layoutStyle = parseLayoutStyle([NSString stringWithUTF8String:argv[++i]]);
             } else if ([arg isEqualToString:@"--get-layout"]) {
-                printf("Layout Style: %s\n", layoutStyleName([CascadeEngine savedLayoutStyle]));
-                return 0;
+                printf("Layout Style: %s\n", layoutStyleName([CascadeEngine savedLayoutStyle])); return 0;
             } else if ([arg isEqualToString:@"--set-layout"] && i + 1 < argc) {
                 CascadeLayoutStyle s = parseLayoutStyle([NSString stringWithUTF8String:argv[++i]]);
-                [CascadeEngine saveLayoutStyle:s];
-                printf("Layout style set to: %s\n", layoutStyleName(s));
-                return 0;
+                [CascadeEngine saveLayoutStyle:s]; printf("Layout style set to: %s\n", layoutStyleName(s)); return 0;
             } else if ([arg isEqualToString:@"--set-screen"] && i + 1 < argc) {
                 NSString *target = [NSString stringWithUTF8String:argv[++i]];
-                [ScreenManager saveScreenTarget:target];
-                printf("Saved target screen preference: %s\n", target.UTF8String);
-                return 0;
+                [ScreenManager saveScreenTarget:target]; printf("Saved target screen preference: %s\n", target.UTF8String); return 0;
             } else if ([arg isEqualToString:@"--set-split"] && i + 1 < argc) {
                 NSInteger split = atoi(argv[++i]);
                 [ScreenManager saveScreenSplit:split forScreenName:targetScreen];
-                printf("Saved screen split preference (%ld cols) for '%s'\n", (long)split, targetScreen.UTF8String);
-                return 0;
+                printf("Saved screen split preference (%ld cols) for '%s'\n", (long)split, targetScreen.UTF8String); return 0;
             } else if ([arg isEqualToString:@"--no-restack"]) {
                 restack = NO;
             } else if ([arg isEqualToString:@"--delta"] && i + 1 < argc) {
@@ -329,13 +329,15 @@ int main(int argc, const char * argv[]) {
 
         NSArray<CascadeScreen *> *allScreens = [ScreenManager availableScreens];
         NSArray<CascadeScreen *> *targetScreens = [ScreenManager screensMatchingTarget:targetScreen inScreens:allScreens];
-        NSArray<CascadeScreen *> *expandedScreens;
-        if (cliSplit > 0) {
-            NSMutableArray *m = [NSMutableArray array];
-            for (CascadeScreen *s in targetScreens) [m addObjectsFromArray:[ScreenManager subscreensForScreen:s splitCount:cliSplit]];
-            expandedScreens = m;
-        } else { expandedScreens = [ScreenManager expandScreensWithSplits:targetScreens]; }
-        NSArray<CascadeScreen *> *allExpanded = [ScreenManager expandScreensWithSplits:allScreens];
+        NSMutableArray<CascadeScreen *> *allExpanded = [NSMutableArray array], *expandedScreens = [NSMutableArray array];
+        BOOL isAll = [targetScreen localizedCaseInsensitiveCompare:@"all"] == NSOrderedSame;
+        for (CascadeScreen *s in allScreens) {
+            BOOL isTarget = [targetScreens containsObject:s];
+            NSInteger k = (cliSplit > 0 && (isTarget || isAll)) ? cliSplit : [ScreenManager screenSplitForScreen:s];
+            NSArray<CascadeScreen *> *subs = (k > 1) ? [ScreenManager subscreensForScreen:s splitCount:k] : @[s];
+            [allExpanded addObjectsFromArray:subs];
+            if (isTarget) [expandedScreens addObjectsFromArray:subs];
+        }
         printf("Screen Target: %s (%lu column(s)/screen(s) selected across %lu display(s))\n",
                targetScreen.UTF8String, (unsigned long)expandedScreens.count, (unsigned long)allScreens.count);
         printf("Layout Style: %s\n\n", layoutStyleName(layoutStyle));
