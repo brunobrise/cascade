@@ -60,6 +60,9 @@ typedef NS_ENUM(NSInteger, CascadeInstallOrigin) {
 /// Returns human-readable upgrade command recommended for the install origin.
 + (NSString *)upgradeCommandForOrigin:(CascadeInstallOrigin)origin;
 
+/// Returns path to gh executable if installed in standard paths, nil otherwise.
++ (nullable NSString *)findGhExecutable;
+
 /// Asynchronously checks for updates.
 /// Completion handler called on main queue.
 + (void)checkForUpdatesForce:(BOOL)force

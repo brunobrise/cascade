@@ -39,7 +39,6 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
 }
 
 @implementation CascadeBarApp
-
 - (NSImage *)cascadeAppIcon {
     NSImage *icon = [NSImage imageNamed:@"AppIcon"];
     if (!icon) {
@@ -234,7 +233,8 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
                 return;
             } else {
                 alert.messageText = @"You're Up to Date!";
-                alert.informativeText = [NSString stringWithFormat:@"Cascade v%@ is currently the newest version available.", [UpdateChecker currentVersion]];
+                NSString *v = latestVersion ?: [UpdateChecker currentVersion];
+                alert.informativeText = [NSString stringWithFormat:@"Cascade v%@ is currently the newest version available.", v];
                 [alert addButtonWithTitle:@"OK"];
             }
             [alert runModal];
@@ -248,7 +248,6 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
     NSString *url = updateState.releaseURL ?: @"https://github.com/brunobrise/cascade/releases/latest";
     [[NSWorkspace sharedWorkspace] openURL:[NSURL URLWithString:url]];
 }
-
 - (void)quitCascade:(id)s { (void)s; [NSApp terminate:nil]; }
 - (void)terminate:(id)s { [self quitCascade:s]; }
 - (BOOL)validateMenuItem:(NSMenuItem *)item { (void)item; return YES; }
@@ -395,7 +394,6 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
         [self cascadeWindowsOnScreens:[ScreenManager availableScreens] restack:self.restackZOrder preserveOrder:NO];
     }];
 }
-
 @end
 
 int main(int argc, const char * argv[]) {
@@ -413,7 +411,6 @@ int main(int argc, const char * argv[]) {
         }
         NSApplication *app = [NSApplication sharedApplication];
         [app setActivationPolicy:NSApplicationActivationPolicyAccessory];
-
         CascadeBarApp *delegate = [[CascadeBarApp alloc] init];
         app.delegate = delegate;
         [app run];

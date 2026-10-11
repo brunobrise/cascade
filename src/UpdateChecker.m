@@ -301,31 +301,39 @@ static void invokeCompletion(void (^completion)(BOOL, NSString *, NSString *, NS
     [t resume];
 }
 
++ (NSString *)findGhExecutable {
+    NSArray *candidates = @[
+        @"/opt/homebrew/bin/gh",
+        @"/usr/local/bin/gh",
+        @"/usr/bin/gh",
+        @"/bin/gh",
+        [NSHomeDirectory() stringByAppendingPathComponent:@".nix-profile/bin/gh"]
+    ];
+    NSFileManager *fm = [NSFileManager defaultManager];
+    for (NSString *p in candidates) {
+        if ([fm isExecutableFileAtPath:p]) return p;
+    }
+    return nil;
+}
+
 + (void)queryGhCliFallbackWithCurrentVersion:(NSString *)currVer
-                                cachedState:(CascadeUpdateState *)cached
-                                 completion:(void (^)(BOOL, NSString *, NSString *, NSError *))completion {
+                                 cachedState:(CascadeUpdateState *)cached
+                                  completion:(void (^)(BOOL, NSString *, NSString *, NSError *))completion {
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
-        NSTask *task = [[NSTask alloc] init];
-        task.launchPath = @"/usr/bin/which";
-        task.arguments = @[@"gh"];
-        task.standardOutput = [NSPipe pipe];
-        task.standardError = [NSPipe pipe];
-        @try {
-            [task launch];
-            [task waitUntilExit];
-            if (task.terminationStatus != 0) {
-                invokeCompletion(completion, NO, nil, nil, nil);
-                return;
-            }
-        } @catch (NSException *e) {
-            (void)e;
-            invokeCompletion(completion, NO, nil, nil, nil);
+        NSString *ghPath = [self findGhExecutable];
+        if (!ghPath) {
+            NSError *err = [NSError errorWithDomain:@"CascadeUpdate" code:404
+                                           userInfo:@{NSLocalizedDescriptionKey: @"GitHub release unreachable and 'gh' CLI not found."}];
+            invokeCompletion(completion, NO, nil, nil, err);
             return;
         }
 
         NSTask *ghTask = [[NSTask alloc] init];
-        ghTask.launchPath = @"/usr/bin/env";
-        ghTask.arguments = @[@"gh", @"release", @"view", @"-R", @"brunobrise/cascade", @"--json", @"tagName,url"];
+        ghTask.launchPath = ghPath;
+        ghTask.arguments = @[@"release", @"view", @"-R", @"brunobrise/cascade", @"--json", @"tagName,url"];
+        NSMutableDictionary *env = [[[NSProcessInfo processInfo] environment] mutableCopy];
+        env[@"PATH"] = @"/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin";
+        ghTask.environment = env;
         NSPipe *outPipe = [NSPipe pipe];
         ghTask.standardOutput = outPipe;
         ghTask.standardError = [NSPipe pipe];
@@ -355,7 +363,9 @@ static void invokeCompletion(void (^completion)(BOOL, NSString *, NSString *, NS
             (void)e;
         }
 
-        invokeCompletion(completion, NO, nil, nil, nil);
+        NSError *err = [NSError errorWithDomain:@"CascadeUpdate" code:500
+                                       userInfo:@{NSLocalizedDescriptionKey: @"Failed to fetch latest release via 'gh' CLI."}];
+        invokeCompletion(completion, NO, nil, nil, err);
     });
 }
 

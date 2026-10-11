@@ -132,6 +132,17 @@ static void testInstallOriginDetection() {
     printf("  [PASS] Install origin detection verified.\n");
 }
 
+static void testGhCliDetection() {
+    printf("Running testGhCliDetection...\n");
+    NSString *gh = [UpdateChecker findGhExecutable];
+    if ([[NSFileManager defaultManager] isExecutableFileAtPath:@"/opt/homebrew/bin/gh"]) {
+        assert([gh isEqualToString:@"/opt/homebrew/bin/gh"]);
+    } else if ([[NSFileManager defaultManager] isExecutableFileAtPath:@"/usr/local/bin/gh"]) {
+        assert([gh isEqualToString:@"/usr/local/bin/gh"]);
+    }
+    printf("  [PASS] gh CLI detection verified: %s\n", gh ? [gh UTF8String] : "none");
+}
+
 int main(void) {
     @autoreleasepool {
         printf("=== Running UpdateChecker Unit Tests ===\n");
@@ -139,6 +150,7 @@ int main(void) {
         testCachePersistence();
         testTTLAndThrottling();
         testInstallOriginDetection();
+        testGhCliDetection();
         printf("=== All UpdateChecker Tests Passed Successfully! ===\n");
     }
     return 0;
