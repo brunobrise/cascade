@@ -94,6 +94,9 @@ $(BUILD_DIR)/SettingsWindowController.o: src/SettingsWindowController.m src/Sett
 $(BUILD_DIR)/WindowLayoutGeometry.o: src/WindowLayoutGeometry.m src/WindowLayoutGeometry.h src/WindowEngine.h | $(BUILD_DIR)/.dir
 	$(CC) $(CFLAGS) -c src/WindowLayoutGeometry.m -o $@
 
+$(BUILD_DIR)/UpdateChecker.o: src/UpdateChecker.m src/UpdateChecker.h | $(BUILD_DIR)/.dir
+	$(CC) $(CFLAGS) -c src/UpdateChecker.m -o $@
+
 # CLI binary
 $(BUILD_DIR)/cascade: src/main_cli.m $(BUILD_DIR)/WindowLayoutGeometry.o $(BUILD_DIR)/WindowEngine.o $(BUILD_DIR)/ScreenManager.o $(BUILD_DIR)/LoginItemManager.o $(BUILD_DIR)/WindowWatcher.o $(wildcard VERSION) | $(BUILD_DIR)/.dir
 	$(CC) $(CFLAGS) $(LDFLAGS) src/main_cli.m $(BUILD_DIR)/WindowLayoutGeometry.o $(BUILD_DIR)/WindowEngine.o $(BUILD_DIR)/ScreenManager.o $(BUILD_DIR)/LoginItemManager.o $(BUILD_DIR)/WindowWatcher.o -o $@
@@ -130,7 +133,10 @@ $(BUILD_DIR)/test_icon_generator: tests/test_icon_generator.m resources/AppIcon.
 $(BUILD_DIR)/test_signing: tests/test_signing.m $(BUILD_DIR)/Cascade.app | $(BUILD_DIR)/.dir
 	$(CC) $(CFLAGS) $(LDFLAGS) tests/test_signing.m -o $@
 
-test: build icon $(BUILD_DIR)/test_engine $(BUILD_DIR)/test_quad_edge $(BUILD_DIR)/test_login $(BUILD_DIR)/test_watcher $(BUILD_DIR)/test_app_order $(BUILD_DIR)/test_screen_manager $(BUILD_DIR)/test_settings $(BUILD_DIR)/test_ignore $(BUILD_DIR)/test_icon_generator $(BUILD_DIR)/test_signing
+$(BUILD_DIR)/test_update_checker: tests/test_update_checker.m $(BUILD_DIR)/UpdateChecker.o | $(BUILD_DIR)/.dir
+	$(CC) $(CFLAGS) $(LDFLAGS) tests/test_update_checker.m $(BUILD_DIR)/UpdateChecker.o -o $@
+
+test: build icon $(BUILD_DIR)/test_engine $(BUILD_DIR)/test_quad_edge $(BUILD_DIR)/test_login $(BUILD_DIR)/test_watcher $(BUILD_DIR)/test_app_order $(BUILD_DIR)/test_screen_manager $(BUILD_DIR)/test_settings $(BUILD_DIR)/test_ignore $(BUILD_DIR)/test_icon_generator $(BUILD_DIR)/test_signing $(BUILD_DIR)/test_update_checker
 	./$(BUILD_DIR)/test_engine
 	./$(BUILD_DIR)/test_quad_edge
 	./$(BUILD_DIR)/test_login
@@ -141,6 +147,7 @@ test: build icon $(BUILD_DIR)/test_engine $(BUILD_DIR)/test_quad_edge $(BUILD_DI
 	./$(BUILD_DIR)/test_ignore
 	./$(BUILD_DIR)/test_icon_generator
 	./$(BUILD_DIR)/test_signing
+	./$(BUILD_DIR)/test_update_checker
 	python3 tests/test_semver.py
 
 # App Icon
