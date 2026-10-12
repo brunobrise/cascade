@@ -2,7 +2,7 @@
 #import <sys/stat.h>
 
 #ifndef CASCADE_VERSION
-#define CASCADE_VERSION "0.25.1"
+#define CASCADE_VERSION "0.26.0"
 #endif
 
 @implementation CascadeUpdateState
@@ -520,30 +520,48 @@ static void invokeCompletion(void (^completion)(BOOL, NSString *, NSString *, NS
         NSURLSession *session = [NSURLSession sessionWithConfiguration:config];
 
         NSURLSessionDownloadTask *task = [session downloadTaskWithURL:dmgURL completionHandler:^(NSURL *location, NSURLResponse *response, NSError *error) {
-            if (error || !location) {
-                [[NSFileManager defaultManager] removeItemAtPath:tmpDir error:nil];
-                dispatch_async(dispatch_get_main_queue(), ^{
-                    if (completion) completion(NO, error ?: [NSError errorWithDomain:@"CascadeUpdate" code:501 userInfo:@{NSLocalizedDescriptionKey: @"Download failed"}]);
-                });
-                return;
-            }
-
+            BOOL downloadSucceeded = NO;
             NSHTTPURLResponse *httpResp = [response isKindOfClass:[NSHTTPURLResponse class]] ? (NSHTTPURLResponse *)response : nil;
-            if (httpResp && httpResp.statusCode != 200) {
-                [[NSFileManager defaultManager] removeItemAtPath:tmpDir error:nil];
-                NSString *msg = [NSString stringWithFormat:@"Server returned HTTP status %ld", (long)httpResp.statusCode];
-                dispatch_async(dispatch_get_main_queue(), ^{
-                    if (completion) completion(NO, [NSError errorWithDomain:@"CascadeUpdate" code:httpResp.statusCode userInfo:@{NSLocalizedDescriptionKey: msg}]);
-                });
-                return;
+            if (location && httpResp && httpResp.statusCode == 200) {
+                [[NSFileManager defaultManager] removeItemAtPath:dmgDestPath error:nil];
+                if ([[NSFileManager defaultManager] moveItemAtURL:location toURL:[NSURL fileURLWithPath:dmgDestPath] error:nil]) {
+                    downloadSucceeded = YES;
+                }
             }
 
-            [[NSFileManager defaultManager] removeItemAtPath:dmgDestPath error:nil];
-            NSError *moveErr = nil;
-            if (![[NSFileManager defaultManager] moveItemAtURL:location toURL:[NSURL fileURLWithPath:dmgDestPath] error:&moveErr]) {
+            if (!downloadSucceeded) {
+                // Private repository or CDN failure: fallback to authenticated gh CLI if available
+                NSString *ghPath = [self findGhExecutable];
+                if (ghPath) {
+                    if (progressBlock) progressBlock(@"Downloading update via GitHub CLI...", 0.35);
+                    NSTask *ghTask = [[NSTask alloc] init];
+                    ghTask.launchPath = ghPath;
+                    ghTask.arguments = @[@"release", @"download", [NSString stringWithFormat:@"v%@", cleanVer],
+                                         @"-R", @"brunobrise/cascade",
+                                         @"-p", dmgName,
+                                         @"-D", tmpDir];
+                    NSMutableDictionary *env = [[[NSProcessInfo processInfo] environment] mutableCopy];
+                    env[@"PATH"] = @"/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin";
+                    ghTask.environment = env;
+                    ghTask.standardOutput = [NSPipe pipe];
+                    ghTask.standardError = [NSPipe pipe];
+                    @try {
+                        [ghTask launch];
+                        [ghTask waitUntilExit];
+                        if (ghTask.terminationStatus == 0 && [[NSFileManager defaultManager] fileExistsAtPath:dmgDestPath]) {
+                            downloadSucceeded = YES;
+                        }
+                    } @catch (NSException *e) {
+                        (void)e;
+                    }
+                }
+            }
+
+            if (!downloadSucceeded) {
                 [[NSFileManager defaultManager] removeItemAtPath:tmpDir error:nil];
+                NSString *msg = httpResp ? [NSString stringWithFormat:@"Server returned HTTP status %ld", (long)httpResp.statusCode] : (error.localizedDescription ?: @"Download failed");
                 dispatch_async(dispatch_get_main_queue(), ^{
-                    if (completion) completion(NO, moveErr);
+                    if (completion) completion(NO, [NSError errorWithDomain:@"CascadeUpdate" code:501 userInfo:@{NSLocalizedDescriptionKey: msg}]);
                 });
                 return;
             }
