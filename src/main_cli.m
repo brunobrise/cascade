@@ -1,5 +1,6 @@
 #import <Foundation/Foundation.h>
 #import "WindowEngine.h"
+#import "WindowLayoutGeometry.h"
 #import "ScreenManager.h"
 #import "LoginItemManager.h"
 #import "WindowWatcher.h"
@@ -96,13 +97,13 @@ static const char *orderModeName(CascadeOrderMode mode) {
 }
 
 static CascadeLayoutStyle parseLayoutStyle(NSString *s) {
-    NSString *l = [s lowercaseString];
-    if ([l containsString:@"quad"] || [l containsString:@"edge"] || [l containsString:@"perimeter"]) return CascadeLayoutStyleQuadEdge;
-    return CascadeLayoutStyleDiagonal;
+    return [CascadeEngine parseLayoutStyleString:s];
 }
 
 static const char *layoutStyleName(CascadeLayoutStyle style) {
-    return (style == CascadeLayoutStyleQuadEdge) ? "Quad-Edge (Clockwise Perimeter)" : "Diagonal Cascade";
+    if (style == CascadeLayoutStyleFractal) return "Fractal (Golden Ratio)";
+    if (style == CascadeLayoutStyleQuadEdge) return "Quad-Edge (Clockwise Perimeter)";
+    return "Diagonal Cascade";
 }
 
 static void printHelp(const char *prog) {
@@ -113,12 +114,14 @@ static void printHelp(const char *prog) {
            "  --list, --list-screens     List on-screen windows or connected displays and exit\n"
            "  --screen <target>          Target screen ('all', 'pointer', 'primary', index, or name)\n"
            "  --split <1..4>             Override screen column split (1, 2, 3, or 4)\n"
-           "  --layout <style>           Layout style ('diagonal' or 'quad-edge')\n"
+           "  --layout <style>           Layout style ('diagonal', 'quad-edge', or 'fractal')\n"
+           "  --dock <edge>              Dock active window ('left', 'right', 'top', or 'bottom')\n"
+           "  --zoom                     Toggle focus zoom (100%% monitor resolution)\n"
            "  --order <mode>             Ordering: 'mru', 'spatial', 'alpha', or 'preferred'\n"
            "  --delta <pixels>           Offset/tab size in pixels (default: saved or 40)\n"
            "  --no-restack               Do not re-raise windows in order\n"
            "  --get-preferences          Print all saved user preferences and exit\n"
-           "  --set-layout <style>       Persist default layout style ('diagonal'|'quad-edge')\n"
+           "  --set-layout <style>       Persist default layout style ('diagonal'|'quad-edge'|'fractal')\n"
            "  --get-layout               Print current default layout style and exit\n"
            "  --set-screen <target>      Persist default target screen ('all'|name|index)\n"
            "  --set-split <1..4>         Persist default screen columns (1..4) for target screen\n"
@@ -138,6 +141,8 @@ static void printHelp(const char *prog) {
 int main(int argc, const char * argv[]) {
     @autoreleasepool {
         BOOL doApply = NO, doWatch = NO, doList = NO, bypassIgnore = NO;
+        BOOL doDock = NO;
+        CascadeDockEdge dockEdge = CascadeDockEdgeLeft;
         BOOL restack = [CascadeEngine savedRestackZOrder];
         CGFloat delta = [CascadeEngine savedDelta];
         CascadeOrderMode orderMode = [CascadeEngine savedOrderMode];
@@ -154,6 +159,19 @@ int main(int argc, const char * argv[]) {
             else if ([arg isEqualToString:@"--watch"]) { doWatch = YES; }
             else if ([arg isEqualToString:@"--plan"]) { doApply = NO; }
             else if ([arg isEqualToString:@"--list"]) { doList = YES; }
+            else if ([arg isEqualToString:@"--zoom"]) {
+                BOOL ok = [CascadeEngine toggleZoomActiveWindow];
+                if (ok) {
+                    printf("Focus zoom toggled successfully.\n");
+                    return 0;
+                } else {
+                    fprintf(stderr, "Failed to toggle focus zoom (no active window found or accessibility denied).\n");
+                    return 1;
+                }
+            } else if ([arg isEqualToString:@"--dock"] && i + 1 < argc) {
+                doDock = YES;
+                dockEdge = [CascadeEngine parseDockEdgeString:[NSString stringWithUTF8String:argv[++i]]];
+            }
             else if ([arg isEqualToString:@"--check-update"]) {
                 printf("Checking for Cascade updates...\n");
                 dispatch_semaphore_t sem = dispatch_semaphore_create(0);
@@ -396,6 +414,38 @@ int main(int argc, const char * argv[]) {
                 CascadeWindow *w = windows[i];
                 printf("  [%lu] PID=%-5d App=\"%-20s\" Title=\"%s\"\n",
                        (unsigned long)i, w.pid, [w.appName UTF8String], [w.title UTF8String]);
+            }
+            return 0;
+        }
+
+        if (doDock) {
+            CascadeWindow *activeWin = [CascadeEngine frontmostStandardWindow];
+            NSUInteger activeIdx = 0;
+            if (activeWin) {
+                for (NSUInteger k = 0; k < windows.count; k++) {
+                    if ([windows[k] matchesWindow:activeWin]) { activeIdx = k; break; }
+                }
+            }
+            CascadeScreen *screen = [ScreenManager screenForFrame:windows[activeIdx].currentFrame];
+            CGRect usable = screen ? screen.quartzVisibleFrame : [CascadeEngine usableScreenFrameWithTopInset:nil];
+            [WindowLayoutGeometry assignDockedFramesToWindows:windows activeWindowIndex:activeIdx edge:dockEdge onUsableFrame:usable delta:delta layoutStyle:layoutStyle];
+
+            const char *edgeNames[] = { "left", "right", "top", "bottom" };
+            printf("Docking active window to %s (%lu total windows):\n", edgeNames[dockEdge], (unsigned long)windows.count);
+            for (NSUInteger k = 0; k < windows.count; k++) {
+                CascadeWindow *w = windows[k];
+                printf("  [%lu] PID=%-5d App=\"%-18s\" Origin=(%-4.0f, %-4.0f) Size=(%-4.0f, %-4.0f) Title=\"%s\"%s\n",
+                       (unsigned long)k, w.pid, [w.appName UTF8String],
+                       w.targetFrame.origin.x, w.targetFrame.origin.y,
+                       w.targetFrame.size.width, w.targetFrame.size.height,
+                       [w.title UTF8String], (k == activeIdx) ? " [DOCKED]" : "");
+            }
+            if (doApply) {
+                [CascadeEngine applyLayoutToWindows:windows restackZ:restack];
+                printf("\nSuccessfully applied dock layout to %lu window(s)!\n", (unsigned long)windows.count);
+            } else {
+                printf("\nPlan complete for %lu window(s). Run with '--dock %s --apply' to execute layout.\n",
+                       (unsigned long)windows.count, edgeNames[dockEdge]);
             }
             return 0;
         }

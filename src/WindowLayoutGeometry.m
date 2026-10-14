@@ -94,12 +94,122 @@
     }
 }
 
++ (void)assignFractalFramesToOrderedWindows:(NSArray<CascadeWindow *> *)ordered
+                              onUsableFrame:(CGRect)usable
+                                      delta:(CGFloat)delta {
+    (void)delta;
+    NSUInteger count = ordered.count;
+    if (count == 0) return;
+    for (CascadeWindow *w in ordered) { w.usableFrame = usable; }
+
+    if (count == 1) {
+        ordered[0].targetFrame = usable;
+        return;
+    }
+
+    const CGFloat phi = (sqrt(5.0) - 1.0) / 2.0; // ~0.6180339887
+    CGRect curBox = usable;
+
+    for (NSUInteger i = 0; i < count; i++) {
+        if (i == count - 1) {
+            ordered[i].targetFrame = curBox;
+            break;
+        }
+
+        NSUInteger side = i % 4;
+        CGFloat curX = curBox.origin.x;
+        CGFloat curY = curBox.origin.y;
+        CGFloat curW = curBox.size.width;
+        CGFloat curH = curBox.size.height;
+
+        if (side == 0) { // Left
+            CGFloat sliceW = curW * phi;
+            ordered[i].targetFrame = CGRectMake(curX, curY, sliceW, curH);
+            curBox = CGRectMake(curX + sliceW, curY, curW - sliceW, curH);
+        } else if (side == 1) { // Top
+            CGFloat sliceH = curH * phi;
+            ordered[i].targetFrame = CGRectMake(curX, curY, curW, sliceH);
+            curBox = CGRectMake(curX, curY + sliceH, curW, curH - sliceH);
+        } else if (side == 2) { // Right
+            CGFloat sliceW = curW * phi;
+            ordered[i].targetFrame = CGRectMake(curX + curW - sliceW, curY, sliceW, curH);
+            curBox = CGRectMake(curX, curY, curW - sliceW, curH);
+        } else if (side == 3) { // Bottom
+            CGFloat sliceH = curH * phi;
+            ordered[i].targetFrame = CGRectMake(curX, curY + curH - sliceH, curW, sliceH);
+            curBox = CGRectMake(curX, curY, curW, curH - sliceH);
+        }
+    }
+}
+
++ (void)assignDockedFramesToWindows:(NSArray<CascadeWindow *> *)windows
+                  activeWindowIndex:(NSUInteger)activeIdx
+                               edge:(CascadeDockEdge)edge
+                      onUsableFrame:(CGRect)usable
+                              delta:(CGFloat)delta
+                        layoutStyle:(CascadeLayoutStyle)style {
+    NSUInteger count = windows.count;
+    if (count == 0) return;
+    for (CascadeWindow *w in windows) { w.usableFrame = usable; }
+
+    if (count == 1 || activeIdx >= count) {
+        [self assignFramesToOrderedWindows:windows onUsableFrame:usable delta:delta layoutStyle:style];
+        return;
+    }
+
+    CascadeWindow *activeWin = windows[activeIdx];
+    CGFloat uX = usable.origin.x, uY = usable.origin.y;
+    CGFloat uW = usable.size.width, uH = usable.size.height;
+    CGRect activeFrame = CGRectZero;
+    CGRect residualFrame = CGRectZero;
+
+    CGFloat halfW = uW * 0.5;
+    CGFloat halfH = uH * 0.5;
+
+    switch (edge) {
+        case CascadeDockEdgeLeft:
+            activeFrame = CGRectMake(uX, uY, halfW, uH);
+            residualFrame = CGRectMake(uX + halfW, uY, halfW, uH);
+            break;
+        case CascadeDockEdgeRight:
+            activeFrame = CGRectMake(uX + halfW, uY, halfW, uH);
+            residualFrame = CGRectMake(uX, uY, halfW, uH);
+            break;
+        case CascadeDockEdgeTop:
+            activeFrame = CGRectMake(uX, uY, uW, halfH);
+            residualFrame = CGRectMake(uX, uY + halfH, uW, halfH);
+            break;
+        case CascadeDockEdgeBottom:
+            activeFrame = CGRectMake(uX, uY + halfH, uW, halfH);
+            residualFrame = CGRectMake(uX, uY, uW, halfH);
+            break;
+    }
+
+    activeWin.targetFrame = activeFrame;
+
+    NSMutableArray<CascadeWindow *> *remaining = [NSMutableArray arrayWithCapacity:count - 1];
+    for (NSUInteger i = 0; i < count; i++) {
+        if (i != activeIdx) {
+            [remaining addObject:windows[i]];
+        }
+    }
+
+    if (remaining.count > 0) {
+        [self assignFramesToOrderedWindows:remaining onUsableFrame:residualFrame delta:delta layoutStyle:style];
+        for (CascadeWindow *rw in remaining) {
+            rw.usableFrame = usable;
+        }
+    }
+}
+
 + (void)assignFramesToOrderedWindows:(NSArray<CascadeWindow *> *)ordered
                        onUsableFrame:(CGRect)usable
                                delta:(CGFloat)delta
                          layoutStyle:(CascadeLayoutStyle)style {
     if (style == CascadeLayoutStyleQuadEdge) {
         [self assignQuadEdgeFramesToOrderedWindows:ordered onUsableFrame:usable delta:delta];
+    } else if (style == CascadeLayoutStyleFractal) {
+        [self assignFractalFramesToOrderedWindows:ordered onUsableFrame:usable delta:delta];
     } else {
         [self assignDiagonalFramesToOrderedWindows:ordered onUsableFrame:usable delta:delta];
     }

@@ -15,13 +15,16 @@ Native macOS window manager that maximizes application window size while guarant
 ## Features
 
 - **Maximizes Window Area:** Applications occupy 75% to 98% of your display—no rigid tiling or tiny split panes.
-- **Two Invariant Layout Styles:**
+- **Three Geometric Layout Styles:**
+  - **Fractal (Golden Ratio):** Recursive space subdivision along a golden spiral ($\phi \approx 0.618$) for arbitrary window counts $N$, exposing unoccluded perimeter tabs.
   - **Quad-Edge (Perimeter):** Cycles windows along Top, Right, Bottom, and Left screen borders for maximum screen coverage (94%+ display area) and full-edge click strips.
   - **Diagonal Cascade:** Staggers windows diagonally with guaranteed unoccluded top-right and bottom-left click tabs.
+- **Recursive Edge Docking:** Dock the active window to half the screen (`left`, `right`, `top`, `bottom`) while recursively cascading and nesting remaining windows in residual space.
+- **Resolution-Independent Focus Zoom:** Instant toggle (`⌥⌘Space` or `--zoom`) between macro fractal overview and 100% native monitor resolution for deep work with zero latency.
 - **Ultrawide & Multi-Monitor Splits:** Partition displays or split ultrawide monitors into 1, 2, 3, or 4 virtual columns with independent cascades and automatic window rebalancing.
 - **Flexible Window Ordering:** Most Recently Used (MRU), Spatial (left-to-right), Alphabetical, or custom Preferred Application Order.
 - **Application Ignore List:** Exclude background utilities, menu bar apps, or specific tools from layouts.
-- **Menu Bar App & CLI:** Native macOS status bar item with global hotkey (`⌥⌘C`), native Settings panel, and scriptable CLI (`cascade`).
+- **Menu Bar App & CLI:** Native macOS status bar item with global hotkeys (`⌥⌘C`, `⌥⌘Space`), native Settings panel, and scriptable CLI (`cascade`).
 - **Persistent Code-Signing:** Zero permission invalidation across rebuilds via persistent local keychain certificates.
 - **Seamless 1-Click Updates:** In-app atomic update installation with pre-flight DMG verification and automatic TCC code-signing preservation.
 
@@ -56,16 +59,20 @@ Launch the menu bar app: `open -a ~/Applications/Cascade.app` (or `make run`).
 
 ### Menu Bar & Shortcut
 
-- **Hotkey:** Press `Option + Command + C` (`⌥⌘C`) to cascade the monitor under your mouse cursor.
-- **Menu Bar Icon:** Click to cascade current display, cascade all displays, toggle **Auto-Rearrange**, or open **Settings** (`⌘,`).
-- **Settings Modal:** Configure Layout Style (Diagonal / Quad-Edge), Window Order, Column Splits, Margin (Delta), Ignore List, Launch at Login, and Software Updates.
+- **Cascade Windows:** Press `Option + Command + C` (`⌥⌘C`) to cascade the monitor under your mouse cursor.
+- **Focus Zoom:** Press `Option + Command + Space` (`⌥⌘Space`) to toggle between fractal overview and 100% full-screen focus.
+- **Menu Bar Icon:** Click to cascade current display, cascade all displays, toggle **Focus Zoom**, dock active window (**Dock Left / Right / Top / Bottom**), toggle **Auto-Rearrange**, or open **Settings** (`⌘,`).
+- **Settings Modal:** Configure Layout Style (**Diagonal / Quad-Edge / Fractal**), Window Order, Column Splits, Margin (Delta), Ignore List, Launch at Login, and Software Updates.
 
 ### Command-Line Interface (`cascade`)
 
 | Task | Command |
 | :--- | :--- |
 | **Apply layout** | `cascade --apply` *(add `--plan` for dry run)* |
-| **Layout style** | `cascade --layout quad-edge --apply` *(or `diagonal`)* |
+| **Fractal layout** | `cascade --layout fractal --apply` *(golden-spiral subdivision)* |
+| **Layout style** | `cascade --layout quad-edge --apply` *(or `diagonal`, `fractal`)* |
+| **Edge docking** | `cascade --dock left --apply` *(or `right`, `top`, `bottom`)* |
+| **Focus zoom** | `cascade --zoom` *(toggle 100% monitor resolution on active window)* |
 | **Display targeting** | `cascade --screen all --apply` *(or `--screen active`, `--screen "Display Name"`)* |
 | **Ultrawide splits** | `cascade --split 3 --apply` *(splits screen into 3 virtual columns)* |
 | **Window order** | `cascade --order preferred --apply` *(or `mru`, `spatial`, `alpha`)* |
@@ -73,7 +80,7 @@ Launch the menu bar app: `open -a ~/Applications/Cascade.app` (or `make run`).
 | **Ignore list** | `cascade --set-ignore "Slack,Spotify"` *(or `--get-ignore`)* |
 | **Watch mode** | `cascade --watch` *(continuous auto-rearrange on window open/close)* |
 | **Check for updates** | `cascade --check-update` |
-| **Save defaults** | `cascade --set-layout quad-edge && cascade --set-split 2` |
+| **Save defaults** | `cascade --set-layout fractal && cascade --set-split 2` |
 | **View preferences** | `cascade --get-preferences` |
 
 *Run `cascade --help` for the full list of options, or `make help` for developer build targets.*

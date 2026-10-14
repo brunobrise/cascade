@@ -94,6 +94,20 @@ static void testSettingsAboutPanel() {
     printf("  [PASS] SettingsWindowController about panel invocation verified.\n");
 }
 
+static void testSettingsFractalLayoutStyleSync() {
+    printf("Running testSettingsFractalLayoutStyleSync...\n");
+    SettingsWindowController *controller = [SettingsWindowController sharedController];
+    CascadeLayoutStyle origStyle = [CascadeEngine savedLayoutStyle];
+
+    [CascadeEngine saveLayoutStyle:CascadeLayoutStyleFractal];
+    [controller showWindow];
+    assert([controller isWindowVisible]);
+    [controller closeWindow];
+
+    [CascadeEngine saveLayoutStyle:origStyle];
+    printf("  [PASS] SettingsWindowController synced CascadeLayoutStyleFractal cleanly.\n");
+}
+
 int main(int argc, const char * argv[]) {
     (void)argc;
     (void)argv;
@@ -115,6 +129,7 @@ int main(int argc, const char * argv[]) {
         testSettingsColumnsControlSync();
         testSettingsDisplayColumnsDecoupling();
         testSettingsAboutPanel();
+        testSettingsFractalLayoutStyleSync();
 
         // Restore original settings
         [CascadeEngine saveOrderMode:origMode];

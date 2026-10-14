@@ -108,7 +108,7 @@ static NSButton *makeCheckbox(NSString *title, id target, SEL action, NSRect f) 
     [c addSubview:self.columnsControl];
 
     [c addSubview:makeLabel(NSMakeRect(34, 444, 110, 18), @"Layout Style:", [NSFont systemFontOfSize:12], nil)];
-    self.layoutStyleControl = [NSSegmentedControl segmentedControlWithLabels:@[@"Diagonal", @"Quad-Edge"]
+    self.layoutStyleControl = [NSSegmentedControl segmentedControlWithLabels:@[@"Diagonal", @"Quad-Edge", @"Fractal"]
                                                                 trackingMode:NSSegmentSwitchTrackingSelectOne
                                                                       target:self
                                                                       action:@selector(layoutStyleChanged:)];

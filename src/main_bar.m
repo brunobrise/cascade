@@ -16,6 +16,7 @@
 @property (nonatomic, assign) CGFloat delta;
 @property (nonatomic, assign) BOOL restackZOrder;
 @property (nonatomic, assign) EventHotKeyRef hotKeyRef;
+@property (nonatomic, assign) EventHotKeyRef zoomHotKeyRef;
 @property (nonatomic, strong) WindowWatcher *watcher;
 @property (nonatomic, strong) NSArray<CascadeWindow *> *establishedOrder;
 - (void)performCascade:(id)sender;
@@ -25,8 +26,14 @@
 
 static OSStatus HotKeyHandler(EventHandlerCallRef nextHandler, EventRef theEvent, void *userData) {
     (void)nextHandler;
-    (void)theEvent;
     CascadeBarApp *app = (__bridge CascadeBarApp *)userData;
+    EventHotKeyID hkID;
+    if (GetEventParameter(theEvent, kEventParamDirectObject, typeEventHotKeyID, NULL, sizeof(hkID), NULL, &hkID) == noErr) {
+        if (hkID.id == 2) {
+            [CascadeEngine toggleZoomActiveWindow];
+            return noErr;
+        }
+    }
     [app performCascade:nil];
     return noErr;
 }
@@ -88,6 +95,8 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
     InstallApplicationEventHandler(&HotKeyHandler, 1, &eventType, (__bridge void *)self, NULL);
     EventHotKeyID hotKeyID = { 'CSCD', 1 };
     RegisterEventHotKey(0x08, cmdKey | optionKey, hotKeyID, GetApplicationEventTarget(), 0, &_hotKeyRef);
+    EventHotKeyID zoomHotKeyID = { 'CSCD', 2 };
+    RegisterEventHotKey(0x31, cmdKey | optionKey, zoomHotKeyID, GetApplicationEventTarget(), 0, &_zoomHotKeyRef);
 
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(screensDidChange:) name:NSApplicationDidChangeScreenParametersNotification object:nil];
     [SettingsWindowController sharedController].delegate = self;
@@ -128,6 +137,21 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
     if ([ScreenManager availableScreens].count > 1) {
         [menu addItem:makeItem(@"Cascade All Screens", self, @selector(performCascadeAllScreens:), NSControlStateValueOff)];
     }
+
+    NSMenuItem *zoomItem = makeItem(@"Toggle Focus Zoom", self, @selector(toggleZoomMenuAction:), NSControlStateValueOff);
+    zoomItem.keyEquivalent = @" ";
+    zoomItem.keyEquivalentModifierMask = NSEventModifierFlagOption | NSEventModifierFlagCommand;
+    [menu addItem:zoomItem];
+
+    NSMenuItem *dockMenu = [[NSMenuItem alloc] initWithTitle:@"Dock Active Window" action:nil keyEquivalent:@""];
+    NSMenu *dockSubmenu = [[NSMenu alloc] initWithTitle:@"Dock Active Window"];
+    [dockSubmenu addItem:makeItem(@"Dock Left", self, @selector(dockLeftAction:), NSControlStateValueOff)];
+    [dockSubmenu addItem:makeItem(@"Dock Right", self, @selector(dockRightAction:), NSControlStateValueOff)];
+    [dockSubmenu addItem:makeItem(@"Dock Top", self, @selector(dockTopAction:), NSControlStateValueOff)];
+    [dockSubmenu addItem:makeItem(@"Dock Bottom", self, @selector(dockBottomAction:), NSControlStateValueOff)];
+    [dockMenu setSubmenu:dockSubmenu];
+    [menu addItem:dockMenu];
+
     [menu addItem:[NSMenuItem separatorItem]];
 
     [menu addItem:makeItem(@"Auto-Rearrange Windows", self, @selector(toggleAutoRearrange:), self.watcher.isWatching ? NSControlStateValueOn : NSControlStateValueOff)];
@@ -177,6 +201,22 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
     self.establishedOrder = nil;
     [CascadeEngine saveEstablishedWindowOrder:@[]];
     [self cascadeWindowsOnTargetScreensWithRestack:self.restackZOrder preserveOrder:NO];
+}
+
+- (void)toggleZoomMenuAction:(id)sender {
+    (void)sender;
+    if (![self ensureAccessibility]) return;
+    [CascadeEngine toggleZoomActiveWindow];
+}
+
+- (void)dockLeftAction:(id)s { (void)s; [self dockActiveWindowWithEdge:CascadeDockEdgeLeft]; }
+- (void)dockRightAction:(id)s { (void)s; [self dockActiveWindowWithEdge:CascadeDockEdgeRight]; }
+- (void)dockTopAction:(id)s { (void)s; [self dockActiveWindowWithEdge:CascadeDockEdgeTop]; }
+- (void)dockBottomAction:(id)s { (void)s; [self dockActiveWindowWithEdge:CascadeDockEdgeBottom]; }
+
+- (void)dockActiveWindowWithEdge:(CascadeDockEdge)edge {
+    if (![self ensureAccessibility]) return;
+    [CascadeEngine dockActiveWindowWithEdge:edge layoutStyle:[CascadeEngine savedLayoutStyle] delta:self.delta];
 }
 
 - (void)toggleAutoRearrange:(id)sender {

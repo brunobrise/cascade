@@ -408,4 +408,143 @@ static NSInteger rankForApp(NSString *appName, NSArray<NSString *> *preferred) {
     }
 }
 
++ (CascadeDockEdge)parseDockEdgeString:(NSString *)string {
+    NSString *s = [string lowercaseString];
+    if ([s containsString:@"right"]) return CascadeDockEdgeRight;
+    if ([s containsString:@"top"]) return CascadeDockEdgeTop;
+    if ([s containsString:@"bottom"]) return CascadeDockEdgeBottom;
+    return CascadeDockEdgeLeft;
+}
+
++ (CascadeLayoutStyle)parseLayoutStyleString:(NSString *)string {
+    NSString *l = [string lowercaseString];
+    if ([l containsString:@"fractal"] || [l containsString:@"golden"] || [l containsString:@"spiral"]) return CascadeLayoutStyleFractal;
+    if ([l containsString:@"quad"] || [l containsString:@"edge"] || [l containsString:@"perimeter"]) return CascadeLayoutStyleQuadEdge;
+    return CascadeLayoutStyleDiagonal;
+}
+
++ (NSString *)nameForLayoutStyle:(CascadeLayoutStyle)style {
+    switch (style) {
+        case CascadeLayoutStyleFractal: return @"Fractal (Golden Ratio)";
+        case CascadeLayoutStyleQuadEdge: return @"Quad-Edge (Clockwise Perimeter)";
+        case CascadeLayoutStyleDiagonal:
+        default: return @"Diagonal Cascade";
+    }
+}
+
++ (CascadeWindow *)frontmostStandardWindow {
+    NSRunningApplication *frontApp = [[NSWorkspace sharedWorkspace] frontmostApplication];
+    if (!frontApp) return nil;
+    pid_t pid = frontApp.processIdentifier;
+    AXUIElementRef appRef = AXUIElementCreateApplication(pid);
+    if (!appRef) return nil;
+
+    CascadeWindow *cw = nil;
+    CFTypeRef winRef = NULL;
+    if (AXUIElementCopyAttributeValue(appRef, kAXFocusedWindowAttribute, &winRef) == kAXErrorSuccess && winRef) {
+        CFTypeRef posRef = NULL, szRef = NULL, titleRef = NULL;
+        AXUIElementCopyAttributeValue((AXUIElementRef)winRef, kAXPositionAttribute, &posRef);
+        AXUIElementCopyAttributeValue((AXUIElementRef)winRef, kAXSizeAttribute, &szRef);
+        AXUIElementCopyAttributeValue((AXUIElementRef)winRef, kAXTitleAttribute, &titleRef);
+        CGPoint curPos = CGPointZero; CGSize curSize = CGSizeZero;
+        if (posRef) { AXValueGetValue((AXValueRef)posRef, kAXValueTypeCGPoint, &curPos); CFRelease(posRef); }
+        if (szRef) { AXValueGetValue((AXValueRef)szRef, kAXValueTypeCGSize, &curSize); CFRelease(szRef); }
+        NSString *title = titleRef ? (NSString *)CFBridgingRelease(titleRef) : @"";
+
+        cw = [[CascadeWindow alloc] init];
+        cw.appName = frontApp.localizedName ?: @"";
+        cw.title = title;
+        cw.pid = pid;
+        cw.axRef = (AXUIElementRef)winRef;
+        cw.currentFrame = CGRectMake(curPos.x, curPos.y, curSize.width, curSize.height);
+        cw.zRank = 0;
+    }
+    CFRelease(appRef);
+
+    if (!cw) {
+        NSArray<CascadeWindow *> *all = [self collectStandardWindowsWithOnly:nil exclude:[self ignoredApps]];
+        return all.firstObject;
+    }
+    return cw;
+}
+
++ (BOOL)toggleZoomActiveWindow {
+    if (![self isAccessibilityTrustedWithPrompt:YES]) return NO;
+
+    CascadeWindow *cw = [self frontmostStandardWindow];
+    if (!cw || !cw.axRef) return NO;
+
+    NSDictionary *saved = [[self userDefaults] dictionaryForKey:@"activeZoomState"];
+    CGRect currentFrame = cw.currentFrame;
+
+    if (saved) {
+        pid_t savedPid = [saved[@"pid"] intValue];
+        NSString *savedTitle = saved[@"title"] ?: @"";
+        CGFloat origX = [saved[@"x"] doubleValue];
+        CGFloat origY = [saved[@"y"] doubleValue];
+        CGFloat origW = [saved[@"w"] doubleValue];
+        CGFloat origH = [saved[@"h"] doubleValue];
+
+        if (savedPid == cw.pid && (savedTitle.length == 0 || [savedTitle isEqualToString:cw.title])) {
+            CGRect origFrame = CGRectMake(origX, origY, origW, origH);
+            cw.targetFrame = origFrame;
+            cw.usableFrame = [self usableScreenFrameWithTopInset:nil];
+            [self applyLayoutToWindows:@[cw] restackZ:NO];
+            [[self userDefaults] removeObjectForKey:@"activeZoomState"];
+            [[self userDefaults] synchronize];
+            return YES;
+        }
+    }
+
+    CascadeScreen *screen = [ScreenManager screenForFrame:currentFrame];
+    CGRect screenFrame = screen ? screen.quartzVisibleFrame : [self usableScreenFrameWithTopInset:nil];
+
+    NSDictionary *state = @{
+        @"pid": @(cw.pid),
+        @"title": cw.title ?: @"",
+        @"x": @(currentFrame.origin.x),
+        @"y": @(currentFrame.origin.y),
+        @"w": @(currentFrame.size.width),
+        @"h": @(currentFrame.size.height)
+    };
+    [[self userDefaults] setObject:state forKey:@"activeZoomState"];
+    [[self userDefaults] synchronize];
+
+    cw.targetFrame = screenFrame;
+    cw.usableFrame = screenFrame;
+    [self applyLayoutToWindows:@[cw] restackZ:YES];
+    return YES;
+}
+
++ (BOOL)dockActiveWindowWithEdge:(CascadeDockEdge)edge layoutStyle:(CascadeLayoutStyle)style delta:(CGFloat)delta {
+    if (![self isAccessibilityTrustedWithPrompt:YES]) return NO;
+
+    NSArray<CascadeWindow *> *allWindows = [self collectStandardWindowsWithOnly:nil exclude:[self ignoredApps]];
+    if (allWindows.count == 0) return NO;
+
+    CascadeWindow *activeWin = [self frontmostStandardWindow];
+    NSUInteger activeIdx = 0;
+    if (activeWin) {
+        for (NSUInteger i = 0; i < allWindows.count; i++) {
+            if ([allWindows[i] matchesWindow:activeWin]) {
+                activeIdx = i;
+                break;
+            }
+        }
+    }
+
+    CascadeScreen *screen = [ScreenManager screenForFrame:allWindows[activeIdx].currentFrame];
+    CGRect usable = screen ? screen.quartzVisibleFrame : [self usableScreenFrameWithTopInset:nil];
+
+    [WindowLayoutGeometry assignDockedFramesToWindows:allWindows
+                                    activeWindowIndex:activeIdx
+                                                 edge:edge
+                                        onUsableFrame:usable
+                                                delta:delta
+                                          layoutStyle:style];
+
+    [self applyLayoutToWindows:allWindows restackZ:YES];
+    return YES;
+}
+
 @end

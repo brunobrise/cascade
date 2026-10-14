@@ -1,0 +1,71 @@
+@startuml fractal-layout
+skinparam backgroundColor white
+skinparam defaultFontName -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif
+skinparam roundCorner 8
+skinparam shadowing false
+
+<style>
+sequenceDiagram {
+  participant {
+    BorderColor #24292F
+    BackgroundColor #F6F8FA
+    FontColor #24292F
+  }
+  arrow {
+    LineColor #0969DA
+    FontColor #24292F
+  }
+  lifeLine {
+    LineColor #0969DA
+    BackgroundColor #DDF4FF
+  }
+}
+</style>
+
+actor User as "User / Hotkey"
+participant App as "Cascade.app / CLI"
+participant Engine as "WindowEngine"
+participant Geometry as "WindowLayoutGeometry"
+participant macOS as "macOS Window Server (AX)"
+
+== 1. Recursive Fractal Layout (--layout fractal) ==
+User -> App : cascade --layout fractal
+activate App
+App -> Engine : calculateLayout(windows, Fractal)
+activate Engine
+Engine -> Geometry : assignFractalFrames(windows, usableFrame, ratio=0.618)
+activate Geometry
+
+loop For each window i = 0 to N-1
+  Geometry -> Geometry : Split residual bounds (Left -> Top -> Right -> Bottom)
+  Geometry -> Geometry : Window i assigned partitioned sub-space
+  Geometry -> Geometry : Update residual bounds for remaining N - 1 - i
+end
+
+Geometry --> Engine : targetFrames calculated
+deactivate Geometry
+Engine -> macOS : Apply batch AX positions & sizes
+macOS --> User : Windows rendered in Golden-Ratio Spiral
+deactivate Engine
+deactivate App
+
+== 2. Resolution-Independent Focus Zoom (--zoom / ⌥⌘Space) ==
+User -> App : ⌥⌘Space (Toggle Zoom)
+activate App
+App -> Engine : toggleZoomActiveWindow()
+activate Engine
+
+alt Window is currently normal
+  Engine -> Engine : Save pre-zoom frame
+  Engine -> macOS : Expand active window to 98% screen
+  macOS --> User : Full resolution focused view
+else Window is currently zoomed
+  Engine -> Engine : Restore saved pre-zoom frame
+  Engine -> macOS : Return to fractal tree position
+  macOS --> User : Restored to full fractal overview
+end
+
+deactivate Engine
+deactivate App
+
+@enduml

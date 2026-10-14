@@ -34,8 +34,11 @@ int main(int argc, const char * argv[]) {
         [watcher scheduleDebouncedChange];
         assert(!delegate.changeDetected); // Not called synchronously
 
-        // Run runloop for 100ms to allow debounce timer to fire
-        [[NSRunLoop currentRunLoop] runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.1]];
+        // Run runloop until debounce timer fires (up to 0.5s timeout)
+        NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:0.5];
+        while (!delegate.changeDetected && [deadline timeIntervalSinceNow] > 0) {
+            [[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode beforeDate:[NSDate dateWithTimeIntervalSinceNow:0.02]];
+        }
         assert(delegate.changeDetected);
         printf("  [PASS] Debounced lifecycle change callback fired.\n");
 

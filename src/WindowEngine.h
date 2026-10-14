@@ -10,8 +10,17 @@ typedef NS_ENUM(NSInteger, CascadeOrderMode) {
 
 typedef NS_ENUM(NSInteger, CascadeLayoutStyle) {
     CascadeLayoutStyleDiagonal = 0,  // Traditional top-left to bottom-right cascade
-    CascadeLayoutStyleQuadEdge = 1   // Clockwise perimeter: Top -> Right -> Bottom -> Left
+    CascadeLayoutStyleQuadEdge = 1,  // Clockwise perimeter: Top -> Right -> Bottom -> Left
+    CascadeLayoutStyleFractal = 2    // Recursive golden ratio subdivision
 };
+
+typedef NS_ENUM(NSInteger, CascadeDockEdge) {
+    CascadeDockEdgeLeft = 0,
+    CascadeDockEdgeRight = 1,
+    CascadeDockEdgeTop = 2,
+    CascadeDockEdgeBottom = 3
+};
+
 
 @interface CascadeWindow : NSObject
 @property (nonatomic, copy) NSString *appName;
@@ -92,5 +101,11 @@ typedef NS_ENUM(NSInteger, CascadeLayoutStyle) {
                          usableFrame:(CGRect)usableFrame;
 + (void)applyLayoutToWindows:(NSArray<CascadeWindow *> *)windows
                     restackZ:(BOOL)restackZ;
++ (CascadeWindow *)frontmostStandardWindow;
++ (CascadeDockEdge)parseDockEdgeString:(NSString *)string;
++ (CascadeLayoutStyle)parseLayoutStyleString:(NSString *)string;
++ (NSString *)nameForLayoutStyle:(CascadeLayoutStyle)style;
++ (BOOL)toggleZoomActiveWindow;
++ (BOOL)dockActiveWindowWithEdge:(CascadeDockEdge)edge layoutStyle:(CascadeLayoutStyle)style delta:(CGFloat)delta;
 
 @end
