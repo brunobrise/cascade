@@ -151,6 +151,92 @@ static void testFractalDocking() {
     printf("  [PASS] Fractal edge docking with nested residual cascade verified.\n");
 }
 
+static void testFractalBypassesAutoOrderAndPreservesManual() {
+    printf("Running testFractalBypassesAutoOrderAndPreservesManual...\n");
+    CGRect screen = CGRectMake(0, 0, 2560, 1440);
+    CascadeWindow *wCode = makeTestWindow(@"Code", @"Editor");
+    wCode.zRank = 3; // least recently used
+    CascadeWindow *wTerm = makeTestWindow(@"Terminal", @"Shell");
+    wTerm.zRank = 2;
+    CascadeWindow *wSlack = makeTestWindow(@"Slack", @"Chat");
+    wSlack.zRank = 1; // frontmost / most recently used!
+
+    NSArray *windows = @[wCode, wTerm, wSlack];
+    NSArray *manualOrder = @[@"Code", @"Terminal"];
+
+    // In Fractal layout, even though Slack is MRU (zRank=1) and orderMode is MRU,
+    // it MUST prioritize the user's manualOrder and NOT put Slack at Slot 0!
+    NSArray *planned = [CascadeEngine calculateLayoutForWindows:windows
+                                                      orderMode:CascadeOrderModeMRU
+                                                 preferredOrder:manualOrder
+                                                          delta:25.0
+                                                    layoutStyle:CascadeLayoutStyleFractal
+                                                  onUsableFrame:screen];
+
+    // Code must be at index 0 (taking the primary 61.8% slot)
+    CascadeWindow *slot0 = planned[0];
+    assert([slot0.appName isEqualToString:@"Code"]);
+    CGFloat expectedW0 = screen.size.width * 0.6180339887;
+    assert(fabs(slot0.targetFrame.size.width - expectedW0) < 2.0);
+
+    // Terminal must be at index 1
+    CascadeWindow *slot1 = planned[1];
+    assert([slot1.appName isEqualToString:@"Terminal"]);
+
+    printf("  [PASS] Fractal layout bypassed MRU and strictly preserved user manual order.\n");
+}
+
+static void testFractalMaxDepthClamping() {
+    printf("Running testFractalMaxDepthClamping...\n");
+    CGRect screen = CGRectMake(0, 0, 2560, 1440);
+    NSMutableArray *windows = [NSMutableArray array];
+    for (int i = 0; i < 8; i++) {
+        CascadeWindow *w = makeTestWindow([NSString stringWithFormat:@"App%d", i], [NSString stringWithFormat:@"Win%d", i]);
+        w.currentFrame = CGRectMake(50 + i * 20, 50 + i * 20, 600, 400);
+        [windows addObject:w];
+    }
+
+    NSArray *planned = [CascadeEngine calculateLayoutForWindows:windows
+                                                      orderMode:CascadeOrderModeMRU
+                                                 preferredOrder:@[]
+                                                          delta:25.0
+                                                    layoutStyle:CascadeLayoutStyleFractal
+                                                  onUsableFrame:screen];
+
+    // First 4 windows participate in fractal spiral
+    for (int i = 0; i < 4; i++) {
+        CascadeWindow *w = planned[i];
+        assert(w.targetFrame.size.width >= 100.0);
+        assert(w.targetFrame.size.height >= 100.0);
+    }
+
+    // Windows beyond depth 4 must NOT be shrunk into micro-slivers; they keep their current frames
+    for (NSUInteger i = 4; i < planned.count; i++) {
+        CascadeWindow *w = planned[i];
+        assert(CGRectEqualToRect(w.targetFrame, w.currentFrame));
+    }
+    printf("  [PASS] Fractal layout clamped to max depth 4, protecting excess windows.\n");
+}
+
+static void testIndependentDockingPreservesOtherWindows() {
+    printf("Running testIndependentDockingPreservesOtherWindows...\n");
+    CGRect screen = CGRectMake(0, 0, 2560, 1440);
+    CascadeWindow *w0 = makeTestWindow(@"Code", @"Editor");
+    w0.currentFrame = CGRectMake(100, 100, 800, 600);
+    CascadeWindow *w1 = makeTestWindow(@"Terminal", @"Shell");
+    CGRect w1Orig = CGRectMake(500, 300, 700, 500);
+    w1.currentFrame = w1Orig;
+
+    CGRect docked = [WindowLayoutGeometry dockedFrameForEdge:CascadeDockEdgeLeft onUsableFrame:screen];
+    assert(docked.origin.x == screen.origin.x);
+    assert(docked.size.width == screen.size.width * 0.5);
+    assert(docked.size.height == screen.size.height);
+
+    w0.targetFrame = docked;
+    assert(CGRectEqualToRect(w1.currentFrame, w1Orig));
+    printf("  [PASS] Independent docking computed clean edge frame without touching other windows.\n");
+}
+
 int main(void) {
     @autoreleasepool {
         printf("=== Running Fractal Window Management Unit Tests ===\n");
@@ -160,6 +246,9 @@ int main(void) {
         testFractalFiveWindowsGoldenSpiral();
         testFractalDeepNesting();
         testFractalDocking();
+        testFractalBypassesAutoOrderAndPreservesManual();
+        testFractalMaxDepthClamping();
+        testIndependentDockingPreservesOtherWindows();
         printf("=== All Fractal Tests Passed Successfully! ===\n");
     }
     return 0;

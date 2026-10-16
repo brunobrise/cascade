@@ -142,6 +142,23 @@
     }
 }
 
++ (CGRect)dockedFrameForEdge:(CascadeDockEdge)edge onUsableFrame:(CGRect)usable {
+    CGFloat uX = usable.origin.x, uY = usable.origin.y;
+    CGFloat uW = usable.size.width, uH = usable.size.height;
+    CGFloat halfW = uW * 0.5;
+    CGFloat halfH = uH * 0.5;
+    switch (edge) {
+        case CascadeDockEdgeLeft:
+            return CGRectMake(uX, uY, halfW, uH);
+        case CascadeDockEdgeRight:
+            return CGRectMake(uX + halfW, uY, halfW, uH);
+        case CascadeDockEdgeTop:
+            return CGRectMake(uX, uY, uW, halfH);
+        case CascadeDockEdgeBottom:
+            return CGRectMake(uX, uY + halfH, uW, halfH);
+    }
+}
+
 + (void)assignDockedFramesToWindows:(NSArray<CascadeWindow *> *)windows
                   activeWindowIndex:(NSUInteger)activeIdx
                                edge:(CascadeDockEdge)edge
@@ -160,7 +177,7 @@
     CascadeWindow *activeWin = windows[activeIdx];
     CGFloat uX = usable.origin.x, uY = usable.origin.y;
     CGFloat uW = usable.size.width, uH = usable.size.height;
-    CGRect activeFrame = CGRectZero;
+    CGRect activeFrame = [self dockedFrameForEdge:edge onUsableFrame:usable];
     CGRect residualFrame = CGRectZero;
 
     CGFloat halfW = uW * 0.5;
@@ -168,19 +185,15 @@
 
     switch (edge) {
         case CascadeDockEdgeLeft:
-            activeFrame = CGRectMake(uX, uY, halfW, uH);
             residualFrame = CGRectMake(uX + halfW, uY, halfW, uH);
             break;
         case CascadeDockEdgeRight:
-            activeFrame = CGRectMake(uX + halfW, uY, halfW, uH);
             residualFrame = CGRectMake(uX, uY, halfW, uH);
             break;
         case CascadeDockEdgeTop:
-            activeFrame = CGRectMake(uX, uY, uW, halfH);
             residualFrame = CGRectMake(uX, uY + halfH, uW, halfH);
             break;
         case CascadeDockEdgeBottom:
-            activeFrame = CGRectMake(uX, uY + halfH, uW, halfH);
             residualFrame = CGRectMake(uX, uY, uW, halfH);
             break;
     }

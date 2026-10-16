@@ -69,9 +69,9 @@ Launch the menu bar app: `open -a ~/Applications/Cascade.app` (or `make run`).
 | Task | Command |
 | :--- | :--- |
 | **Apply layout** | `cascade --apply` *(add `--plan` for dry run)* |
-| **Fractal layout** | `cascade --layout fractal --apply` *(golden-spiral subdivision)* |
+| **Fractal layout** | `cascade --layout fractal --apply` *(manual golden-spiral partitioning, max depth 4)* |
 | **Layout style** | `cascade --layout quad-edge --apply` *(or `diagonal`, `fractal`)* |
-| **Edge docking** | `cascade --dock left --apply` *(or `right`, `top`, `bottom`)* |
+| **Edge docking** | `cascade --dock left --apply` *(tiles active window cleanly to edge half, leaving other windows untouched)* |
 | **Focus zoom** | `cascade --zoom` *(toggle 100% monitor resolution on active window)* |
 | **Display targeting** | `cascade --screen all --apply` *(or `--screen active`, `--screen "Display Name"`)* |
 | **Ultrawide splits** | `cascade --split 3 --apply` *(splits screen into 3 virtual columns)* |

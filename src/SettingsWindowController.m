@@ -250,12 +250,33 @@ static NSButton *makeCheckbox(NSString *title, id target, SEL action, NSRect f) 
     }
 }
 
+- (void)updateOrderModeControlsForLayoutStyle:(CascadeLayoutStyle)style {
+    if (style == CascadeLayoutStyleFractal) {
+        NSMenuItem *manualItem = [self.orderModePopup.menu itemWithTag:-1];
+        if (!manualItem) {
+            [self.orderModePopup addItemWithTitle:@"Manual (User Set)"];
+            self.orderModePopup.lastItem.tag = -1;
+        }
+        [self.orderModePopup selectItemWithTag:-1];
+        self.orderModePopup.enabled = NO;
+        self.configureAppsButton.enabled = YES;
+    } else {
+        NSMenuItem *manualItem = [self.orderModePopup.menu itemWithTag:-1];
+        if (manualItem) {
+            [self.orderModePopup removeItemWithTitle:@"Manual (User Set)"];
+        }
+        self.orderModePopup.enabled = YES;
+        CascadeOrderMode mode = [CascadeEngine savedOrderMode];
+        [self.orderModePopup selectItemWithTag:(NSInteger)mode];
+        self.configureAppsButton.enabled = (mode == CascadeOrderModeCustom);
+    }
+}
+
 - (void)syncControlsFromSettings {
     [self populateScreenTargets];
-    self.layoutStyleControl.selectedSegment = (NSInteger)[CascadeEngine savedLayoutStyle];
-    CascadeOrderMode mode = [CascadeEngine savedOrderMode];
-    [self.orderModePopup selectItemWithTag:(NSInteger)mode];
-    self.configureAppsButton.enabled = (mode == CascadeOrderModeCustom);
+    CascadeLayoutStyle style = [CascadeEngine savedLayoutStyle];
+    self.layoutStyleControl.selectedSegment = (NSInteger)style;
+    [self updateOrderModeControlsForLayoutStyle:style];
 
     CGFloat curD = [CascadeEngine savedDelta];
     for (NSMenuItem *item in self.deltaPopup.itemArray) {
@@ -349,16 +370,20 @@ static NSButton *makeCheckbox(NSString *title, id target, SEL action, NSRect f) 
 }
 
 - (void)layoutStyleChanged:(NSSegmentedControl *)sender {
-    [CascadeEngine saveLayoutStyle:(CascadeLayoutStyle)sender.selectedSegment];
+    CascadeLayoutStyle style = (CascadeLayoutStyle)sender.selectedSegment;
+    [CascadeEngine saveLayoutStyle:style];
+    [self updateOrderModeControlsForLayoutStyle:style];
     [self.delegate settingsDidChange];
 }
 
 - (void)orderModeChanged:(id)sender {
     (void)sender;
     CascadeOrderMode mode = (CascadeOrderMode)self.orderModePopup.selectedItem.tag;
-    [CascadeEngine saveOrderMode:mode];
-    self.configureAppsButton.enabled = (mode == CascadeOrderModeCustom);
-    [self.delegate settingsDidChange];
+    if ((NSInteger)mode != -1) {
+        [CascadeEngine saveOrderMode:mode];
+        self.configureAppsButton.enabled = (mode == CascadeOrderModeCustom);
+        [self.delegate settingsDidChange];
+    }
 }
 
 - (void)configureAppsClicked:(id)sender {

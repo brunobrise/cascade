@@ -1,0 +1,56 @@
+@startuml manual-fractal
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif
+
+participant "User / CLI / UI" as User
+participant "CascadeEngine" as Engine
+participant "WindowLayoutGeometry" as Geometry
+participant "Accessibility API (AX)" as AX
+
+== Manual Fractal Layout (No Auto-Order) ==
+
+User -> Engine: calculateLayout(layoutStyle: Fractal)
+activate Engine
+note over Engine
+  Rule 1: "no order!"
+  Bypass MRU, Spatial, Alphabetical.
+  Order strictly by user's manual configuration.
+end note
+
+Engine -> Engine: matchWindowsAgainstPreferredOrder(windows)
+note over Engine
+  Rule 2: "User manually set windows"
+  Clamp participating windows to top K (K <= 4).
+  Remaining background windows left untouched.
+end note
+
+Engine -> Geometry: assignFractalFrames(participating, usableFrame)
+activate Geometry
+Geometry --> Engine: targetFrames calculated (phi = 0.618)
+deactivate Geometry
+
+Engine -> AX: applyLayoutToWindows(participating, restackZ: NO)
+activate AX
+AX --> User: Windows arranged without focus shuffling
+deactivate AX
+deactivate Engine
+
+== Independent Manual Docking ==
+
+User -> Engine: dockActiveWindow(edge: Left)
+activate Engine
+Engine -> Engine: frontmostStandardWindow()
+note over Engine
+  Rule 3: Clean Docking
+  Only dock the active window to half/edge.
+  Do NOT force-cascade other windows.
+end note
+
+Engine -> AX: setPositionAndSize(activeWindow, leftHalf)
+activate AX
+AX --> User: Active window docked cleanly (other windows undisturbed)
+deactivate AX
+deactivate Engine
+
+@enduml

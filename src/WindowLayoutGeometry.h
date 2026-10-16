@@ -15,6 +15,8 @@
                               onUsableFrame:(CGRect)usable
                                       delta:(CGFloat)delta;
 
++ (CGRect)dockedFrameForEdge:(CascadeDockEdge)edge onUsableFrame:(CGRect)usable;
+
 + (void)assignDockedFramesToWindows:(NSArray<CascadeWindow *> *)windows
                   activeWindowIndex:(NSUInteger)activeIdx
                                edge:(CascadeDockEdge)edge

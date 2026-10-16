@@ -420,32 +420,30 @@ int main(int argc, const char * argv[]) {
 
         if (doDock) {
             CascadeWindow *activeWin = [CascadeEngine frontmostStandardWindow];
-            NSUInteger activeIdx = 0;
-            if (activeWin) {
-                for (NSUInteger k = 0; k < windows.count; k++) {
-                    if ([windows[k] matchesWindow:activeWin]) { activeIdx = k; break; }
-                }
+            if (!activeWin) {
+                fprintf(stderr, "No frontmost window found to dock.\n");
+                return 1;
             }
-            CascadeScreen *screen = [ScreenManager screenForFrame:windows[activeIdx].currentFrame];
+            CascadeScreen *screen = [ScreenManager screenForFrame:activeWin.currentFrame];
             CGRect usable = screen ? screen.quartzVisibleFrame : [CascadeEngine usableScreenFrameWithTopInset:nil];
-            [WindowLayoutGeometry assignDockedFramesToWindows:windows activeWindowIndex:activeIdx edge:dockEdge onUsableFrame:usable delta:delta layoutStyle:layoutStyle];
+            CGRect docked = [WindowLayoutGeometry dockedFrameForEdge:dockEdge onUsableFrame:usable];
+            activeWin.targetFrame = docked;
+            activeWin.usableFrame = usable;
 
             const char *edgeNames[] = { "left", "right", "top", "bottom" };
-            printf("Docking active window to %s (%lu total windows):\n", edgeNames[dockEdge], (unsigned long)windows.count);
-            for (NSUInteger k = 0; k < windows.count; k++) {
-                CascadeWindow *w = windows[k];
-                printf("  [%lu] PID=%-5d App=\"%-18s\" Origin=(%-4.0f, %-4.0f) Size=(%-4.0f, %-4.0f) Title=\"%s\"%s\n",
-                       (unsigned long)k, w.pid, [w.appName UTF8String],
-                       w.targetFrame.origin.x, w.targetFrame.origin.y,
-                       w.targetFrame.size.width, w.targetFrame.size.height,
-                       [w.title UTF8String], (k == activeIdx) ? " [DOCKED]" : "");
-            }
+            printf("Docking active window to %s:\n", edgeNames[dockEdge]);
+            printf("  [0] PID=%-5d App=\"%-18s\" Origin=(%-4.0f, %-4.0f) Size=(%-4.0f, %-4.0f) Title=\"%s\" [DOCKED]\n",
+                   activeWin.pid, [activeWin.appName UTF8String],
+                   activeWin.targetFrame.origin.x, activeWin.targetFrame.origin.y,
+                   activeWin.targetFrame.size.width, activeWin.targetFrame.size.height,
+                   [activeWin.title UTF8String]);
+
             if (doApply) {
-                [CascadeEngine applyLayoutToWindows:windows restackZ:restack];
-                printf("\nSuccessfully applied dock layout to %lu window(s)!\n", (unsigned long)windows.count);
+                [CascadeEngine applyLayoutToWindows:@[activeWin] restackZ:restack];
+                printf("\nSuccessfully docked active window to %s!\n", edgeNames[dockEdge]);
             } else {
-                printf("\nPlan complete for %lu window(s). Run with '--dock %s --apply' to execute layout.\n",
-                       (unsigned long)windows.count, edgeNames[dockEdge]);
+                printf("\nPlan complete for active window. Run with '--dock %s --apply' to execute layout.\n",
+                       edgeNames[dockEdge]);
             }
             return 0;
         }

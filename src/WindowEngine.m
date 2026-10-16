@@ -264,6 +264,34 @@ static NSInteger rankForApp(NSString *appName, NSArray<NSString *> *preferred) {
                                           onUsableFrame:(CGRect)usableFrame {
     if (windows.count == 0) return @[];
     NSMutableArray<CascadeWindow *> *sorted = [windows mutableCopy];
+
+    if (layoutStyle == CascadeLayoutStyleFractal) {
+        if (preferredOrder.count > 0) {
+            NSMutableArray *indexed = [NSMutableArray arrayWithCapacity:windows.count];
+            for (NSUInteger i = 0; i < windows.count; i++) {
+                [indexed addObject:@{@"win": windows[i], @"idx": @(i)}];
+            }
+            [indexed sortUsingComparator:^NSComparisonResult(NSDictionary *dA, NSDictionary *dB) {
+                CascadeWindow *a = dA[@"win"];
+                CascadeWindow *b = dB[@"win"];
+                NSInteger rA = rankForApp(a.appName, preferredOrder);
+                NSInteger rB = rankForApp(b.appName, preferredOrder);
+                if (rA != rB) return rA < rB ? NSOrderedAscending : NSOrderedDescending;
+                return [dA[@"idx"] compare:dB[@"idx"]];
+            }];
+            [sorted removeAllObjects];
+            for (NSDictionary *d in indexed) {
+                [sorted addObject:d[@"win"]];
+            }
+        }
+        NSArray *participating = sorted.count > 4 ? [sorted subarrayWithRange:NSMakeRange(0, 4)] : sorted;
+        [WindowLayoutGeometry assignFramesToOrderedWindows:participating onUsableFrame:usableFrame delta:delta layoutStyle:layoutStyle];
+        for (NSUInteger i = 4; i < sorted.count; i++) {
+            sorted[i].targetFrame = sorted[i].currentFrame;
+        }
+        return sorted;
+    }
+
     if (orderMode == CascadeOrderModeMRU) {
         [sorted sortUsingComparator:^NSComparisonResult(CascadeWindow *a, CascadeWindow *b) {
             return (a.zRank != b.zRank) ? (a.zRank < b.zRank ? NSOrderedAscending : NSOrderedDescending) :
@@ -330,7 +358,15 @@ static NSInteger rankForApp(NSString *appName, NSArray<NSString *> *preferred) {
         if (matched) { [ordered addObject:matched]; [remaining removeObject:matched]; }
     }
     if (remaining.count > 0) [ordered addObjectsFromArray:remaining];
-    [WindowLayoutGeometry assignFramesToOrderedWindows:ordered onUsableFrame:usableFrame delta:delta layoutStyle:layoutStyle];
+    if (layoutStyle == CascadeLayoutStyleFractal) {
+        NSArray *participating = ordered.count > 4 ? [ordered subarrayWithRange:NSMakeRange(0, 4)] : ordered;
+        [WindowLayoutGeometry assignFramesToOrderedWindows:participating onUsableFrame:usableFrame delta:delta layoutStyle:layoutStyle];
+        for (NSUInteger i = 4; i < ordered.count; i++) {
+            ordered[i].targetFrame = ordered[i].currentFrame;
+        }
+    } else {
+        [WindowLayoutGeometry assignFramesToOrderedWindows:ordered onUsableFrame:usableFrame delta:delta layoutStyle:layoutStyle];
+    }
     return ordered;
 }
 
@@ -517,33 +553,21 @@ static NSInteger rankForApp(NSString *appName, NSArray<NSString *> *preferred) {
 }
 
 + (BOOL)dockActiveWindowWithEdge:(CascadeDockEdge)edge layoutStyle:(CascadeLayoutStyle)style delta:(CGFloat)delta {
+    (void)style;
+    (void)delta;
     if (![self isAccessibilityTrustedWithPrompt:YES]) return NO;
 
-    NSArray<CascadeWindow *> *allWindows = [self collectStandardWindowsWithOnly:nil exclude:[self ignoredApps]];
-    if (allWindows.count == 0) return NO;
-
     CascadeWindow *activeWin = [self frontmostStandardWindow];
-    NSUInteger activeIdx = 0;
-    if (activeWin) {
-        for (NSUInteger i = 0; i < allWindows.count; i++) {
-            if ([allWindows[i] matchesWindow:activeWin]) {
-                activeIdx = i;
-                break;
-            }
-        }
-    }
+    if (!activeWin || !activeWin.axRef) return NO;
 
-    CascadeScreen *screen = [ScreenManager screenForFrame:allWindows[activeIdx].currentFrame];
+    CascadeScreen *screen = [ScreenManager screenForFrame:activeWin.currentFrame];
     CGRect usable = screen ? screen.quartzVisibleFrame : [self usableScreenFrameWithTopInset:nil];
 
-    [WindowLayoutGeometry assignDockedFramesToWindows:allWindows
-                                    activeWindowIndex:activeIdx
-                                                 edge:edge
-                                        onUsableFrame:usable
-                                                delta:delta
-                                          layoutStyle:style];
+    CGRect docked = [WindowLayoutGeometry dockedFrameForEdge:edge onUsableFrame:usable];
+    activeWin.targetFrame = docked;
+    activeWin.usableFrame = usable;
 
-    [self applyLayoutToWindows:allWindows restackZ:YES];
+    [self applyLayoutToWindows:@[activeWin] restackZ:YES];
     return YES;
 }
 
