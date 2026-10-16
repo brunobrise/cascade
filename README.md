@@ -7,7 +7,7 @@
 <p align="center">
   <a href="https://apple.com/macos"><img src="https://img.shields.io/badge/platform-macOS%2011.0%2B-blue.svg" alt="macOS" /></a>
   <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT" /></a>
-  <a href="VERSION"><img src="https://img.shields.io/badge/version-0.26.0-brightgreen.svg" alt="Version" /></a>
+  <a href="VERSION"><img src="https://img.shields.io/badge/version-0.27.0-brightgreen.svg" alt="Version" /></a>
 </p>
 
 Native macOS window manager that maximizes application window size while guaranteeing every window remains clickable with the mouse pointer at all times.
