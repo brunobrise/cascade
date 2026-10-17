@@ -2,7 +2,7 @@
 #import <sys/stat.h>
 
 #ifndef CASCADE_VERSION
-#define CASCADE_VERSION "0.28.0"
+#define CASCADE_VERSION "0.29.0"
 #endif
 
 @implementation CascadeUpdateState
