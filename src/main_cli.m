@@ -117,6 +117,10 @@ static void printHelp(const char *prog) {
            "  --layout <style>           Layout style ('diagonal', 'quad-edge', or 'fractal')\n"
            "  --dock <edge>              Dock active window ('left', 'right', 'top', or 'bottom')\n"
            "  --zoom                     Toggle focus zoom (100%% monitor resolution)\n"
+           "  --zoom-area <x,y,w,h>      Zoom in on windows intersecting area in Fractal mode\n"
+           "  --zoom-reset               Reset area zoom and restore original window layout\n"
+           "  --save-positions           Save current window positions for Fractal mode\n"
+           "  --reset-positions          Reset saved manual window positions for Fractal mode\n"
            "  --order <mode>             Ordering: 'mru', 'spatial', 'alpha', or 'preferred'\n"
            "  --delta <pixels>           Offset/tab size in pixels (default: saved or 40)\n"
            "  --no-restack               Do not re-raise windows in order\n"
@@ -268,6 +272,33 @@ int main(int argc, const char * argv[]) {
                     printf("Start at login: %s\n", [LoginItemManager isStartAtLoginEnabled] ? "ENABLED" : "DISABLED");
                 }
                 return 0;
+            } else if ([arg isEqualToString:@"--save-positions"] || [arg isEqualToString:@"--remember-positions"]) {
+                NSArray *all = [CascadeEngine collectStandardWindowsWithOnly:onlyApps exclude:bypassIgnore ? nil : [CascadeEngine ignoredApps]];
+                CGRect usable = [CascadeEngine usableScreenFrameWithTopInset:nil];
+                [CascadeEngine saveFractalPositionsForWindows:all onUsableFrame:usable];
+                printf("Saved %lu manual window position(s) for Fractal mode.\n", (unsigned long)all.count);
+                return 0;
+            } else if ([arg isEqualToString:@"--reset-positions"]) {
+                [CascadeEngine clearSavedFractalPositions];
+                printf("Reset all saved manual window positions for Fractal mode.\n");
+                return 0;
+            } else if ([arg isEqualToString:@"--zoom-reset"]) {
+                BOOL ok = [CascadeEngine resetFractalZoom];
+                printf("%s\n", ok ? "Fractal zoom reset successfully." : "No active fractal zoom state found.");
+                return 0;
+            } else if ([arg isEqualToString:@"--zoom-area"] && i + 1 < argc) {
+                NSString *rectStr = [NSString stringWithUTF8String:argv[++i]];
+                NSArray *parts = [rectStr componentsSeparatedByString:@","];
+                if (parts.count == 4) {
+                    CGRect r = CGRectMake([parts[0] doubleValue], [parts[1] doubleValue], [parts[2] doubleValue], [parts[3] doubleValue]);
+                    CGRect usable = [CascadeEngine usableScreenFrameWithTopInset:nil];
+                    BOOL ok = [CascadeEngine zoomFractalWindowsInQuartzRect:r onUsableFrame:usable];
+                    printf("%s\n", ok ? "Successfully zoomed in on selected fractal area." : "No windows found intersecting specified area.");
+                    return ok ? 0 : 1;
+                } else {
+                    fprintf(stderr, "Error: --zoom-area requires <x,y,w,h> format (e.g. 100,100,800,600)\n");
+                    return 1;
+                }
             } else if ([arg isEqualToString:@"--order"] && i + 1 < argc) {
                 orderMode = parseOrderMode([NSString stringWithUTF8String:argv[++i]]);
             } else if ([arg isEqualToString:@"--app-order"] && i + 1 < argc) {

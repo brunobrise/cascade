@@ -114,6 +114,8 @@ static BOOL isAppExcluded(NSString *appName, NSArray<NSString *> *excludeApps) {
         AXObserverAddNotification(observer, appRef, kAXUIElementDestroyedNotification, (__bridge void *)self);
         AXObserverAddNotification(observer, appRef, kAXWindowMiniaturizedNotification, (__bridge void *)self);
         AXObserverAddNotification(observer, appRef, kAXWindowDeminiaturizedNotification, (__bridge void *)self);
+        AXObserverAddNotification(observer, appRef, kAXWindowMovedNotification, (__bridge void *)self);
+        AXObserverAddNotification(observer, appRef, kAXWindowResizedNotification, (__bridge void *)self);
 
         CFRunLoopAddSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(observer), kCFRunLoopCommonModes);
         self.observers[@(pid)] = [NSValue valueWithPointer:observer];

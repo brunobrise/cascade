@@ -7,6 +7,7 @@
 #import "AppOrderWindowController.h"
 #import "SettingsWindowController.h"
 #import "UpdateChecker.h"
+#import "SelectionOverlayController.h"
 
 @interface CascadeBarApp : NSObject <NSApplicationDelegate, WindowWatcherDelegate, NSMenuDelegate, SettingsWindowDelegate>
 @property (nonatomic, strong) NSStatusItem *statusItem;
@@ -17,11 +18,15 @@
 @property (nonatomic, assign) BOOL restackZOrder;
 @property (nonatomic, assign) EventHotKeyRef hotKeyRef;
 @property (nonatomic, assign) EventHotKeyRef zoomHotKeyRef;
+@property (nonatomic, assign) EventHotKeyRef areaZoomHotKeyRef;
 @property (nonatomic, strong) WindowWatcher *watcher;
 @property (nonatomic, strong) NSArray<CascadeWindow *> *establishedOrder;
 - (void)performCascade:(id)sender;
 - (void)cascadeWindowsOnTargetScreensWithRestack:(BOOL)restack preserveOrder:(BOOL)preserveOrder;
 - (void)openSettings:(id)sender;
+- (void)toggleAreaZoom:(id)sender;
+- (void)rememberWindowPositionsAction:(id)sender;
+- (void)resetWindowPositionsAction:(id)sender;
 @end
 
 static OSStatus HotKeyHandler(EventHandlerCallRef nextHandler, EventRef theEvent, void *userData) {
@@ -31,6 +36,9 @@ static OSStatus HotKeyHandler(EventHandlerCallRef nextHandler, EventRef theEvent
     if (GetEventParameter(theEvent, kEventParamDirectObject, typeEventHotKeyID, NULL, sizeof(hkID), NULL, &hkID) == noErr) {
         if (hkID.id == 2) {
             [CascadeEngine toggleZoomActiveWindow];
+            return noErr;
+        } else if (hkID.id == 3) {
+            [app toggleAreaZoom:nil];
             return noErr;
         }
     }
@@ -97,6 +105,8 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
     RegisterEventHotKey(0x08, cmdKey | optionKey, hotKeyID, GetApplicationEventTarget(), 0, &_hotKeyRef);
     EventHotKeyID zoomHotKeyID = { 'CSCD', 2 };
     RegisterEventHotKey(0x31, cmdKey | optionKey, zoomHotKeyID, GetApplicationEventTarget(), 0, &_zoomHotKeyRef);
+    EventHotKeyID areaZoomHotKeyID = { 'CSCD', 3 };
+    RegisterEventHotKey(0x06, cmdKey | optionKey, areaZoomHotKeyID, GetApplicationEventTarget(), 0, &_areaZoomHotKeyRef);
 
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(screensDidChange:) name:NSApplicationDidChangeScreenParametersNotification object:nil];
     [SettingsWindowController sharedController].delegate = self;
@@ -143,6 +153,12 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
     zoomItem.keyEquivalentModifierMask = NSEventModifierFlagOption | NSEventModifierFlagCommand;
     [menu addItem:zoomItem];
 
+    BOOL isZoomed = [CascadeEngine isFractalZoomed];
+    NSMenuItem *areaZoomItem = makeItem(isZoomed ? @"Exit Zoom (Restore Windows)" : @"Select Area to Zoom...", self, @selector(toggleAreaZoom:), isZoomed ? NSControlStateValueOn : NSControlStateValueOff);
+    areaZoomItem.keyEquivalent = @"z";
+    areaZoomItem.keyEquivalentModifierMask = NSEventModifierFlagOption | NSEventModifierFlagCommand;
+    [menu addItem:areaZoomItem];
+
     NSMenuItem *dockMenu = [[NSMenuItem alloc] initWithTitle:@"Dock Active Window" action:nil keyEquivalent:@""];
     NSMenu *dockSubmenu = [[NSMenu alloc] initWithTitle:@"Dock Active Window"];
     [dockSubmenu addItem:makeItem(@"Dock Left", self, @selector(dockLeftAction:), NSControlStateValueOff)];
@@ -151,6 +167,12 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
     [dockSubmenu addItem:makeItem(@"Dock Bottom", self, @selector(dockBottomAction:), NSControlStateValueOff)];
     [dockMenu setSubmenu:dockSubmenu];
     [menu addItem:dockMenu];
+
+    if ([CascadeEngine savedLayoutStyle] == CascadeLayoutStyleFractal) {
+        [menu addItem:[NSMenuItem separatorItem]];
+        [menu addItem:makeItem(@"Remember Window Positions", self, @selector(rememberWindowPositionsAction:), NSControlStateValueOff)];
+        [menu addItem:makeItem(@"Reset Window Positions", self, @selector(resetWindowPositionsAction:), NSControlStateValueOff)];
+    }
 
     [menu addItem:[NSMenuItem separatorItem]];
 
@@ -209,6 +231,53 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
     [CascadeEngine toggleZoomActiveWindow];
 }
 
+- (void)toggleAreaZoom:(id)sender {
+    (void)sender;
+    if (![self ensureAccessibility]) return;
+    if ([CascadeEngine isFractalZoomed]) {
+        [CascadeEngine resetFractalZoom];
+        [self rebuildMenu];
+        return;
+    }
+    CascadeScreen *screen = [ScreenManager screenForPointer];
+    NSScreen *targetNSScreen = nil;
+    if (screen) {
+        for (NSScreen *ns in [NSScreen screens]) {
+            NSNumber *dNum = ns.deviceDescription[@"NSScreenNumber"];
+            if (dNum && [dNum.stringValue isEqualToString:screen.displayID]) {
+                targetNSScreen = ns;
+                break;
+            }
+        }
+    }
+    if (!targetNSScreen) targetNSScreen = [NSScreen mainScreen];
+
+    [[SelectionOverlayController sharedController] startSelectionOnScreen:targetNSScreen completion:^(CGRect quartzRect, BOOL cancelled) {
+        if (cancelled || CGRectIsNull(quartzRect)) return;
+        CGRect usable = screen ? screen.quartzVisibleFrame : [CascadeEngine usableScreenFrameWithTopInset:nil];
+        BOOL ok = [CascadeEngine zoomFractalWindowsInQuartzRect:quartzRect onUsableFrame:usable];
+        if (ok) {
+            [self rebuildMenu];
+        } else {
+            NSBeep();
+        }
+    }];
+}
+
+- (void)rememberWindowPositionsAction:(id)sender {
+    (void)sender;
+    if (![self ensureAccessibility]) return;
+    NSArray<CascadeWindow *> *wins = [CascadeEngine collectStandardWindowsWithOnly:nil exclude:[CascadeEngine ignoredApps]];
+    CGRect usable = [CascadeEngine usableScreenFrameWithTopInset:nil];
+    [CascadeEngine saveFractalPositionsForWindows:wins onUsableFrame:usable];
+}
+
+- (void)resetWindowPositionsAction:(id)sender {
+    (void)sender;
+    [CascadeEngine clearSavedFractalPositions];
+    [self cascadeWindowsOnTargetScreensWithRestack:self.restackZOrder preserveOrder:NO];
+}
+
 - (void)dockLeftAction:(id)s { (void)s; [self dockActiveWindowWithEdge:CascadeDockEdgeLeft]; }
 - (void)dockRightAction:(id)s { (void)s; [self dockActiveWindowWithEdge:CascadeDockEdgeRight]; }
 - (void)dockTopAction:(id)s { (void)s; [self dockActiveWindowWithEdge:CascadeDockEdgeTop]; }
@@ -234,6 +303,13 @@ static NSMenuItem *makeItem(NSString *title, id target, SEL action, NSControlSta
 
 - (void)windowWatcherDidDetectChange:(WindowWatcher *)watcher {
     (void)watcher;
+    if ([CascadeEngine savedLayoutStyle] == CascadeLayoutStyleFractal) {
+        CascadeWindow *front = [CascadeEngine frontmostStandardWindow];
+        if (front) {
+            CGRect usable = [CascadeEngine usableScreenFrameWithTopInset:nil];
+            [CascadeEngine saveFractalPositionForWindow:front onUsableFrame:usable];
+        }
+    }
     [self rearrangePreservingOrder];
 }
 

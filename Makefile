@@ -106,6 +106,9 @@ $(BUILD_DIR)/WindowLayoutGeometry.o: src/WindowLayoutGeometry.m src/WindowLayout
 $(BUILD_DIR)/UpdateChecker.o: src/UpdateChecker.m src/UpdateChecker.h | $(BUILD_DIR)/.dir
 	$(CC) $(CFLAGS) -c src/UpdateChecker.m -o $@
 
+$(BUILD_DIR)/SelectionOverlayController.o: src/SelectionOverlayController.m src/SelectionOverlayController.h src/ScreenManager.h | $(BUILD_DIR)/.dir
+	$(CC) $(CFLAGS) -c src/SelectionOverlayController.m -o $@
+
 # CLI binary
 $(BUILD_DIR)/cascade: src/main_cli.m $(BUILD_DIR)/WindowLayoutGeometry.o $(BUILD_DIR)/WindowEngine.o $(BUILD_DIR)/ScreenManager.o $(BUILD_DIR)/LoginItemManager.o $(BUILD_DIR)/WindowWatcher.o $(BUILD_DIR)/UpdateChecker.o $(wildcard VERSION) | $(BUILD_DIR)/.dir
 	$(CC) $(CFLAGS) $(LDFLAGS) src/main_cli.m $(BUILD_DIR)/WindowLayoutGeometry.o $(BUILD_DIR)/WindowEngine.o $(BUILD_DIR)/ScreenManager.o $(BUILD_DIR)/LoginItemManager.o $(BUILD_DIR)/WindowWatcher.o $(BUILD_DIR)/UpdateChecker.o -o $@
@@ -183,10 +186,10 @@ reset-permissions:
 	@echo "Reset Accessibility permissions for com.brunobrise.cascade in TCC database."
 
 # Status Bar App Bundle
-$(BUILD_DIR)/Cascade.app: src/main_bar.m $(BUILD_DIR)/WindowLayoutGeometry.o $(BUILD_DIR)/WindowEngine.o $(BUILD_DIR)/ScreenManager.o $(BUILD_DIR)/LoginItemManager.o $(BUILD_DIR)/WindowWatcher.o $(BUILD_DIR)/AppOrderWindowController.o $(BUILD_DIR)/IgnoreListWindowController.o $(BUILD_DIR)/SettingsWindowController.o $(BUILD_DIR)/UpdateChecker.o resources/Info.plist resources/AppIcon.icns $(wildcard VERSION) | $(BUILD_DIR)/.dir
+$(BUILD_DIR)/Cascade.app: src/main_bar.m $(BUILD_DIR)/WindowLayoutGeometry.o $(BUILD_DIR)/WindowEngine.o $(BUILD_DIR)/ScreenManager.o $(BUILD_DIR)/LoginItemManager.o $(BUILD_DIR)/WindowWatcher.o $(BUILD_DIR)/AppOrderWindowController.o $(BUILD_DIR)/IgnoreListWindowController.o $(BUILD_DIR)/SettingsWindowController.o $(BUILD_DIR)/UpdateChecker.o $(BUILD_DIR)/SelectionOverlayController.o resources/Info.plist resources/AppIcon.icns $(wildcard VERSION) | $(BUILD_DIR)/.dir
 	mkdir -p $(BUILD_DIR)/Cascade.app/Contents/MacOS
 	mkdir -p $(BUILD_DIR)/Cascade.app/Contents/Resources
-	$(CC) $(CFLAGS) $(LDFLAGS) src/main_bar.m $(BUILD_DIR)/WindowLayoutGeometry.o $(BUILD_DIR)/WindowEngine.o $(BUILD_DIR)/ScreenManager.o $(BUILD_DIR)/LoginItemManager.o $(BUILD_DIR)/WindowWatcher.o $(BUILD_DIR)/AppOrderWindowController.o $(BUILD_DIR)/IgnoreListWindowController.o $(BUILD_DIR)/SettingsWindowController.o $(BUILD_DIR)/UpdateChecker.o -o $(BUILD_DIR)/Cascade.app/Contents/MacOS/Cascade
+	$(CC) $(CFLAGS) $(LDFLAGS) src/main_bar.m $(BUILD_DIR)/WindowLayoutGeometry.o $(BUILD_DIR)/WindowEngine.o $(BUILD_DIR)/ScreenManager.o $(BUILD_DIR)/LoginItemManager.o $(BUILD_DIR)/WindowWatcher.o $(BUILD_DIR)/AppOrderWindowController.o $(BUILD_DIR)/IgnoreListWindowController.o $(BUILD_DIR)/SettingsWindowController.o $(BUILD_DIR)/UpdateChecker.o $(BUILD_DIR)/SelectionOverlayController.o -o $(BUILD_DIR)/Cascade.app/Contents/MacOS/Cascade
 	cp resources/Info.plist $(BUILD_DIR)/Cascade.app/Contents/Info.plist
 	/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $(VERSION)" $(BUILD_DIR)/Cascade.app/Contents/Info.plist 2>/dev/null || true
 	cp resources/AppIcon.icns $(BUILD_DIR)/Cascade.app/Contents/Resources/AppIcon.icns

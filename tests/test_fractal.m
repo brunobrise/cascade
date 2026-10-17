@@ -261,6 +261,106 @@ static void testFractalAppGrouping() {
     printf("  [PASS] Fractal layout groups windows from same app contiguously.\n");
 }
 
+static void testFractalManualWindowPositionPersistence() {
+    printf("Running testFractalManualWindowPositionPersistence...\n");
+    [CascadeEngine clearSavedFractalPositions];
+
+    CGRect screen1440 = CGRectMake(0, 0, 2560, 1440);
+    CascadeWindow *wCode = makeTestWindow(@"Code", @"Editor");
+    wCode.currentFrame = CGRectMake(256.0, 144.0, 1280.0, 720.0); // 10% x, 10% y, 50% w, 50% h
+
+    [CascadeEngine saveFractalPositionForWindow:wCode onUsableFrame:screen1440];
+
+    // Verify retrieval on same screen
+    NSValue *savedVal = [CascadeEngine savedFractalPositionForWindow:wCode onUsableFrame:screen1440];
+    assert(savedVal != nil);
+    CGRect retrieved = [savedVal rectValue];
+    assert(fabs(retrieved.origin.x - 256.0) < 0.1);
+    assert(fabs(retrieved.origin.y - 144.0) < 0.1);
+    assert(fabs(retrieved.size.width - 1280.0) < 0.1);
+    assert(fabs(retrieved.size.height - 720.0) < 0.1);
+
+    // Verify resolution independence on a 4K screen (3840 x 2160)
+    CGRect screen4K = CGRectMake(0, 0, 3840, 2160);
+    NSValue *val4K = [CascadeEngine savedFractalPositionForWindow:wCode onUsableFrame:screen4K];
+    assert(val4K != nil);
+    CGRect retrieved4K = [val4K rectValue];
+    // Expected: 10% of 3840 = 384, 10% of 2160 = 216, 50% = 1920, 50% = 1080
+    assert(fabs(retrieved4K.origin.x - 384.0) < 0.1);
+    assert(fabs(retrieved4K.origin.y - 216.0) < 0.1);
+    assert(fabs(retrieved4K.size.width - 1920.0) < 0.1);
+    assert(fabs(retrieved4K.size.height - 1080.0) < 0.1);
+
+    // Verify calculateLayout incorporates saved position
+    NSArray *planned = [CascadeEngine calculateLayoutForWindows:@[wCode]
+                                                      orderMode:CascadeOrderModeMRU
+                                                 preferredOrder:@[]
+                                                          delta:25.0
+                                                    layoutStyle:CascadeLayoutStyleFractal
+                                                  onUsableFrame:screen4K];
+    assert(planned.count == 1);
+    CascadeWindow *p = planned[0];
+    assert(fabs(p.targetFrame.origin.x - 384.0) < 0.1);
+    assert(fabs(p.targetFrame.origin.y - 216.0) < 0.1);
+
+    [CascadeEngine clearSavedFractalPositions];
+    assert([CascadeEngine savedFractalPositionForWindow:wCode onUsableFrame:screen1440] == nil);
+    printf("  [PASS] Fractal manual window position persistence and resolution independence verified.\n");
+}
+
+static void testFractalAreaIntersection() {
+    printf("Running testFractalAreaIntersection...\n");
+    CascadeWindow *w1 = makeTestWindow(@"App1", @"Win1");
+    w1.currentFrame = CGRectMake(100, 100, 400, 300);
+
+    CascadeWindow *w2 = makeTestWindow(@"App2", @"Win2");
+    w2.currentFrame = CGRectMake(600, 100, 400, 300);
+
+    CascadeWindow *w3 = makeTestWindow(@"App3", @"Win3");
+    w3.currentFrame = CGRectMake(100, 600, 400, 300);
+
+    NSArray *all = @[w1, w2, w3];
+    // Marquee selecting top half (w1 and w2)
+    CGRect selRect = CGRectMake(50, 50, 1000, 400);
+
+    NSArray<CascadeWindow *> *matches = [CascadeEngine windowsIntersectingQuartzRect:selRect inWindows:all];
+    assert(matches.count == 2);
+    assert([matches containsObject:w1]);
+    assert([matches containsObject:w2]);
+    assert(![matches containsObject:w3]);
+    printf("  [PASS] Area marquee intersection accurately selects windows.\n");
+}
+
+static void testFractalAreaZoomAndRestore() {
+    printf("Running testFractalAreaZoomAndRestore...\n");
+    CGRect screen = CGRectMake(0, 0, 2000, 1000);
+    CascadeWindow *w1 = makeTestWindow(@"Editor", @"Main");
+    w1.currentFrame = CGRectMake(100, 100, 400, 400);
+
+    CascadeWindow *w2 = makeTestWindow(@"Terminal", @"Logs");
+    w2.currentFrame = CGRectMake(500, 100, 400, 400);
+
+    NSArray *selected = @[w1, w2];
+    BOOL zoomOk = [CascadeEngine zoomFractalWindows:selected onUsableFrame:screen];
+    assert(zoomOk);
+    assert([CascadeEngine isFractalZoomed]);
+
+    // Check proportional expansion: union was (100, 100, 800, 400). Screen is (0, 0, 2000, 1000).
+    // scaleX = 2000/800 = 2.5, scaleY = 1000/400 = 2.5.
+    // w1: newX = 0, newY = 0, newW = 400 * 2.5 = 1000, newH = 400 * 2.5 = 1000.
+    // w2: newX = (500-100)*2.5 = 1000, newY = 0, newW = 1000, newH = 1000.
+    assert(fabs(w1.targetFrame.origin.x - 0.0) < 1.0);
+    assert(fabs(w1.targetFrame.size.width - 1000.0) < 1.0);
+    assert(fabs(w2.targetFrame.origin.x - 1000.0) < 1.0);
+    assert(fabs(w2.targetFrame.size.width - 1000.0) < 1.0);
+
+    // Restore
+    BOOL resetOk = [CascadeEngine resetFractalZoom];
+    assert(resetOk);
+    assert(![CascadeEngine isFractalZoomed]);
+    printf("  [PASS] Fractal area zoom proportional expansion and layout restore verified.\n");
+}
+
 int main(void) {
     @autoreleasepool {
         printf("=== Running Fractal Window Management Unit Tests ===\n");
@@ -274,6 +374,9 @@ int main(void) {
         testFractalMaxDepthClamping();
         testIndependentDockingPreservesOtherWindows();
         testFractalAppGrouping();
+        testFractalManualWindowPositionPersistence();
+        testFractalAreaIntersection();
+        testFractalAreaZoomAndRestore();
         printf("=== All Fractal Tests Passed Successfully! ===\n");
     }
     return 0;

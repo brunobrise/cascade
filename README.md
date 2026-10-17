@@ -16,9 +16,10 @@ Native macOS window manager that maximizes application window size while guarant
 
 - **Maximizes Window Area:** Applications occupy 75% to 98% of your display—no rigid tiling or tiny split panes.
 - **Three Geometric Layout Styles:**
-  - **Fractal (Golden Ratio):** Recursive space subdivision along a golden spiral ($\phi \approx 0.618$) for arbitrary window counts $N$, exposing unoccluded perimeter tabs.
+  - **Fractal (Golden Ratio):** Recursive space subdivision along a golden spiral ($\phi \approx 0.618$) with manual window position memory and resolution-independent persistence.
   - **Quad-Edge (Perimeter):** Cycles windows along Top, Right, Bottom, and Left screen borders for maximum screen coverage (94%+ display area) and full-edge click strips.
   - **Diagonal Cascade:** Staggers windows diagonally with guaranteed unoccluded top-right and bottom-left click tabs.
+- **Fractal Area Selection Zoom:** Drag-select any region of the screen (`⌥⌘Z`) to zoom in on a subset of windows, scaling them proportionally to fill the workspace, with instant toggle restore.
 - **Recursive Edge Docking:** Dock the active window to half the screen (`left`, `right`, `top`, `bottom`) while recursively cascading and nesting remaining windows in residual space.
 - **Resolution-Independent Focus Zoom:** Instant toggle (`⌥⌘Space` or `--zoom`) between macro fractal overview and 100% native monitor resolution for deep work with zero latency.
 - **Ultrawide & Multi-Monitor Splits:** Partition displays or split ultrawide monitors into 1, 2, 3, or 4 virtual columns with independent cascades and automatic window rebalancing.
@@ -61,7 +62,8 @@ Launch the menu bar app: `open -a ~/Applications/Cascade.app` (or `make run`).
 
 - **Cascade Windows:** Press `Option + Command + C` (`⌥⌘C`) to cascade the monitor under your mouse cursor.
 - **Focus Zoom:** Press `Option + Command + Space` (`⌥⌘Space`) to toggle between fractal overview and 100% full-screen focus.
-- **Menu Bar Icon:** Click to cascade current display, cascade all displays, toggle **Focus Zoom**, dock active window (**Dock Left / Right / Top / Bottom**), toggle **Auto-Rearrange**, or open **Settings** (`⌘,`).
+- **Area Selection Zoom:** Press `Option + Command + Z` (`⌥⌘Z`) to drag a marquee selection over windows to zoom in on them; press again to restore.
+- **Menu Bar Icon:** Click to cascade current display, cascade all displays, toggle **Focus Zoom**, select **Area Zoom**, save/reset **Fractal Positions**, dock active window (**Dock Left / Right / Top / Bottom**), toggle **Auto-Rearrange**, or open **Settings** (`⌘,`).
 - **Settings Modal:** Configure Layout Style (**Diagonal / Quad-Edge / Fractal**), Window Order, Column Splits, Margin (Delta), Ignore List, Launch at Login, and Software Updates.
 
 ### Command-Line Interface (`cascade`)
@@ -70,6 +72,10 @@ Launch the menu bar app: `open -a ~/Applications/Cascade.app` (or `make run`).
 | :--- | :--- |
 | **Apply layout** | `cascade --apply` *(add `--plan` for dry run)* |
 | **Fractal layout** | `cascade --layout fractal --apply` *(manual golden-spiral partitioning, max depth 4)* |
+| **Save positions** | `cascade --save-positions` *(remember current window positions in Fractal mode)* |
+| **Reset positions** | `cascade --reset-positions` *(restore default algorithmic fractal layout)* |
+| **Area zoom** | `cascade --zoom-area 100,100,1200,800` *(zoom in on windows in area)* |
+| **Reset zoom** | `cascade --zoom-reset` *(restore pre-zoom window layout)* |
 | **Layout style** | `cascade --layout quad-edge --apply` *(or `diagonal`, `fractal`)* |
 | **Edge docking** | `cascade --dock left --apply` *(tiles active window cleanly to edge half, leaving other windows untouched)* |
 | **Focus zoom** | `cascade --zoom` *(toggle 100% monitor resolution on active window)* |

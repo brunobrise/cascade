@@ -108,4 +108,18 @@ typedef NS_ENUM(NSInteger, CascadeDockEdge) {
 + (BOOL)toggleZoomActiveWindow;
 + (BOOL)dockActiveWindowWithEdge:(CascadeDockEdge)edge layoutStyle:(CascadeLayoutStyle)style delta:(CGFloat)delta;
 
+// Fractal Manual Window Positions
++ (void)saveFractalPositionForWindow:(CascadeWindow *)window onUsableFrame:(CGRect)usableFrame;
++ (void)saveFractalPositionsForWindows:(NSArray<CascadeWindow *> *)windows onUsableFrame:(CGRect)usableFrame;
++ (NSValue *)savedFractalPositionForWindow:(CascadeWindow *)window onUsableFrame:(CGRect)usableFrame;
++ (NSDictionary<NSString *, NSDictionary<NSString *, NSNumber *> *> *)allSavedFractalPositions;
++ (void)clearSavedFractalPositions;
+
+// Fractal Area Selection & Zoom
++ (NSArray<CascadeWindow *> *)windowsIntersectingQuartzRect:(CGRect)rect inWindows:(NSArray<CascadeWindow *> *)windows;
++ (BOOL)isFractalZoomed;
++ (BOOL)zoomFractalWindows:(NSArray<CascadeWindow *> *)selectedWindows onUsableFrame:(CGRect)usableFrame;
++ (BOOL)zoomFractalWindowsInQuartzRect:(CGRect)selectionRect onUsableFrame:(CGRect)usableFrame;
++ (BOOL)resetFractalZoom;
+
 @end

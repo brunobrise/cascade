@@ -385,6 +385,12 @@ static NSArray<CascadeWindow *> *groupAndSortWindows(NSArray<CascadeWindow *> *w
     if (layoutStyle == CascadeLayoutStyleFractal) {
         NSArray *participating = sorted.count > 4 ? [sorted subarrayWithRange:NSMakeRange(0, 4)] : sorted;
         [WindowLayoutGeometry assignFramesToOrderedWindows:participating onUsableFrame:usableFrame delta:delta layoutStyle:layoutStyle];
+        for (CascadeWindow *w in participating) {
+            NSValue *savedPos = [self savedFractalPositionForWindow:w onUsableFrame:usableFrame];
+            if (savedPos) {
+                w.targetFrame = [savedPos rectValue];
+            }
+        }
         for (NSUInteger i = 4; i < sorted.count; i++) {
             sorted[i].targetFrame = sorted[i].currentFrame;
         }
@@ -468,6 +474,12 @@ static NSArray<CascadeWindow *> *groupAndSortWindows(NSArray<CascadeWindow *> *w
     if (layoutStyle == CascadeLayoutStyleFractal) {
         NSArray *participating = ordered.count > 4 ? [ordered subarrayWithRange:NSMakeRange(0, 4)] : ordered;
         [WindowLayoutGeometry assignFramesToOrderedWindows:participating onUsableFrame:usableFrame delta:delta layoutStyle:layoutStyle];
+        for (CascadeWindow *w in participating) {
+            NSValue *savedPos = [self savedFractalPositionForWindow:w onUsableFrame:usableFrame];
+            if (savedPos) {
+                w.targetFrame = [savedPos rectValue];
+            }
+        }
         for (NSUInteger i = 4; i < ordered.count; i++) {
             ordered[i].targetFrame = ordered[i].currentFrame;
         }
@@ -675,6 +687,188 @@ static NSArray<CascadeWindow *> *groupAndSortWindows(NSArray<CascadeWindow *> *w
     activeWin.usableFrame = usable;
 
     [self applyLayoutToWindows:@[activeWin] restackZ:YES];
+    return YES;
+}
+
+#pragma mark - Fractal Manual Window Positions
+
++ (void)saveFractalPositionForWindow:(CascadeWindow *)window onUsableFrame:(CGRect)usableFrame {
+    if (!window || usableFrame.size.width <= 0 || usableFrame.size.height <= 0) return;
+    CGFloat rx = (window.currentFrame.origin.x - usableFrame.origin.x) / usableFrame.size.width;
+    CGFloat ry = (window.currentFrame.origin.y - usableFrame.origin.y) / usableFrame.size.height;
+    CGFloat rw = window.currentFrame.size.width / usableFrame.size.width;
+    CGFloat rh = window.currentFrame.size.height / usableFrame.size.height;
+
+    NSMutableDictionary *all = [([self.userDefaults dictionaryForKey:@"fractalManualPositions"] ?: @{}) mutableCopy];
+    NSDictionary *frameDict = @{ @"rx": @(rx), @"ry": @(ry), @"rw": @(rw), @"rh": @(rh) };
+    if (window.title.length > 0) {
+        NSString *key = [NSString stringWithFormat:@"%@::%@", window.appName ?: @"", window.title];
+        all[key] = frameDict;
+    }
+    if (window.appName.length > 0) {
+        all[window.appName] = frameDict;
+    }
+    [self.userDefaults setObject:all forKey:@"fractalManualPositions"];
+    [self.userDefaults synchronize];
+}
+
++ (void)saveFractalPositionsForWindows:(NSArray<CascadeWindow *> *)windows onUsableFrame:(CGRect)usableFrame {
+    if (windows.count == 0 || usableFrame.size.width <= 0 || usableFrame.size.height <= 0) return;
+    for (CascadeWindow *w in windows) {
+        [self saveFractalPositionForWindow:w onUsableFrame:usableFrame];
+    }
+}
+
++ (nullable NSValue *)savedFractalPositionForWindow:(CascadeWindow *)window onUsableFrame:(CGRect)usableFrame {
+    if (!window || usableFrame.size.width <= 0 || usableFrame.size.height <= 0) return nil;
+    NSDictionary *all = [self.userDefaults dictionaryForKey:@"fractalManualPositions"];
+    if (!all || all.count == 0) return nil;
+
+    NSDictionary *frameDict = nil;
+    if (window.title.length > 0) {
+        NSString *key = [NSString stringWithFormat:@"%@::%@", window.appName ?: @"", window.title];
+        frameDict = all[key];
+    }
+    if (!frameDict && window.appName.length > 0) {
+        frameDict = all[window.appName];
+    }
+    if (!frameDict) return nil;
+
+    CGFloat rx = [frameDict[@"rx"] doubleValue];
+    CGFloat ry = [frameDict[@"ry"] doubleValue];
+    CGFloat rw = [frameDict[@"rw"] doubleValue];
+    CGFloat rh = [frameDict[@"rh"] doubleValue];
+
+    CGRect denorm = CGRectMake(usableFrame.origin.x + rx * usableFrame.size.width,
+                               usableFrame.origin.y + ry * usableFrame.size.height,
+                               rw * usableFrame.size.width,
+                               rh * usableFrame.size.height);
+    return [NSValue valueWithRect:denorm];
+}
+
++ (NSDictionary<NSString *, NSDictionary<NSString *, NSNumber *> *> *)allSavedFractalPositions {
+    return [self.userDefaults dictionaryForKey:@"fractalManualPositions"] ?: @{};
+}
+
++ (void)clearSavedFractalPositions {
+    [self.userDefaults removeObjectForKey:@"fractalManualPositions"];
+    [self.userDefaults synchronize];
+}
+
+#pragma mark - Fractal Area Selection & Zoom
+
++ (NSArray<CascadeWindow *> *)windowsIntersectingQuartzRect:(CGRect)rect inWindows:(NSArray<CascadeWindow *> *)windows {
+    if (windows.count == 0 || rect.size.width <= 0 || rect.size.height <= 0) return @[];
+    NSMutableArray<CascadeWindow *> *matches = [NSMutableArray array];
+    for (CascadeWindow *w in windows) {
+        CGRect wFrame = w.currentFrame;
+        if (CGRectIntersectsRect(rect, wFrame)) {
+            CGRect inter = CGRectIntersection(rect, wFrame);
+            if (!CGRectIsNull(inter) && (inter.size.width * inter.size.height >= 100.0)) {
+                [matches addObject:w];
+            }
+        }
+    }
+    return matches;
+}
+
++ (BOOL)isFractalZoomed {
+    NSArray *saved = [self.userDefaults arrayForKey:@"fractalZoomState"];
+    return saved != nil && saved.count > 0;
+}
+
++ (BOOL)zoomFractalWindows:(NSArray<CascadeWindow *> *)selectedWindows onUsableFrame:(CGRect)usableFrame {
+    if (selectedWindows.count == 0 || usableFrame.size.width <= 0 || usableFrame.size.height <= 0) return NO;
+
+    // Snapshot all standard open windows before zoom
+    NSArray<CascadeWindow *> *allOpen = [self collectStandardWindowsWithOnly:nil exclude:[self ignoredApps]];
+    if (allOpen.count == 0) allOpen = selectedWindows;
+
+    NSMutableArray *savedState = [NSMutableArray arrayWithCapacity:allOpen.count];
+    for (CascadeWindow *w in allOpen) {
+        [savedState addObject:@{
+            @"appName": w.appName ?: @"",
+            @"title": w.title ?: @"",
+            @"pid": @(w.pid),
+            @"x": @(w.currentFrame.origin.x),
+            @"y": @(w.currentFrame.origin.y),
+            @"w": @(w.currentFrame.size.width),
+            @"h": @(w.currentFrame.size.height)
+        }];
+    }
+    [self.userDefaults setObject:savedState forKey:@"fractalZoomState"];
+    [self.userDefaults synchronize];
+
+    if (selectedWindows.count == 1) {
+        CascadeWindow *w = selectedWindows[0];
+        w.targetFrame = usableFrame;
+        w.usableFrame = usableFrame;
+        [self applyLayoutToWindows:@[w] restackZ:YES];
+        return YES;
+    }
+
+    // Compute bounding union of selected windows
+    CGRect uBox = selectedWindows[0].currentFrame;
+    for (NSUInteger i = 1; i < selectedWindows.count; i++) {
+        uBox = CGRectUnion(uBox, selectedWindows[i].currentFrame);
+    }
+    if (uBox.size.width <= 0) uBox.size.width = 1.0;
+    if (uBox.size.height <= 0) uBox.size.height = 1.0;
+
+    CGFloat scaleX = usableFrame.size.width / uBox.size.width;
+    CGFloat scaleY = usableFrame.size.height / uBox.size.height;
+
+    for (CascadeWindow *w in selectedWindows) {
+        CGFloat nx = usableFrame.origin.x + (w.currentFrame.origin.x - uBox.origin.x) * scaleX;
+        CGFloat ny = usableFrame.origin.y + (w.currentFrame.origin.y - uBox.origin.y) * scaleY;
+        CGFloat nw = w.currentFrame.size.width * scaleX;
+        CGFloat nh = w.currentFrame.size.height * scaleY;
+        w.targetFrame = CGRectMake(nx, ny, nw, nh);
+        w.usableFrame = usableFrame;
+    }
+
+    [self applyLayoutToWindows:selectedWindows restackZ:YES];
+    return YES;
+}
+
++ (BOOL)zoomFractalWindowsInQuartzRect:(CGRect)selectionRect onUsableFrame:(CGRect)usableFrame {
+    NSArray<CascadeWindow *> *allOpen = [self collectStandardWindowsWithOnly:nil exclude:[self ignoredApps]];
+    NSArray<CascadeWindow *> *selected = [self windowsIntersectingQuartzRect:selectionRect inWindows:allOpen];
+    if (selected.count == 0) return NO;
+    return [self zoomFractalWindows:selected onUsableFrame:usableFrame];
+}
+
++ (BOOL)resetFractalZoom {
+    NSArray *saved = [self.userDefaults arrayForKey:@"fractalZoomState"];
+    if (!saved || saved.count == 0) return NO;
+
+    NSArray<CascadeWindow *> *allOpen = [self collectStandardWindowsWithOnly:nil exclude:[self ignoredApps]];
+    NSMutableArray<CascadeWindow *> *toRestore = [NSMutableArray array];
+
+    for (NSDictionary *desc in saved) {
+        pid_t pid = [desc[@"pid"] intValue];
+        NSString *appName = desc[@"appName"] ?: @"";
+        NSString *title = desc[@"title"] ?: @"";
+        CGRect origFrame = CGRectMake([desc[@"x"] doubleValue],
+                                      [desc[@"y"] doubleValue],
+                                      [desc[@"w"] doubleValue],
+                                      [desc[@"h"] doubleValue]);
+
+        for (CascadeWindow *w in allOpen) {
+            if (w.pid == pid || ([w.appName isEqualToString:appName] && (title.length == 0 || [w.title isEqualToString:title]))) {
+                w.targetFrame = origFrame;
+                w.usableFrame = [self usableScreenFrameWithTopInset:nil];
+                [toRestore addObject:w];
+                break;
+            }
+        }
+    }
+
+    if (toRestore.count > 0) {
+        [self applyLayoutToWindows:toRestore restackZ:NO];
+    }
+    [self.userDefaults removeObjectForKey:@"fractalZoomState"];
+    [self.userDefaults synchronize];
     return YES;
 }
 
