@@ -237,6 +237,30 @@ static void testIndependentDockingPreservesOtherWindows() {
     printf("  [PASS] Independent docking computed clean edge frame without touching other windows.\n");
 }
 
+static void testFractalAppGrouping() {
+    printf("Running testFractalAppGrouping...\n");
+    CGRect screen = CGRectMake(0, 0, 2560, 1440);
+    CascadeWindow *a1 = makeTestWindow(@"AppA", @"Win1");
+    CascadeWindow *b1 = makeTestWindow(@"AppB", @"Win1");
+    CascadeWindow *a2 = makeTestWindow(@"AppA", @"Win2");
+    CascadeWindow *b2 = makeTestWindow(@"AppB", @"Win2");
+
+    // Interleaved input without preferred order
+    NSArray<CascadeWindow *> *planned = [CascadeEngine calculateLayoutForWindows:@[a1, b1, a2, b2]
+                                                                       orderMode:CascadeOrderModeMRU
+                                                                  preferredOrder:@[]
+                                                                           delta:25.0
+                                                                     layoutStyle:CascadeLayoutStyleFractal
+                                                                   onUsableFrame:screen];
+    assert(planned.count == 4);
+    // AppA windows must be contiguous, AppB windows must be contiguous
+    assert([planned[0].appName isEqualToString:@"AppA"]);
+    assert([planned[1].appName isEqualToString:@"AppA"]);
+    assert([planned[2].appName isEqualToString:@"AppB"]);
+    assert([planned[3].appName isEqualToString:@"AppB"]);
+    printf("  [PASS] Fractal layout groups windows from same app contiguously.\n");
+}
+
 int main(void) {
     @autoreleasepool {
         printf("=== Running Fractal Window Management Unit Tests ===\n");
@@ -249,6 +273,7 @@ int main(void) {
         testFractalBypassesAutoOrderAndPreservesManual();
         testFractalMaxDepthClamping();
         testIndependentDockingPreservesOtherWindows();
+        testFractalAppGrouping();
         printf("=== All Fractal Tests Passed Successfully! ===\n");
     }
     return 0;

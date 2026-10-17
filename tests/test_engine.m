@@ -396,6 +396,122 @@ static void testWindowStateLayoutAndClamping(void) {
     printf("  [PASS] Window state layout calculation and clamping verified.\n");
 }
 
+static void assertContiguousAppGrouping(NSArray<CascadeWindow *> *windows) {
+    NSMutableSet *seen = [NSMutableSet set];
+    NSString *currentApp = nil;
+    for (CascadeWindow *w in windows) {
+        NSString *app = [w.appName lowercaseString] ?: @"";
+        if (currentApp && ![app isEqualToString:currentApp]) {
+            assert(![seen containsObject:app]);
+        }
+        [seen addObject:app];
+        currentApp = app;
+    }
+}
+
+static void testAppGroupingMRU(void) {
+    printf("Running testAppGroupingMRU...\n");
+    CascadeWindow *a1 = makeMockWindow(@"AppA", 0, 0, 800, 600, 2);
+    CascadeWindow *b1 = makeMockWindow(@"AppB", 0, 0, 800, 600, 1);
+    CascadeWindow *a2 = makeMockWindow(@"AppA", 0, 0, 800, 600, 5);
+    CascadeWindow *c1 = makeMockWindow(@"AppC", 0, 0, 800, 600, 3);
+    CascadeWindow *b2 = makeMockWindow(@"AppB", 0, 0, 800, 600, 6);
+
+    NSArray<CascadeWindow *> *planned = [CascadeEngine calculateLayoutForWindows:@[a1, b1, a2, c1, b2]
+                                                                      orderMode:CascadeOrderModeMRU
+                                                                          delta:40.0];
+    assert(planned.count == 5);
+    assertContiguousAppGrouping(planned);
+
+    // AppB frontmost (z=1) -> [b1, b2], then AppA (z=2) -> [a1, a2], then AppC (z=3) -> [c1]
+    assert([planned[0].appName isEqualToString:@"AppB"] && planned[0].zRank == 1);
+    assert([planned[1].appName isEqualToString:@"AppB"] && planned[1].zRank == 6);
+    assert([planned[2].appName isEqualToString:@"AppA"] && planned[2].zRank == 2);
+    assert([planned[3].appName isEqualToString:@"AppA"] && planned[3].zRank == 5);
+    assert([planned[4].appName isEqualToString:@"AppC"] && planned[4].zRank == 3);
+    printf("  [PASS] Application grouping in MRU mode verified.\n");
+}
+
+static void testAppGroupingSpatial(void) {
+    printf("Running testAppGroupingSpatial...\n");
+    CascadeWindow *x1 = makeMockWindow(@"AppX", 100, 0, 800, 600, 1);
+    CascadeWindow *y1 = makeMockWindow(@"AppY", 200, 0, 800, 600, 2);
+    CascadeWindow *x2 = makeMockWindow(@"AppX", 400, 0, 800, 600, 3);
+    CascadeWindow *z1 = makeMockWindow(@"AppZ", 300, 0, 800, 600, 4);
+    CascadeWindow *y2 = makeMockWindow(@"AppY", 500, 0, 800, 600, 5);
+
+    NSArray<CascadeWindow *> *planned = [CascadeEngine calculateLayoutForWindows:@[x1, y1, x2, z1, y2]
+                                                                      orderMode:CascadeOrderModeSpatial
+                                                                          delta:40.0];
+    assert(planned.count == 5);
+    assertContiguousAppGrouping(planned);
+
+    // AppX leftmost (x=100) -> [x1, x2], AppY (x=200) -> [y1, y2], AppZ (x=300) -> [z1]
+    assert([planned[0].appName isEqualToString:@"AppX"] && planned[0].currentFrame.origin.x == 100);
+    assert([planned[1].appName isEqualToString:@"AppX"] && planned[1].currentFrame.origin.x == 400);
+    assert([planned[2].appName isEqualToString:@"AppY"] && planned[2].currentFrame.origin.x == 200);
+    assert([planned[3].appName isEqualToString:@"AppY"] && planned[3].currentFrame.origin.x == 500);
+    assert([planned[4].appName isEqualToString:@"AppZ"] && planned[4].currentFrame.origin.x == 300);
+    printf("  [PASS] Application grouping in Spatial mode verified.\n");
+}
+
+static void testAppGroupingCustomWithUnlistedApps(void) {
+    printf("Running testAppGroupingCustomWithUnlistedApps...\n");
+    CascadeWindow *b1 = makeMockWindow(@"Browser", 0, 0, 800, 600, 1);
+    CascadeWindow *e1 = makeMockWindow(@"Editor", 0, 0, 800, 600, 2);
+    CascadeWindow *t1 = makeMockWindow(@"Terminal", 0, 0, 800, 600, 3);
+    CascadeWindow *b2 = makeMockWindow(@"Browser", 0, 0, 800, 600, 4);
+    CascadeWindow *e2 = makeMockWindow(@"Editor", 0, 0, 800, 600, 5);
+    CascadeWindow *t2 = makeMockWindow(@"Terminal", 0, 0, 800, 600, 6);
+
+    NSArray *preferred = @[@"Editor"];
+    NSArray<CascadeWindow *> *planned = [CascadeEngine calculateLayoutForWindows:@[b1, e1, t1, b2, e2, t2]
+                                                                      orderMode:CascadeOrderModeCustom
+                                                                 preferredOrder:preferred
+                                                                          delta:40.0];
+    assert(planned.count == 6);
+    assertContiguousAppGrouping(planned);
+
+    // Editor is preferred (rank 0) -> [e1, e2]
+    // Browser is unlisted (best z=1) -> [b1, b2]
+    // Terminal is unlisted (best z=3) -> [t1, t2]
+    assert([planned[0].appName isEqualToString:@"Editor"] && planned[0].zRank == 2);
+    assert([planned[1].appName isEqualToString:@"Editor"] && planned[1].zRank == 5);
+    assert([planned[2].appName isEqualToString:@"Browser"] && planned[2].zRank == 1);
+    assert([planned[3].appName isEqualToString:@"Browser"] && planned[3].zRank == 4);
+    assert([planned[4].appName isEqualToString:@"Terminal"] && planned[4].zRank == 3);
+    assert([planned[5].appName isEqualToString:@"Terminal"] && planned[5].zRank == 6);
+    printf("  [PASS] Application grouping in Custom mode with unlisted apps verified.\n");
+}
+
+static void testAppGroupingOrderPreservationOnNewWindow(void) {
+    printf("Running testAppGroupingOrderPreservationOnNewWindow...\n");
+    CascadeWindow *s1 = makeMockWindow(@"Safari", 0, 0, 800, 600, 1);
+    CascadeWindow *s2 = makeMockWindow(@"Safari", 0, 0, 800, 600, 2);
+    CascadeWindow *t1 = makeMockWindow(@"Terminal", 0, 0, 800, 600, 3);
+
+    NSArray<CascadeWindow *> *baseline = @[s1, s2, t1];
+
+    // New window s3 opens for Safari (zRank 1)
+    CascadeWindow *s3_new = makeMockWindow(@"Safari", 0, 0, 800, 600, 1);
+    CascadeWindow *s1_curr = makeMockWindow(@"Safari", 0, 0, 800, 600, 2);
+    CascadeWindow *s2_curr = makeMockWindow(@"Safari", 0, 0, 800, 600, 3);
+    CascadeWindow *t1_curr = makeMockWindow(@"Terminal", 0, 0, 800, 600, 4);
+
+    NSArray<CascadeWindow *> *preserved = [CascadeEngine calculateLayoutForWindows:@[s3_new, s1_curr, s2_curr, t1_curr]
+                                                              preservingOrderFrom:baseline
+                                                                            delta:40.0];
+    assert(preserved.count == 4);
+    assertContiguousAppGrouping(preserved);
+
+    // S3 must be grouped adjacent to s1 and s2, before t1!
+    assert([preserved[0].appName isEqualToString:@"Safari"]);
+    assert([preserved[1].appName isEqualToString:@"Safari"]);
+    assert([preserved[2].appName isEqualToString:@"Safari"]);
+    assert([preserved[3].appName isEqualToString:@"Terminal"]);
+    printf("  [PASS] Application grouping in order preservation on new window verified.\n");
+}
+
 int main(int argc, const char * argv[]) {
     (void)argc; (void)argv;
     @autoreleasepool {
@@ -408,6 +524,8 @@ int main(int argc, const char * argv[]) {
         testOrderPreservationOnResize(); testPreferredAppOrderSorting();
         testPreferencesPersistence(); testAccessibilityDiagnostics();
         testActualWindowSizeAndSystemBarClamping(); testWindowStateLayoutAndClamping();
+        testAppGroupingMRU(); testAppGroupingSpatial();
+        testAppGroupingCustomWithUnlistedApps(); testAppGroupingOrderPreservationOnNewWindow();
 
         [CascadeEngine saveLayoutStyle:origStyle];
         printf("\n=== All Tests Passed Successfully! ===\n");

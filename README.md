@@ -22,7 +22,7 @@ Native macOS window manager that maximizes application window size while guarant
 - **Recursive Edge Docking:** Dock the active window to half the screen (`left`, `right`, `top`, `bottom`) while recursively cascading and nesting remaining windows in residual space.
 - **Resolution-Independent Focus Zoom:** Instant toggle (`⌥⌘Space` or `--zoom`) between macro fractal overview and 100% native monitor resolution for deep work with zero latency.
 - **Ultrawide & Multi-Monitor Splits:** Partition displays or split ultrawide monitors into 1, 2, 3, or 4 virtual columns with independent cascades and automatic window rebalancing.
-- **Flexible Window Ordering:** Most Recently Used (MRU), Spatial (left-to-right), Alphabetical, or custom Preferred Application Order.
+- **Flexible Window Ordering:** Most Recently Used (MRU), Spatial (left-to-right), Alphabetical, or custom Preferred Application Order, with guaranteed contiguous application grouping across all modes.
 - **Application Ignore List:** Exclude background utilities, menu bar apps, or specific tools from layouts.
 - **Menu Bar App & CLI:** Native macOS status bar item with global hotkeys (`⌥⌘C`, `⌥⌘Space`), native Settings panel, and scriptable CLI (`cascade`).
 - **Persistent Code-Signing:** Zero permission invalidation across rebuilds via persistent local keychain certificates.

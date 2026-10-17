@@ -1,0 +1,51 @@
+@startuml
+skinparam backgroundColor white
+skinparam BoxPadding 10
+skinparam defaultFontName -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif
+
+participant "Client / CLI / UI" as Caller
+participant "CascadeEngine" as Engine
+participant "AppGrouper" as Grouper
+participant "WindowLayoutGeometry" as Geometry
+
+Caller -> Engine : calculateLayoutForWindows:orderMode:preferredOrder:...
+activate Engine
+
+Engine -> Grouper : partitionIntoAppGroups(windows)
+activate Grouper
+note right of Grouper
+  1. Group windows by appName (case-insensitive)
+  2. Order windows within each group:
+     - MRU/Custom/Fractal: zRank ascending
+     - Spatial: origin.x ascending
+     - Alpha: title ascending
+end note
+Grouper --> Engine : map of [appName -> [CascadeWindow]]
+deactivate Grouper
+
+Engine -> Engine : calculateAppGroupKeys(mode, groups)
+note right of Engine
+  Representative Key K_app per group:
+  - MRU: min(zRank) across windows
+  - Spatial: min(origin.x) across windows
+  - Alphabetical: appName
+  - Custom: rankForApp (tie-break min(zRank))
+  - Fractal: rankForApp or initial appearance
+end note
+
+Engine -> Engine : sortGroupsAndFlatten(groups, keys)
+note right of Engine
+  Concatenate sorted groups:
+  Contiguity Invariant guaranteed!
+  Windows of same app are strictly adjacent.
+end note
+
+Engine -> Geometry : assignFramesToOrderedWindows:onUsableFrame:...
+activate Geometry
+Geometry --> Engine : planned frames assigned
+deactivate Geometry
+
+Engine --> Caller : ordered windows with target frames
+deactivate Engine
+
+@enduml

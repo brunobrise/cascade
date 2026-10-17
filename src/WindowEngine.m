@@ -21,6 +21,30 @@
 }
 @end
 
+@interface CascadeAppGroup : NSObject
+@property (nonatomic, copy) NSString *appName;
+@property (nonatomic, strong) NSMutableArray<CascadeWindow *> *windows;
+@property (nonatomic, assign) NSInteger minZRank;
+@property (nonatomic, assign) CGFloat minOriginX;
+@property (nonatomic, assign) NSInteger preferredRank;
+@property (nonatomic, assign) NSUInteger firstAppearanceIndex;
+@end
+
+@implementation CascadeAppGroup
+- (instancetype)initWithAppName:(NSString *)name firstIndex:(NSUInteger)idx {
+    self = [super init];
+    if (self) {
+        _appName = name ?: @"";
+        _windows = [NSMutableArray array];
+        _minZRank = NSIntegerMax;
+        _minOriginX = CGFLOAT_MAX;
+        _preferredRank = 999999;
+        _firstAppearanceIndex = idx;
+    }
+    return self;
+}
+@end
+
 @implementation CascadeEngine
 
 + (CGRect)usableScreenFrameWithTopInset:(CGFloat *)outTopInset {
@@ -252,6 +276,99 @@ static NSInteger rankForApp(NSString *appName, NSArray<NSString *> *preferred) {
     return 999999;
 }
 
+static NSArray<CascadeWindow *> *groupAndSortWindows(NSArray<CascadeWindow *> *windows,
+                                                     CascadeOrderMode orderMode,
+                                                     NSArray<NSString *> *preferredOrder,
+                                                     CascadeLayoutStyle layoutStyle) {
+    if (windows.count <= 1) return windows;
+
+    NSMutableArray<CascadeAppGroup *> *groups = [NSMutableArray array];
+    NSMutableDictionary<NSString *, CascadeAppGroup *> *groupMap = [NSMutableDictionary dictionary];
+
+    for (NSUInteger i = 0; i < windows.count; i++) {
+        CascadeWindow *w = windows[i];
+        NSString *key = [w.appName lowercaseString] ?: @"";
+        CascadeAppGroup *g = groupMap[key];
+        if (!g) {
+            g = [[CascadeAppGroup alloc] initWithAppName:w.appName firstIndex:i];
+            g.preferredRank = rankForApp(w.appName, preferredOrder);
+            groupMap[key] = g;
+            [groups addObject:g];
+        }
+        [g.windows addObject:w];
+        if (w.zRank < g.minZRank) g.minZRank = w.zRank;
+        if (w.currentFrame.origin.x < g.minOriginX) g.minOriginX = w.currentFrame.origin.x;
+    }
+
+    // Sort windows internally within each app group
+    for (CascadeAppGroup *g in groups) {
+        if (orderMode == CascadeOrderModeSpatial && layoutStyle != CascadeLayoutStyleFractal) {
+            [g.windows sortUsingComparator:^NSComparisonResult(CascadeWindow *a, CascadeWindow *b) {
+                if (a.currentFrame.origin.x != b.currentFrame.origin.x) {
+                    return a.currentFrame.origin.x < b.currentFrame.origin.x ? NSOrderedAscending : NSOrderedDescending;
+                }
+                if (a.zRank != b.zRank) return a.zRank < b.zRank ? NSOrderedAscending : NSOrderedDescending;
+                return [a.title ?: @"" localizedCaseInsensitiveCompare:b.title ?: @""];
+            }];
+        } else if (orderMode == CascadeOrderModeAlphabetical && layoutStyle != CascadeLayoutStyleFractal) {
+            [g.windows sortUsingComparator:^NSComparisonResult(CascadeWindow *a, CascadeWindow *b) {
+                NSComparisonResult r = [a.title ?: @"" localizedCaseInsensitiveCompare:b.title ?: @""];
+                if (r != NSOrderedSame) return r;
+                return a.zRank < b.zRank ? NSOrderedAscending : NSOrderedDescending;
+            }];
+        } else {
+            // MRU, Custom, and Fractal: order within app by zRank ascending (frontmost first)
+            [g.windows sortUsingComparator:^NSComparisonResult(CascadeWindow *a, CascadeWindow *b) {
+                if (a.zRank != b.zRank) return a.zRank < b.zRank ? NSOrderedAscending : NSOrderedDescending;
+                return [a.title ?: @"" localizedCaseInsensitiveCompare:b.title ?: @""];
+            }];
+        }
+    }
+
+    // Sort the app groups by representative key
+    if (layoutStyle == CascadeLayoutStyleFractal) {
+        if (preferredOrder.count > 0) {
+            [groups sortUsingComparator:^NSComparisonResult(CascadeAppGroup *a, CascadeAppGroup *b) {
+                if (a.preferredRank != b.preferredRank) return a.preferredRank < b.preferredRank ? NSOrderedAscending : NSOrderedDescending;
+                if (a.firstAppearanceIndex != b.firstAppearanceIndex) return a.firstAppearanceIndex < b.firstAppearanceIndex ? NSOrderedAscending : NSOrderedDescending;
+                return [a.appName localizedCaseInsensitiveCompare:b.appName];
+            }];
+        } else {
+            [groups sortUsingComparator:^NSComparisonResult(CascadeAppGroup *a, CascadeAppGroup *b) {
+                if (a.firstAppearanceIndex != b.firstAppearanceIndex) return a.firstAppearanceIndex < b.firstAppearanceIndex ? NSOrderedAscending : NSOrderedDescending;
+                return [a.appName localizedCaseInsensitiveCompare:b.appName];
+            }];
+        }
+    } else if (orderMode == CascadeOrderModeMRU) {
+        [groups sortUsingComparator:^NSComparisonResult(CascadeAppGroup *a, CascadeAppGroup *b) {
+            if (a.minZRank != b.minZRank) return a.minZRank < b.minZRank ? NSOrderedAscending : NSOrderedDescending;
+            return [a.appName localizedCaseInsensitiveCompare:b.appName];
+        }];
+    } else if (orderMode == CascadeOrderModeSpatial) {
+        [groups sortUsingComparator:^NSComparisonResult(CascadeAppGroup *a, CascadeAppGroup *b) {
+            if (a.minOriginX != b.minOriginX) return a.minOriginX < b.minOriginX ? NSOrderedAscending : NSOrderedDescending;
+            if (a.minZRank != b.minZRank) return a.minZRank < b.minZRank ? NSOrderedAscending : NSOrderedDescending;
+            return [a.appName localizedCaseInsensitiveCompare:b.appName];
+        }];
+    } else if (orderMode == CascadeOrderModeAlphabetical) {
+        [groups sortUsingComparator:^NSComparisonResult(CascadeAppGroup *a, CascadeAppGroup *b) {
+            return [a.appName localizedCaseInsensitiveCompare:b.appName];
+        }];
+    } else if (orderMode == CascadeOrderModeCustom) {
+        [groups sortUsingComparator:^NSComparisonResult(CascadeAppGroup *a, CascadeAppGroup *b) {
+            if (a.preferredRank != b.preferredRank) return a.preferredRank < b.preferredRank ? NSOrderedAscending : NSOrderedDescending;
+            if (a.minZRank != b.minZRank) return a.minZRank < b.minZRank ? NSOrderedAscending : NSOrderedDescending;
+            return [a.appName localizedCaseInsensitiveCompare:b.appName];
+        }];
+    }
+
+    NSMutableArray<CascadeWindow *> *sorted = [NSMutableArray arrayWithCapacity:windows.count];
+    for (CascadeAppGroup *g in groups) {
+        [sorted addObjectsFromArray:g.windows];
+    }
+    return sorted;
+}
+
 + (NSArray<CascadeWindow *> *)calculateLayoutForWindows:(NSArray<CascadeWindow *> *)windows orderMode:(CascadeOrderMode)orderMode delta:(CGFloat)delta {
     return [self calculateLayoutForWindows:windows orderMode:orderMode preferredOrder:[self preferredAppOrder] delta:delta];
 }
@@ -263,27 +380,9 @@ static NSInteger rankForApp(NSString *appName, NSArray<NSString *> *preferred) {
                                             layoutStyle:(CascadeLayoutStyle)layoutStyle
                                           onUsableFrame:(CGRect)usableFrame {
     if (windows.count == 0) return @[];
-    NSMutableArray<CascadeWindow *> *sorted = [windows mutableCopy];
+    NSArray<CascadeWindow *> *sorted = groupAndSortWindows(windows, orderMode, preferredOrder, layoutStyle);
 
     if (layoutStyle == CascadeLayoutStyleFractal) {
-        if (preferredOrder.count > 0) {
-            NSMutableArray *indexed = [NSMutableArray arrayWithCapacity:windows.count];
-            for (NSUInteger i = 0; i < windows.count; i++) {
-                [indexed addObject:@{@"win": windows[i], @"idx": @(i)}];
-            }
-            [indexed sortUsingComparator:^NSComparisonResult(NSDictionary *dA, NSDictionary *dB) {
-                CascadeWindow *a = dA[@"win"];
-                CascadeWindow *b = dB[@"win"];
-                NSInteger rA = rankForApp(a.appName, preferredOrder);
-                NSInteger rB = rankForApp(b.appName, preferredOrder);
-                if (rA != rB) return rA < rB ? NSOrderedAscending : NSOrderedDescending;
-                return [dA[@"idx"] compare:dB[@"idx"]];
-            }];
-            [sorted removeAllObjects];
-            for (NSDictionary *d in indexed) {
-                [sorted addObject:d[@"win"]];
-            }
-        }
         NSArray *participating = sorted.count > 4 ? [sorted subarrayWithRange:NSMakeRange(0, 4)] : sorted;
         [WindowLayoutGeometry assignFramesToOrderedWindows:participating onUsableFrame:usableFrame delta:delta layoutStyle:layoutStyle];
         for (NSUInteger i = 4; i < sorted.count; i++) {
@@ -292,30 +391,6 @@ static NSInteger rankForApp(NSString *appName, NSArray<NSString *> *preferred) {
         return sorted;
     }
 
-    if (orderMode == CascadeOrderModeMRU) {
-        [sorted sortUsingComparator:^NSComparisonResult(CascadeWindow *a, CascadeWindow *b) {
-            return (a.zRank != b.zRank) ? (a.zRank < b.zRank ? NSOrderedAscending : NSOrderedDescending) :
-                   [a.title ?: @"" localizedCaseInsensitiveCompare:b.title ?: @""];
-        }];
-    } else if (orderMode == CascadeOrderModeSpatial) {
-        [sorted sortUsingComparator:^NSComparisonResult(CascadeWindow *a, CascadeWindow *b) {
-            return (a.currentFrame.origin.x != b.currentFrame.origin.x) ?
-                   (a.currentFrame.origin.x < b.currentFrame.origin.x ? NSOrderedAscending : NSOrderedDescending) :
-                   [a.title ?: @"" localizedCaseInsensitiveCompare:b.title ?: @""];
-        }];
-    } else if (orderMode == CascadeOrderModeAlphabetical) {
-        [sorted sortUsingComparator:^NSComparisonResult(CascadeWindow *a, CascadeWindow *b) {
-            NSComparisonResult r = [a.appName ?: @"" localizedCaseInsensitiveCompare:b.appName ?: @""];
-            return (r != NSOrderedSame) ? r : [a.title ?: @"" localizedCaseInsensitiveCompare:b.title ?: @""];
-        }];
-    } else if (orderMode == CascadeOrderModeCustom) {
-        [sorted sortUsingComparator:^NSComparisonResult(CascadeWindow *a, CascadeWindow *b) {
-            NSInteger rA = rankForApp(a.appName, preferredOrder), rB = rankForApp(b.appName, preferredOrder);
-            if (rA != rB) return rA < rB ? NSOrderedAscending : NSOrderedDescending;
-            return (a.zRank != b.zRank) ? (a.zRank < b.zRank ? NSOrderedAscending : NSOrderedDescending) :
-                   [a.title ?: @"" localizedCaseInsensitiveCompare:b.title ?: @""];
-        }];
-    }
     [WindowLayoutGeometry assignFramesToOrderedWindows:sorted onUsableFrame:usableFrame delta:delta layoutStyle:layoutStyle];
     return sorted;
 }
@@ -324,7 +399,7 @@ static NSInteger rankForApp(NSString *appName, NSArray<NSString *> *preferred) {
                                               orderMode:(CascadeOrderMode)orderMode
                                          preferredOrder:(NSArray<NSString *> *)preferredOrder
                                                   delta:(CGFloat)delta
-                                          onUsableFrame:(CGRect)usableFrame {
+                                           onUsableFrame:(CGRect)usableFrame {
     return [self calculateLayoutForWindows:windows orderMode:orderMode preferredOrder:preferredOrder delta:delta layoutStyle:[self savedLayoutStyle] onUsableFrame:usableFrame];
 }
 
@@ -357,7 +432,39 @@ static NSInteger rankForApp(NSString *appName, NSArray<NSString *> *preferred) {
         }
         if (matched) { [ordered addObject:matched]; [remaining removeObject:matched]; }
     }
-    if (remaining.count > 0) [ordered addObjectsFromArray:remaining];
+    if (remaining.count > 0) {
+        for (CascadeWindow *newWin in remaining) {
+            NSString *appKey = [newWin.appName lowercaseString] ?: @"";
+            NSInteger insertIdx = -1;
+            for (NSInteger i = (NSInteger)ordered.count - 1; i >= 0; i--) {
+                if ([[ordered[i].appName lowercaseString] isEqualToString:appKey]) {
+                    insertIdx = i + 1;
+                    break;
+                }
+            }
+            if (insertIdx >= 0) {
+                [ordered insertObject:newWin atIndex:(NSUInteger)insertIdx];
+            } else {
+                [ordered addObject:newWin];
+            }
+        }
+    }
+
+    // Ensure strict contiguous app grouping across preserved windows
+    NSMutableArray<CascadeWindow *> *stabilized = [NSMutableArray arrayWithCapacity:ordered.count];
+    NSMutableSet *handledApps = [NSMutableSet set];
+    for (NSUInteger i = 0; i < ordered.count; i++) {
+        NSString *appKey = [ordered[i].appName lowercaseString] ?: @"";
+        if ([handledApps containsObject:appKey]) continue;
+        [handledApps addObject:appKey];
+        for (NSUInteger j = i; j < ordered.count; j++) {
+            if ([[ordered[j].appName lowercaseString] isEqualToString:appKey]) {
+                [stabilized addObject:ordered[j]];
+            }
+        }
+    }
+    ordered = stabilized;
+
     if (layoutStyle == CascadeLayoutStyleFractal) {
         NSArray *participating = ordered.count > 4 ? [ordered subarrayWithRange:NSMakeRange(0, 4)] : ordered;
         [WindowLayoutGeometry assignFramesToOrderedWindows:participating onUsableFrame:usableFrame delta:delta layoutStyle:layoutStyle];
