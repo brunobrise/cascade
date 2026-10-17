@@ -28,7 +28,7 @@ mkdir -p "$STAGING_DIR/app/arm64" "$STAGING_DIR/app/x86_64" "$STAGING_DIR/app/un
 
 FRAMEWORKS="-framework Cocoa -framework ApplicationServices -framework Carbon -framework ServiceManagement"
 CORE_SOURCES="$ROOT_DIR/src/WindowLayoutGeometry.m $ROOT_DIR/src/WindowEngine.m $ROOT_DIR/src/ScreenManager.m $ROOT_DIR/src/LoginItemManager.m $ROOT_DIR/src/WindowWatcher.m $ROOT_DIR/src/UpdateChecker.m"
-BAR_SOURCES="$CORE_SOURCES $ROOT_DIR/src/AppOrderWindowController.m $ROOT_DIR/src/IgnoreListWindowController.m $ROOT_DIR/src/SettingsWindowController.m $ROOT_DIR/src/main_bar.m"
+BAR_SOURCES="$CORE_SOURCES $ROOT_DIR/src/AppOrderWindowController.m $ROOT_DIR/src/IgnoreListWindowController.m $ROOT_DIR/src/SettingsWindowController.m $ROOT_DIR/src/SelectionOverlayController.m $ROOT_DIR/src/main_bar.m"
 CLI_SOURCES="$CORE_SOURCES $ROOT_DIR/src/main_cli.m"
 
 echo "==> 1. Compiling CLI binaries (arm64, x86_64, Universal)..."
